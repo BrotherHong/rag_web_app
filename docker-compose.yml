@@ -1,0 +1,201 @@
+# ==============================================================================
+# Docker Compose 配置檔
+# RAG Knowledge Base 完整部署
+# ==============================================================================
+
+services:
+  # ============================================================================
+  # PostgreSQL 資料庫
+  # ============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: rag_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: ${POSTGRES_DB:-rag_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # 開發環境可開放端口，生產環境建議註解掉
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_network
+
+  # ============================================================================
+  # Backend - FastAPI 應用
+  # ============================================================================
+  backend:
+    build:
+      context: ./rag_web_backend
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: rag_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 應用設定
+      APP_NAME: ${APP_NAME:-RAG Knowledge Base}
+      DEBUG: ${DEBUG:-False}
+      API_V1_PREFIX: ${API_V1_PREFIX:-/api}
+      
+      # 安全設定
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
+      
+      # 資料庫連線
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: ${POSTGRES_DB:-rag_db}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-40}
+      
+      # 初始化控制
+      INIT_DB: ${INIT_DB:-true}
+      INIT_SYSTEM_SETTINGS: ${INIT_SYSTEM_SETTINGS:-true}
+      
+      # 預設管理員
+      SUPER_ADMIN_USERNAME: ${SUPER_ADMIN_USERNAME:-superadmin}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-admin123}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-superadmin@ncku.edu.tw}
+      DEPT_ADMIN_PASSWORD: ${DEPT_ADMIN_PASSWORD:-admin123}
+      
+      # 檔案上傳
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-52428800}
+      ALLOWED_EXTENSIONS: ${ALLOWED_EXTENSIONS:-.txt,.pdf,.doc,.docx,.xls,.xlsx}
+      UPLOAD_DIR: /app/uploads
+      
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      
+      # Ollama 設定
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_SUMMARY_MODEL: ${OLLAMA_SUMMARY_MODEL:-qwen2.5:14b}
+      OLLAMA_RAG_MODEL: ${OLLAMA_RAG_MODEL:-qwen2.5:32b}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
+    
+    volumes:
+      # 上傳檔案持久化（Bind Mount）
+      - ./rag_web_backend/uploads:/app/uploads
+      # 日誌檔案持久化（Bind Mount）
+      - ./rag_web_backend/logs:/app/logs
+      
+      # 開發模式：掛載程式碼（修改後不需重新 build）
+      - ./rag_web_backend/app:/app/app
+      - ./rag_web_backend/alembic:/app/alembic
+      - ./rag_web_backend/scripts:/app/scripts
+      - ./rag_web_backend/alembic.ini:/app/alembic.ini
+    
+    networks:
+      - rag_network
+    
+    # 健康檢查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ============================================================================
+  # Admin Frontend - 管理介面
+  # ============================================================================
+  admin:
+    build:
+      context: ./rag_web_admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_BASE_PATH: ${VITE_ADMIN_BASE_PATH:-/admin}
+    container_name: rag_admin
+    restart: unless-stopped
+    
+    volumes:
+      - admin_dist:/usr/share/nginx/html/admin
+    
+    networks:
+      - rag_network
+
+  # ============================================================================
+  # Query Frontend - 查詢介面
+  # ============================================================================
+  query:
+    build:
+      context: ./rag_web_query
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_BASE_PATH: ${VITE_QUERY_BASE_PATH:-/query}
+    container_name: rag_query
+    restart: unless-stopped
+    
+    volumes:
+      - query_dist:/usr/share/nginx/html/query
+    
+    networks:
+      - rag_network
+
+  # ============================================================================
+  # Nginx - 反向代理與靜態檔案服務
+  # ============================================================================
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: rag_nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - admin
+      - query
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    
+    # 掛載前端構建檔案和配置檔案
+    volumes:
+      # 前端構建好的檔案（使用 named volumes）
+      - admin_dist:/usr/share/nginx/html/admin:ro
+      - query_dist:/usr/share/nginx/html/query:ro
+      # 本地配置檔案（開發模式：修改後只需 restart）
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    
+    networks:
+      - rag_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+# ==============================================================================
+# Volumes（數據持久化）
+# ==============================================================================
+volumes:
+  # PostgreSQL 資料（Named Volume）
+  postgres_data:
+    driver: local
+  
+  # 前端構建檔案（Named Volumes）
+  admin_dist:
+    driver: local
+  query_dist:
+    driver: local
+
+# ==============================================================================
+# Networks（容器網路）
+# ==============================================================================
+networks:
+  rag_network:
+    driver: bridge
