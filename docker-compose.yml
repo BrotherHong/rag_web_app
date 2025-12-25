@@ -109,65 +109,23 @@ services:
       start_period: 60s
 
   # ============================================================================
-  # Admin Frontend - 管理介面
-  # ============================================================================
-  admin:
-    build:
-      context: ./rag_web_admin
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-        VITE_BASE_PATH: ${VITE_ADMIN_BASE_PATH:-/admin}
-    container_name: rag_admin
-    restart: unless-stopped
-    
-    volumes:
-      - admin_dist:/usr/share/nginx/html/admin
-    
-    networks:
-      - rag_network
-
-  # ============================================================================
-  # Query Frontend - 查詢介面
-  # ============================================================================
-  query:
-    build:
-      context: ./rag_web_query
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-        VITE_BASE_PATH: ${VITE_QUERY_BASE_PATH:-/query}
-    container_name: rag_query
-    restart: unless-stopped
-    
-    volumes:
-      - query_dist:/usr/share/nginx/html/query
-    
-    networks:
-      - rag_network
-
-  # ============================================================================
-  # Nginx - 反向代理與靜態檔案服務
+  # Nginx - 反向代理與靜態檔案服務（包含前端建置）
   # ============================================================================
   nginx:
     build:
-      context: ./nginx
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: nginx/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_ADMIN_BASE_PATH: ${VITE_ADMIN_BASE_PATH:-/admin}
+        VITE_QUERY_BASE_PATH: ${VITE_QUERY_BASE_PATH:-/query}
     container_name: rag_nginx
     restart: unless-stopped
-    depends_on:
-      - backend
-      - admin
-      - query
     ports:
       - "${NGINX_PORT:-80}:80"
     
-    # 掛載前端構建檔案和配置檔案
+    # 掛載本地配置檔案（開發模式：修改後只需 restart）
     volumes:
-      # 前端構建好的檔案（使用 named volumes）
-      - admin_dist:/usr/share/nginx/html/admin:ro
-      - query_dist:/usr/share/nginx/html/query:ro
-      # 本地配置檔案（開發模式：修改後只需 restart）
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     
     networks:
@@ -185,12 +143,6 @@ services:
 volumes:
   # PostgreSQL 資料（Named Volume）
   postgres_data:
-    driver: local
-  
-  # 前端構建檔案（Named Volumes）
-  admin_dist:
-    driver: local
-  query_dist:
     driver: local
 
 # ==============================================================================
