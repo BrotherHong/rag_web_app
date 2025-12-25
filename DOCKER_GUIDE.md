@@ -49,8 +49,9 @@ docker restart rag_backend
 # 後端：修改依賴或 Dockerfile 需重新建置
 docker compose up -d --build backend
 
-# 前端：重新建置
-docker compose up -d --build admin query
+# 前端：需要刪除 volume 並重新建置（推薦使用腳本）
+docker volume rm rag_web_app_query_dist rag_web_app_admin_dist
+docker compose up -d --build query admin
 
 ```bash
 docker compose up -d --build

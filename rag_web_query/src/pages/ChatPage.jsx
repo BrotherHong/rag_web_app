@@ -21,9 +21,10 @@ function ChatPage() {
   // 處理檔案下載
   const handleDownload = async (downloadLink, fileName) => {
     try {
-      // 使用統一配置的 API URL
-      const API_BASE_URL = API_CONFIG.BASE_URL.replace(/\/api$/, ''); // 移除 /api 後綴
-      const response = await fetch(`${API_BASE_URL}${downloadLink}`)
+      // downloadLink 格式: /public/files/{id}/download
+      // 需要加上 /api 前綴
+      const fullUrl = `${API_CONFIG.BASE_URL}${downloadLink}`
+      const response = await fetch(fullUrl)
       
       if (!response.ok) {
         throw new Error('下載失敗')
