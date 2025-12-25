@@ -6,15 +6,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.core.database import init_db, close_db
+from app.core.logging_config import setup_logging
 from app.api import api_router  # 導入 API 路由
-
-# 獲取應用日誌記錄器
-logger = logging.getLogger("app")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """應用程式生命週期管理"""
+    # 初始化日誌系統（清空舊日誌、配置格式）
+    logger = setup_logging()
+    
     # 啟動時初始化資料庫連線
     await init_db()
     logger.info("✅ 資料庫連線已初始化")
@@ -22,6 +23,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # 關閉時清理資料庫連線
+    logger = logging.getLogger("app")
     await close_db()
     logger.info("✅ 資料庫連線已關閉")
 

@@ -43,25 +43,14 @@ fi
 # 啟動應用服務
 echo "=================================="
 echo "🚀 啟動 FastAPI 應用服務..."
+echo "   Workers: ${UVICORN_WORKERS:-4}（並發處理）"
+echo "   時區: Asia/Taipei (${TZ})"
 echo "=================================="
 echo ""
 
 # 使用 exec 替換當前 shell，確保信號正確傳遞
-# 使用 Python 模組導入日誌配置
-exec python -c "
-import sys
-sys.path.insert(0, '/app')
-from app.core.logging_config import LOGGING_CONFIG, setup_logging
-import uvicorn
-
-# 初始化日誌
-setup_logging()
-
-# 啟動服務
-uvicorn.run(
-    'app.main:app',
-    host='0.0.0.0',
-    port=8000,
-    log_config=LOGGING_CONFIG
-)
-"
+# 使用命令行方式啟動 uvicorn（支持多 workers）
+exec uvicorn app.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers ${UVICORN_WORKERS:-4}

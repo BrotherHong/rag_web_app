@@ -43,10 +43,16 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      # 時區設定
+      TZ: Asia/Taipei
+      
       # 應用設定
       APP_NAME: ${APP_NAME:-RAG Knowledge Base}
       DEBUG: ${DEBUG:-False}
       API_V1_PREFIX: ${API_V1_PREFIX:-/api}
+      
+      # Uvicorn 服務器設定
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
       
       # 安全設定
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
@@ -99,6 +105,14 @@ services:
     
     networks:
       - rag_network
+    
+    # 日誌配置（Docker 自動收集 console 輸出到文件）
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"      # 單個日誌文件最大 50MB
+        max-file: "3"       # 保留最近 3 個日誌文件（總共 150MB）
+        compress: "true"     # 壓縮舊日誌文件
     
     # 健康檢查
     healthcheck:
