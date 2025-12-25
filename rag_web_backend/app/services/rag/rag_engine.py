@@ -25,6 +25,7 @@ class RAGEngine:
                  base_url: str = None,
                  model: str = None,
                  similarity_threshold=0.1,
+                 rerank_threshold=0.01,
                  max_context_docs=3,
                  debug_mode=False):
         """
@@ -35,6 +36,7 @@ class RAGEngine:
             base_url: Ollama伺服器地址
             model: 用於生成回答的模型
             similarity_threshold: 相似度閾值
+            rerank_threshold: Rerank 分數閾值
             max_context_docs: 用於上下文的最大文檔數
             debug_mode: 是否輸出 debug log
         """
@@ -45,6 +47,7 @@ class RAGEngine:
         self.client = OllamaClient(base_url=base_url, model=model)
         self.vector_store = VectorStore(base_path=base_path)
         self.similarity_threshold = similarity_threshold
+        self.rerank_threshold = rerank_threshold
         self.max_context_docs = max_context_docs
         self.reranker = Reranker()
         self.debug_mode = debug_mode
@@ -114,7 +117,17 @@ class RAGEngine:
             'similarity': doc['similarity'],
             'summary': self.vector_store.get_document_summary(doc['document']['filename']) or ''
         } for doc in similar_docs]
-        reranked_docs = self.reranker.rerank(question, candidates)
+        reranked_docs = self.reranker.rerank(question, candidates, threshold=self.rerank_threshold)
+        
+        # 檢查 rerank 後是否還有文檔
+        if not reranked_docs:
+            logger.warning("Rerank 後沒有符合閾值的文檔，返回無結果")
+            return {
+                'question': question,
+                'answer': RAG_NO_RESULTS_PROMPT,
+                'sources': [],
+                'retrieved_docs': len(similar_docs)
+            }
         
         # 顯示 Rerank 後的 Top 3
         logger.info(f"\n=== Rerank 結果 (Top {min(3, len(reranked_docs))}) ===")
