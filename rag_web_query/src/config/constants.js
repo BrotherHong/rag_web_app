@@ -25,7 +25,7 @@ export const APP_CONSTANTS = {
     NAME: '國立成功大學',
     NAME_EN: 'National Cheng Kung University',
     // 使用相對於 BASE_URL 的路徑，自動適配部署環境
-    LOGO_PATH: `${import.meta.env.BASE_URL}/images/ncku_logo.png`,
+    LOGO_PATH: `${import.meta.env.BASE_URL}images/ncku_logo.png`,
   },
   
   // 聯絡資訊
