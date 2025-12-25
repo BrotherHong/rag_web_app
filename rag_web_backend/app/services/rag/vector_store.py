@@ -5,8 +5,11 @@
 
 import os
 import json
+import logging
 from typing import List, Dict, Optional, Tuple
 from app.services.document_processing import EmbeddingProcessor
+
+logger = logging.getLogger(__name__)
 
 
 class VectorStore:
@@ -41,13 +44,13 @@ class VectorStore:
         if self._embeddings_cache is not None and self._documents_cache is not None:
             return self._embeddings_cache, self._documents_cache
         
-        print(f"正在從 {self.embeddings_path} 加載embeddings...")
+        logger.info(f"正在從 {self.embeddings_path} 加載embeddings...")
         
         embeddings = []
         documents = []
         
         if not os.path.exists(self.embeddings_path):
-            print(f"Embeddings目錄不存在: {self.embeddings_path}")
+            logger.warning(f"Embeddings目錄不存在: {self.embeddings_path}")
             return embeddings, documents
         
         # 遍歷 embeddings 目錄中的所有文件
@@ -72,13 +75,13 @@ class VectorStore:
                                 'download_link': embedding_data.get('download_link', '')
                             })
                     except Exception as e:
-                        print(f"加載embedding文件失敗 {file}: {str(e)}")
+                        logger.error(f"加載embedding文件失敗 {file}: {str(e)}")
         
         # 緩存結果
         self._embeddings_cache = embeddings
         self._documents_cache = documents
         
-        print(f"成功加載 {len(embeddings)} 個embeddings")
+        logger.info(f"成功加載 {len(embeddings)} 個embeddings")
         return embeddings, documents
     
     def search_similar(self, query_text: str, top_k: int = 5, similarity_threshold: float = 0.1, allowed_filenames: set = None) -> List[Dict]:
@@ -95,20 +98,20 @@ class VectorStore:
             相似文檔列表，每個包含文檔信息和相似度分數
         """
         # 生成查詢的embedding
-        print(f"正在為查詢生成embedding: '{query_text}'")
+        logger.info(f"正在為查詢生成embedding: '{query_text}'")
         if allowed_filenames:
-            print(f"  檔案過濾: 只檢索 {len(allowed_filenames)} 個允許的檔案")
+            logger.info(f"  檔案過濾: 只檢索 {len(allowed_filenames)} 個允許的檔案")
         query_embedding = self.embedding_processor.generate_embedding(query_text)
         
         if not query_embedding:
-            print("查詢embedding生成失敗")
+            logger.error("查詢embedding生成失敗")
             return []
         
         # 載入所有 embeddings
         embeddings, documents = self.load_embeddings()
         
         if not embeddings:
-            print("沒有可搜索的embeddings")
+            logger.warning("沒有可搜索的embeddings")
             return []
         
         # 計算相似度
@@ -132,9 +135,9 @@ class VectorStore:
         similarities.sort(key=lambda x: x['similarity'], reverse=True)
         results = similarities[:top_k]
         
-        print(f"找到 {len(results)} 個相似文檔 (閾值: {similarity_threshold})")
+        logger.info(f"找到 {len(results)} 個相似文檔 (閾值: {similarity_threshold})")
         for i, result in enumerate(results[:10], 1):
-            print(f"  {i}. {result['document']['filename']} (相似度: {result['similarity']:.4f})")
+            logger.info(f"  {i}. {result['document']['filename']} (相似度: {result['similarity']:.4f})")
         
         return results
     
@@ -160,7 +163,7 @@ class VectorStore:
                         if summary_data.get('filename') == filename:
                             return summary_data.get('summary', '')
                     except Exception as e:
-                        print(f"讀取摘要文件失敗 {file}: {str(e)}")
+                        logger.error(f"讀取摘要文件失敗 {file}: {str(e)}")
         
         return None
     
@@ -192,7 +195,7 @@ class VectorStore:
                                 'doc_type': summary_data.get('doc_type', '')
                             }
                     except Exception as e:
-                        print(f"讀取文檔內容失敗 {file}: {str(e)}")
+                        logger.error(f"讀取文檔內容失敗 {file}: {str(e)}")
         
         return None
     
@@ -202,15 +205,15 @@ class VectorStore:
         """
         self._embeddings_cache = None
         self._documents_cache = None
-        print("向量緩存已清除")
+        logger.info("向量緩存已清除")
     
     def preload_all_caches(self):
         """
         預先載入所有緩存
         """
-        print("預先載入緩存...")
+        logger.info("預先載入緩存...")
         self.load_embeddings()
-        print("緩存載入完成")
+        logger.info("緩存載入完成")
     
     def get_stats(self) -> Dict:
         """

@@ -1,5 +1,6 @@
 """FastAPI 應用程式主入口"""
 
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,19 +8,22 @@ from app.config import settings
 from app.core.database import init_db, close_db
 from app.api import api_router  # 導入 API 路由
 
+# 獲取應用日誌記錄器
+logger = logging.getLogger("app")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """應用程式生命週期管理"""
     # 啟動時初始化資料庫連線
     await init_db()
-    print("✅ 資料庫連線已初始化")
+    logger.info("✅ 資料庫連線已初始化")
     
     yield
     
     # 關閉時清理資料庫連線
     await close_db()
-    print("✅ 資料庫連線已關閉")
+    logger.info("✅ 資料庫連線已關閉")
 
 # 建立 FastAPI 應用程式
 app = FastAPI(
@@ -79,9 +83,12 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
+    from app.core.logging_config import LOGGING_CONFIG
+    
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=settings.DEBUG
+        reload=settings.DEBUG,
+        log_config=LOGGING_CONFIG
     )

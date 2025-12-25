@@ -1,5 +1,8 @@
 from sentence_transformers import CrossEncoder
 from typing import List
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Reranker:
@@ -10,10 +13,10 @@ class Reranker:
 
     def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3"):
         # 載入 CrossEncoder 模型
-        print(f"[Reranker] loading model: {model_name}")
+        logger.info(f"[Reranker] loading model: {model_name}")
         self.model = CrossEncoder(model_name)
 
-    def rerank(self, query: str, candidates: List[dict]) -> List[dict]:
+    def rerank(self, query: str, candidates: List[dict], threshold: float = None) -> List[dict]:
         """
         對候選文件進行 rerank，回傳包含原始資訊 + 分數的 list，並依分數排序
 
@@ -23,6 +26,7 @@ class Reranker:
                 - document (dict): 原始文件資訊
                 - similarity (float): 原始相似度分數
                 - summary (str): 文件摘要
+            threshold (float): Rerank 分數閾值，低於此值的文檔會被過濾
 
         Returns:
             (List[dict]): 排序後的清單，每個元素包含:
@@ -40,15 +44,23 @@ class Reranker:
         # 將分數加回 candidates
         results = []
         for c, s in zip(candidates, scores):
+            score = float(s)
+            # 如果設定了 threshold，過濾掉低分文檔
+            if threshold is not None and score < threshold:
+                continue
+            
             item = {
                 "document": c["document"],
                 "similarity": c["similarity"],
                 "summary": c["summary"],
-                "score": float(s)  # 轉成 float 方便序列化
+                "score": score
             }
             results.append(item)
 
         # 依照分數由高到低排序
         results.sort(key=lambda x: x["score"], reverse=True)
+        
+        if threshold is not None:
+            logger.info(f"Rerank 過濾: {len(candidates)} → {len(results)} 個文檔 (閾值: {threshold})")
 
         return results

@@ -4,12 +4,15 @@ RAG引擎 - 整合檢索和生成（Web Backend版本）
 """
 
 import os
+import logging
 from typing import List, Dict, Optional
 from app.services.llm.ollama_client import OllamaClient
 from app.services.llm.prompts.rag import RAG_ANSWER_PROMPT, RAG_NO_RESULTS_PROMPT
 from app.config import settings
 from .vector_store import VectorStore
 from .reranker import Reranker
+
+logger = logging.getLogger(__name__)
 
 
 class RAGEngine:
@@ -83,10 +86,10 @@ class RAGEngine:
         返回:
             查詢結果字典
         """
-        print(f"\n=== RAG查詢 ===")
-        print(f"問題: {question}")
+        logger.info("\n=== RAG查詢 ===")
+        logger.info(f"問題: {question}")
         if allowed_filenames:
-            print(f"分類過濾: 限制在 {len(allowed_filenames)} 個檔案內")
+            logger.info(f"分類過濾: 限制在 {len(allowed_filenames)} 個檔案內")
         
         # 1. 檢索相關文檔
         similar_docs = self.vector_store.search_similar(
@@ -114,10 +117,10 @@ class RAGEngine:
         reranked_docs = self.reranker.rerank(question, candidates)
         
         # 顯示 Rerank 後的 Top 3
-        print(f"\n=== Rerank 結果 (Top {min(3, len(reranked_docs))}) ===")
+        logger.info(f"\n=== Rerank 結果 (Top {min(3, len(reranked_docs))}) ===")
         for i, doc in enumerate(reranked_docs[:3], 1):
             filename = doc['document'].get('original_filename') or doc['document']['filename']
-            print(f"  {i}. {filename} (Similarity: {doc['similarity']:.4f}, Rerank Score: {doc['score']:.4f})")
+            logger.info(f"  {i}. {filename} (Similarity: {doc['similarity']:.4f}, Rerank Score: {doc['score']:.4f})")
         
         # 2. 使用 top N 文檔構建上下文
         top_docs = reranked_docs[:self.max_context_docs]
@@ -130,16 +133,16 @@ class RAGEngine:
         prompt = RAG_ANSWER_PROMPT.format(query=question, context=context)
         
         if self.debug_mode:
-            print(f"\n[DEBUG] 模型輸入 Prompt:")
-            print(prompt)
-            print("-" * 80)
+            logger.info(f"\n[DEBUG] 模型輸入 Prompt:")
+            logger.info(prompt)
+            logger.info("-" * 80)
         
         response = self.client.generate(prompt)
         
         if self.debug_mode:
-            print(f"\n[DEBUG] 模型原始輸出:")
-            print(response)
-            print("=" * 80)
+            logger.info(f"\n[DEBUG] 模型原始輸出:")
+            logger.info(response)
+            logger.info("=" * 80)
         
         # 4. 整理結果（使用去重後的文檔）
         sources = []
@@ -174,14 +177,14 @@ class RAGEngine:
         }
         
         # 顯示結果
-        print(f"\n=== 回答結果 ===")
-        print(f"檢索 {len(similar_docs)} 個文檔，使用 Top {len(top_docs)} 生成回答")
-        print(f"\n來源文檔:")
+        logger.info(f"\n=== 回答結果 ===")
+        logger.info(f"檢索 {len(similar_docs)} 個文檔，使用 Top {len(top_docs)} 生成回答")
+        logger.info(f"\n來源文檔:")
         for i, source in enumerate(sources, 1):
             if include_similarity_scores:
-                print(f"  {i}. {source['filename']} (相似度: {source['similarity']:.4f}, Rerank: {source['score']:.4f})")
+                logger.info(f"  {i}. {source['filename']} (相似度: {source['similarity']:.4f}, Rerank: {source['score']:.4f})")
             else:
-                print(f"  {i}. {source['filename']}")
+                logger.info(f"  {i}. {source['filename']}")
         
         return result
     
