@@ -1,15 +1,15 @@
 """
-Ollama 客戶端 - 用於 LLM 生成和嵌入
+Ollama 客戶端 - 用於 LLM 生成和嵌入（異步版本）
 """
 
-import requests
+import httpx
 import opencc
 from app.config import settings
 
 
 class OllamaClient:
     """
-    Ollama 客戶端，用於生成回應和嵌入
+    Ollama 客戶端，用於生成回應和嵌入（支持異步調用）
     """
     
     def __init__(self, base_url: str = None, model: str = None):
@@ -24,9 +24,9 @@ class OllamaClient:
         self.model = model or settings.OLLAMA_SUMMARY_MODEL
         self.converter = opencc.OpenCC('s2t')  # 簡體轉繁體
     
-    def generate(self, prompt: str, timeout: int = 300) -> str:
+    async def generate(self, prompt: str, timeout: int = 300) -> str:
         """
-        發送提示詞到 Ollama 並獲取回應
+        異步發送提示詞到 Ollama 並獲取回應
         
         參數:
             prompt: 要發送到模型的提示詞
@@ -44,24 +44,27 @@ class OllamaClient:
         }
         
         try:
-            response = requests.post(url, json=data, timeout=timeout)
-            response.raise_for_status()
-            raw_response = response.json()["response"]
-            # 將簡體中文轉換為繁體中文
-            return self.converter.convert(raw_response)
-            
-        except requests.exceptions.ConnectionError:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(url, json=data)
+                response.raise_for_status()
+                raw_response = response.json()["response"]
+                # 將簡體中文轉換為繁體中文
+                return self.converter.convert(raw_response)
+                
+        except httpx.ConnectError:
             return "錯誤: 無法連接到 Ollama 服務器。請確保 Ollama 正在運行"
-        except requests.exceptions.Timeout:
+        except httpx.TimeoutException:
             return "錯誤: 請求超時"
-        except requests.exceptions.RequestException as e:
+        except httpx.HTTPStatusError as e:
+            return f"錯誤: HTTP {e.response.status_code}"
+        except Exception as e:
             return f"錯誤: {str(e)}"
         except KeyError:
             return "錯誤: 無效的響應格式"
     
-    def generate_embedding(self, text: str, model: str = None, timeout: int = 60) -> list[float] | None:
+    async def generate_embedding(self, text: str, model: str = None, timeout: int = 60) -> list[float] | None:
         """
-        為文本生成嵌入向量
+        異步為文本生成嵌入向量
         
         參數:
             text: 要向量化的文本
@@ -80,11 +83,12 @@ class OllamaClient:
         }
         
         try:
-            response = requests.post(url, json=data, timeout=timeout)
-            response.raise_for_status()
-            result = response.json()
-            return result.get("embedding", None)
-            
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(url, json=data)
+                response.raise_for_status()
+                result = response.json()
+                return result.get("embedding", None)
+                
         except Exception as e:
             print(f"生成嵌入失敗: {str(e)}")
             return None

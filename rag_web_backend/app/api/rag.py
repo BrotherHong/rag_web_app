@@ -141,8 +141,8 @@ async def query_documents(
         
         start_time = time.time()
         
-        # Execute RAG query with real implementation (top_k fixed at 250)
-        result = dept_rag_engine.query(
+        # Execute RAG query with async implementation (top_k fixed at 250)
+        result = await dept_rag_engine.query(
             question=request.query,
             top_k=250,
             include_similarity_scores=True,  # Include scores for metadata

@@ -32,9 +32,9 @@ class EmbeddingProcessor:
         self.client = ollama_client or OllamaClient(base_url=base_url or settings.OLLAMA_BASE_URL)
         self.embedding_model = embedding_model or settings.OLLAMA_EMBEDDING_MODEL
     
-    def generate_embedding(self, text: str, model: str = None) -> Optional[List[float]]:
+    async def generate_embedding(self, text: str, model: str = None) -> Optional[List[float]]:
         """
-        為文本生成embedding向量
+        異步生成文本的embedding向量
         
         參數:
             text: 要向量化的文本
@@ -44,8 +44,8 @@ class EmbeddingProcessor:
             embedding向量或None(如果失敗)
         """
         try:
-            # 使用Ollama的embedding API
-            embedding = self.client.generate_embedding(
+            # 使用Ollama的embedding API（異步）
+            embedding = await self.client.generate_embedding(
                 text, 
                 model=model or self.embedding_model
             )
@@ -81,7 +81,7 @@ class EmbeddingProcessor:
             print(f"相似度計算失敗: {str(e)}")
             return 0.0
     
-    def process_summary_file(
+    async def process_summary_file(
         self,
         summary_json_path: Path,
         output_json_path: Path,
@@ -109,7 +109,7 @@ class EmbeddingProcessor:
                 return False
             
             # 生成嵌入
-            embedding = self.generate_embedding(summary_text)
+            embedding = await self.generate_embedding(summary_text)
             
             if not embedding:
                 print(f"❌ 嵌入生成失敗")

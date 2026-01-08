@@ -68,8 +68,11 @@ mineru[core]>=2.1.11
 # OpenCC - 簡繁轉換
 opencc-python-reimplemented>=0.1.7
 
-# Requests - HTTP 請求（Ollama API）
+# Requests - HTTP 請求（保留用於舊代碼）
 requests>=2.31.0
+
+# HTTPX - 異步 HTTP 客戶端（用於 Ollama API）
+httpx>=0.27.0
 
 # NumPy - 數值計算
 numpy>=1.24.0

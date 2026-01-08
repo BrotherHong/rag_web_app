@@ -73,12 +73,12 @@ class RAGEngine:
         
         return list(file_to_docs.values())
     
-    def query(self, question: str, 
+    async def query(self, question: str, 
               top_k: int = 250, 
               include_similarity_scores: bool = False,
               allowed_filenames: set = None) -> Dict:
         """
-        執行RAG查詢
+        異步執行RAG查詢
         
         參數:
             question: 用戶問題
@@ -94,8 +94,8 @@ class RAGEngine:
         if allowed_filenames:
             logger.info(f"分類過濾: 限制在 {len(allowed_filenames)} 個檔案內")
         
-        # 1. 檢索相關文檔
-        similar_docs = self.vector_store.search_similar(
+        # 1. 檢索相關文檔（異步）
+        similar_docs = await self.vector_store.search_similar(
             query_text=question,
             top_k=top_k,
             similarity_threshold=self.similarity_threshold,
@@ -150,7 +150,8 @@ class RAGEngine:
             logger.info(prompt)
             logger.info("-" * 80)
         
-        response = self.client.generate(prompt)
+        # 異步調用 LLM
+        response = await self.client.generate(prompt)
         
         if self.debug_mode:
             logger.info(f"\n[DEBUG] 模型原始輸出:")

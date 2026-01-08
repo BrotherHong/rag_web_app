@@ -84,9 +84,9 @@ class VectorStore:
         logger.info(f"成功加載 {len(embeddings)} 個embeddings")
         return embeddings, documents
     
-    def search_similar(self, query_text: str, top_k: int = 5, similarity_threshold: float = 0.1, allowed_filenames: set = None) -> List[Dict]:
+    async def search_similar(self, query_text: str, top_k: int = 5, similarity_threshold: float = 0.1, allowed_filenames: set = None) -> List[Dict]:
         """
-        搜索與查詢文本最相似的文檔
+        異步搜索與查詢文本最相似的文檔
         
         參數:
             query_text: 查詢文本
@@ -97,11 +97,11 @@ class VectorStore:
         返回:
             相似文檔列表，每個包含文檔信息和相似度分數
         """
-        # 生成查詢的embedding
+        # 生成查詢的embedding（異步）
         logger.info(f"正在為查詢生成embedding: '{query_text}'")
         if allowed_filenames:
             logger.info(f"  檔案過濾: 只檢索 {len(allowed_filenames)} 個允許的檔案")
-        query_embedding = self.embedding_processor.generate_embedding(query_text)
+        query_embedding = await self.embedding_processor.generate_embedding(query_text)
         
         if not query_embedding:
             logger.error("查詢embedding生成失敗")

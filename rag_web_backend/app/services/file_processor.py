@@ -218,8 +218,7 @@ class FileProcessingService:
             temp_summary_path.parent.mkdir(parents=True, exist_ok=True)
             
             # 使用新的summarizer，會自動處理長文檔分塊
-            success = await asyncio.to_thread(
-                self.summarizer.process_markdown_file,
+            success = await self.summarizer.process_markdown_file(
                 temp_md_path,
                 temp_summary_path
             )
@@ -241,8 +240,7 @@ class FileProcessingService:
             temp_embedding_path = temp_dir / "embeddings" / f"{file_path.stem}_embedding.json"
             temp_embedding_path.parent.mkdir(parents=True, exist_ok=True)
             
-            success = await asyncio.to_thread(
-                self.embedder.process_summary_file,
+            success = await self.embedder.process_summary_file(
                 temp_summary_path,
                 temp_embedding_path,
                 file_record.original_filename  # ✅ 傳入原始檔名
@@ -266,8 +264,7 @@ class FileProcessingService:
                     
                 part_embedding_file = temp_dir / "embeddings" / f"{base_name}_part{i}_embedding.json"
                 
-                success = await asyncio.to_thread(
-                    self.embedder.process_summary_file,
+                success = await self.embedder.process_summary_file(
                     part_summary_file,
                     part_embedding_file,
                     file_record.original_filename  # ✅ 傳入原始檔名

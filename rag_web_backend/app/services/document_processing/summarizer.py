@@ -27,7 +27,7 @@ class SummaryProcessor:
         """
         self.client = ollama_client or OllamaClient()
     
-    def process_markdown_file(
+    async def process_markdown_file(
         self,
         md_file_path: Path,
         output_json_path: Path
@@ -55,7 +55,7 @@ class SummaryProcessor:
             file_path = str(md_file_path)
             
             # 生成摘要 (使用與main一致的邏輯)
-            summary, doc_type, chunk_content = self._generate_summary(
+            summary, doc_type, chunk_content = await self._generate_summary(
                 content, filename, file_path, output_json_path.parent
             )
             
@@ -84,7 +84,7 @@ class SummaryProcessor:
             print(f"❌ 處理失敗: {e}")
             return False
     
-    def _generate_summary(
+    async def _generate_summary(
         self, 
         content: str, 
         filename: str = "", 
@@ -104,20 +104,20 @@ class SummaryProcessor:
             (生成的摘要, 文檔類型, chunk內容) tuple
         """
         # 先判斷文檔類型
-        doc_type = self._classify_document(content)
+        doc_type = await self._classify_document(content)
         print(f"  文檔分類: {doc_type}")
         
         if doc_type == "Form Mode":
             # 表單類文檔
             if len(content) > 1500:
                 # 長表單：使用分塊處理
-                return self._generate_chunked_summary(
+                return await self._generate_chunked_summary(
                     content, filename, file_path, output_dir, doc_type="Form Mode"
                 )
             else:
                 # 短表單：直接生成簡化摘要
                 prompt = FORM_DOCUMENT_SUMMARY.format(text=content, filename=filename)
-                response = self.client.generate(prompt)
+                response = await self.client.generate(prompt)
                 summary = self._extract_final_summary(response)
 
                 # 放寬字數限制至 400 字
@@ -129,16 +129,16 @@ class SummaryProcessor:
             # 資訊類文檔使用詳細摘要
             if len(content) > 1500:
                 # 返回 (摘要, 類型, 第一塊內容)
-                return self._generate_chunked_summary(
+                return await self._generate_chunked_summary(
                     content, filename, file_path, output_dir, doc_type="Info Mode"
                 )
             else:
                 prompt = RAG_DOCUMENT_SUMMARY.format(filename=filename, text=content)
-                response = self.client.generate(prompt)
+                response = await self.client.generate(prompt)
                 summary = self._extract_final_summary(response)
                 return (summary, doc_type, content)
     
-    def _classify_document(self, content: str) -> str:
+    async def _classify_document(self, content: str) -> str:
         """
         分類文檔類型
         
@@ -151,7 +151,7 @@ class SummaryProcessor:
         # 取前2000字進行分類判斷
         classification_content = content[:2000]
         prompt = DOCUMENT_CLASSIFICATION.format(text=classification_content)
-        response = self.client.generate(prompt).strip()
+        response = (await self.client.generate(prompt)).strip()
         
         # 清理思考標籤，只取最終答案
         clean_response = self._extract_final_summary(response)
@@ -167,7 +167,7 @@ class SummaryProcessor:
             print(f"⚠️ 無法確定文檔類型，預設為 Info Mode")
             return "Info Mode"
     
-    def _generate_chunked_summary(
+    async def _generate_chunked_summary(
         self, 
         content: str, 
         filename: str, 
@@ -209,7 +209,7 @@ class SummaryProcessor:
             else:
                 prompt = prompt_template.format(filename=filename, text=chunk)
             
-            response = self.client.generate(prompt)
+            response = await self.client.generate(prompt)
             chunk_summary = self._extract_final_summary(response)
             summaries.append(chunk_summary)
             
@@ -310,56 +310,4 @@ class SummaryProcessor:
                 return summary if summary else response
         
         return response
-    
-    def _classify_document(self, content: str) -> str:
-        """
-        分類文檔類型
-        
-        參數:
-            content: 文檔內容
-            
-        返回:
-            "Form Mode" 或 "Info Mode"
-        """
-        # 取前2000字進行分類判斷
-        classification_content = content[:2000]
-        prompt = DOCUMENT_CLASSIFICATION.format(text=classification_content)
-        response = self.client.generate(prompt).strip()
-        
-        # 清理思考標籤，只取最終答案
-        clean_response = self._extract_final_summary(response)
-        print(f"  分類回應: {clean_response}")
-        
-        # 確保回應格式正確
-        if "Form Mode" in clean_response:
-            return "Form Mode"
-        elif "Info Mode" in clean_response:
-            return "Info Mode"
-        else:
-            # 默認為資訊模式
-            print(f"⚠️ 無法確定文檔類型，預設為 Info Mode")
-            return "Info Mode"
-    
-    def _extract_final_summary(self, response: str) -> str:
-        """
-        從回應中提取最終摘要，若存在則移除思考標籤 - 與main版本完全一致
-        
-        參數:
-            response: 模型的原始回應
-            
-        返回:
-            乾淨的摘要內容
-        """
-        if not response:
-            return response
-        
-        # 檢查回應是否包含思考標籤
-        if '</think>' in response:
-            # 找到最後一個思考標籤的結尾
-            think_end = response.rfind('</think>')
-            if think_end != -1:
-                # 提取思考標籤後的內容
-                summary = response[think_end + 8:].strip()
-                return summary if summary else response
-        
-        return response
+
