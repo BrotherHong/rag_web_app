@@ -28,6 +28,7 @@ class FileUpdate(BaseModel):
     category_id: Optional[int] = None
     description: Optional[str] = None
     tags: Optional[List[str]] = None
+    is_public: Optional[bool] = None
 
 
 class FileUploadResponse(BaseModel):
@@ -83,6 +84,7 @@ class FileSchema(BaseModel):
     uploader: UploaderInfo
     status: str
     is_vectorized: bool
+    is_public: bool
     vector_count: Optional[int] = 0
     created_at: datetime
     updated_at: datetime
@@ -104,6 +106,7 @@ class FileDetailResponse(BaseModel):
     department: DepartmentInfo
     status: str
     is_vectorized: bool
+    is_public: bool
     vector_count: Optional[int] = 0
     description: Optional[str]
     tags: Optional[List[str]] = []

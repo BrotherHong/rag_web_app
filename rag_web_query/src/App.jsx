@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import './App.css'
 import HomePage from './pages/HomePage'
 import ChatPage from './pages/ChatPage'
+import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
 import DepartmentLayout from './components/DepartmentLayout'
 
@@ -9,6 +10,9 @@ function App() {
   return (
     <Router basename={import.meta.env.BASE_URL}>
       <Routes>
+        {/* 認證路由（獨立於處室系統） */}
+        <Route path="/login" element={<LoginPage />} />
+        
         {/* 根路徑重定向到預設處室（人事室） */}
         <Route path="/" element={<Navigate to="/hr" replace />} />
         

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.department import Department
     from app.models.category import Category
     from app.models.activity import Activity
+    from app.models.query_user import FilePermission
 
 
 class FileStatus(str, Enum):
@@ -96,6 +97,15 @@ class File(Base, TimestampMixin):
         default=False,
         nullable=False,
         comment="是否已向量化"
+    )
+    
+    # 訪問權限
+    is_public: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        index=True,
+        comment="是否為公開文件（訪客可訪問）"
     )
     
     chunk_count: Mapped[int] = mapped_column(
@@ -207,6 +217,12 @@ class File(Base, TimestampMixin):
         back_populates="file"
         # 不使用 cascade，讓資料庫的 SET NULL 外鍵處理
         # 這樣刪除檔案時，活動記錄會保留，只是 file_id 變成 NULL
+    )
+    
+    query_user_permissions: Mapped[List["FilePermission"]] = relationship(
+        "FilePermission",
+        back_populates="file",
+        cascade="all, delete-orphan"
     )
     
     def __repr__(self) -> str:

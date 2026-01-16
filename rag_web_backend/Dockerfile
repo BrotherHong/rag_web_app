@@ -53,9 +53,9 @@ COPY --from=dependencies /usr/local/bin /usr/local/bin
 # 複製應用程式碼
 COPY . .
 
-# 複製啟動腳本並設定執行權限
+# 複製啟動腳本並設定執行權限（轉換 CRLF -> LF）
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
 # 建立上傳和日誌目錄
 RUN mkdir -p /app/uploads /app/logs

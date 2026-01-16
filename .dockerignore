@@ -1,0 +1,63 @@
+# Node modules
+**/node_modules
+**/npm-debug.log
+**/.npm
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/pip-log.txt
+**/.pytest_cache
+**/.mypy_cache
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+**/*.swp
+**/*.swo
+**/*~
+
+# OS
+.DS_Store
+**/Thumbs.db
+
+# Build outputs
+**/dist
+**/build
+**/.next
+
+# Logs
+**/logs
+**/*.log
+
+# Environment files (但保留範例)
+.env
+.env.local
+.env.*.local
+
+# Database
+**/*.db
+**/*.sqlite
+
+# Backend specific
+rag_web_backend/uploads/*
+rag_web_backend/logs/*
+rag_web_backend/alembic/__pycache__
+
+# Documentation
+README.md
+*.md
+!rag_web_admin/README.md
+!rag_web_query/README.md
+!rag_web_backend/README.md
+
+# Docker
+docker-compose.override.yml

@@ -1,5 +1,6 @@
 import { Outlet, useParams, Navigate } from 'react-router-dom'
 import { DepartmentProvider, useDepartment } from '../contexts/DepartmentContext'
+import Navbar from './Navbar'
 
 function DepartmentContent() {
   const { notFound, loading } = useDepartment()
@@ -21,7 +22,12 @@ function DepartmentContent() {
     return <Navigate to="/404" replace />
   }
 
-  return <Outlet />
+  return (
+    <>
+      <Navbar />
+      <Outlet />
+    </>
+  )
 }
 
 function DepartmentLayout() {

@@ -18,12 +18,23 @@ const apiRequest = async (endpoint, options = {}) => {
     // 構建完整 URL
     const url = `${API_CONFIG.BASE_URL}${endpoint}`
     
+    // 獲取查詢用戶的 token（如果已登入）
+    const queryToken = localStorage.getItem('query_token')
+    
+    // 構建 headers
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    }
+    
+    // 如果有 token，添加 Authorization header
+    if (queryToken) {
+      headers['Authorization'] = `Bearer ${queryToken}`
+    }
+    
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     })
 
     if (!response.ok) {

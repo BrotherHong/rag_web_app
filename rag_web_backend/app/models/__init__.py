@@ -9,6 +9,7 @@ from app.models.activity import Activity, ActivityType
 from app.models.query_history import QueryHistory
 from app.models.system_setting import SystemSetting
 from app.models.faq import FAQ
+from app.models.query_user import QueryUser, QueryUserStatus, FilePermission
 
 __all__ = [
     "Base",
@@ -23,4 +24,7 @@ __all__ = [
     "QueryHistory",
     "SystemSetting",
     "FAQ",
+    "QueryUser",
+    "QueryUserStatus",
+    "FilePermission",
 ]

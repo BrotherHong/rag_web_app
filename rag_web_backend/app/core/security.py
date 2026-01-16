@@ -17,12 +17,16 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.core.database import get_db
 from app.models import User
+from app.models.user import UserRole
 
 # 密碼加密上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# OAuth2 密碼流
+# OAuth2 密碼流 - 後台管理員
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
+
+# OAuth2 密碼流 - 查詢用戶（使用不同的 tokenUrl）
+query_oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/query-auth/login")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -255,7 +259,7 @@ async def get_current_super_admin(
             detail="使用者帳號未啟用"
         )
     
-    if not current_user.is_super_admin:
+    if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="需要超級管理員權限"
@@ -318,3 +322,191 @@ def require_role(*allowed_roles):
         return current_user
     
     return role_checker
+
+
+# ==================== 查詢用戶認證相關 ====================
+
+async def get_current_query_user(
+    token: str = Depends(query_oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    從 JWT Token 中取得當前查詢用戶
+    
+    專門用於前端查詢系統的認證，與後台管理員系統完全獨立
+    
+    Args:
+        token: JWT Token
+        db: 資料庫 Session
+        
+    Returns:
+        QueryUser: 當前查詢用戶物件
+        
+    Raises:
+        HTTPException: Token 無效或用戶不存在
+    """
+    from app.models.query_user import QueryUser, QueryUserStatus
+    
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="無法驗證憑證",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        # 解碼 JWT Token（使用相同的 secret key，但可以根據需要改用不同的 key）
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        user_id: str = payload.get("sub")
+        user_type: str = payload.get("type")  # 添加 type 欄位區分用戶類型
+        
+        # 確認是查詢用戶的 token
+        if user_id is None or user_type != "query_user":
+            raise credentials_exception
+            
+    except JWTError:
+        raise credentials_exception
+    
+    # 從資料庫取得查詢用戶
+    result = await db.execute(
+        select(QueryUser)
+        .options(selectinload(QueryUser.default_department))
+        .where(QueryUser.id == int(user_id))
+    )
+    query_user = result.scalar_one_or_none()
+    
+    if query_user is None:
+        raise credentials_exception
+    
+    # 檢查用戶狀態
+    if query_user.status != QueryUserStatus.APPROVED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="用戶申請尚未通過審批"
+        )
+    
+    if not query_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="用戶帳號已停用"
+        )
+    
+    return query_user
+
+
+async def get_current_query_user_optional(
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    可選的查詢用戶認證
+    
+    如果提供 token 則驗證並返回 QueryUser，否則返回 None（訪客）
+    用於支援「訪客 + 登入用戶」混合模式的端點
+    
+    Args:
+        authorization: Authorization header
+        db: 資料庫 Session
+        
+    Returns:
+        Optional[QueryUser]: 查詢用戶物件或 None
+    """
+    from app.models.query_user import QueryUser, QueryUserStatus
+    
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    
+    try:
+        token = authorization.replace("Bearer ", "")
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        user_id = payload.get("sub")
+        user_type = payload.get("type")
+        
+        # 只處理查詢用戶的 token
+        if user_id and user_type == "query_user":
+            result = await db.execute(
+                select(QueryUser)
+                .options(selectinload(QueryUser.default_department))
+                .where(QueryUser.id == int(user_id))
+            )
+            query_user = result.scalar_one_or_none()
+            
+            # 只返回已審批且啟用的用戶
+            if (query_user and 
+                query_user.status == QueryUserStatus.APPROVED and 
+                query_user.is_active):
+                return query_user
+    except (JWTError, ValueError):
+        pass
+    
+    return None
+
+
+async def authenticate_query_user(
+    db: AsyncSession,
+    username: str,
+    password: str
+):
+    """
+    驗證查詢用戶帳號密碼
+    
+    Args:
+        db: 資料庫 Session
+        username: 使用者名稱或電子郵件
+        password: 密碼
+        
+    Returns:
+        Optional[QueryUser]: 驗證成功返回查詢用戶物件，失敗返回 None
+    """
+    from app.models.query_user import QueryUser
+    
+    # 支援使用 username 或 email 登入
+    result = await db.execute(
+        select(QueryUser)
+        .options(selectinload(QueryUser.default_department))
+        .where(
+            (QueryUser.username == username) | (QueryUser.email == username)
+        )
+    )
+    query_user = result.scalar_one_or_none()
+    
+    if not query_user:
+        return None
+    
+    if not verify_password(password, query_user.hashed_password):
+        return None
+    
+    return query_user
+
+
+def create_query_user_token(query_user_id: int, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    建立查詢用戶的 JWT Access Token
+    
+    與後台管理員的 token 格式類似，但添加了 type 欄位用於區分
+    
+    Args:
+        query_user_id: 查詢用戶 ID
+        expires_delta: 過期時間（預設使用設定檔中的值）
+        
+    Returns:
+        str: JWT Token
+    """
+    to_encode = {
+        "sub": str(query_user_id),
+        "type": "query_user"  # 標記為查詢用戶的 token
+    }
+    
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        # 查詢用戶的 token 可以使用更長的過期時間
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    
+    return encoded_jwt

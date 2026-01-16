@@ -21,7 +21,7 @@ from sqlalchemy.orm import joinedload
 
 from app.core.database import get_db
 from app.core.security import get_current_user, get_current_active_admin
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.file import File as FileModel
 from app.models.category import Category
 from app.schemas.file import (
@@ -525,6 +525,10 @@ async def update_file(
     # 更新標籤
     if file_data.tags is not None:
         file.tags = file_data.tags
+    
+    # 更新公開狀態
+    if file_data.is_public is not None:
+        file.is_public = file_data.is_public
     
     await db.commit()
     

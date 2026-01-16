@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFiles, deleteFile, downloadFile, getCategoriesWithDetails } from '../services/api';
+import { getFiles, deleteFile, downloadFile, updateFile, getCategoriesWithDetails } from '../services/api';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useToast } from '../contexts/ToastContext';
 
@@ -126,6 +126,27 @@ function KnowledgeBase() {
     } catch (error) {
       console.error('下載錯誤:', error);
       toast.error('下載檔案失敗');
+    }
+  };
+  
+  // 處理切換文件公開狀態
+  const handleTogglePublic = async (file) => {
+    try {
+      const newPublicStatus = !file.is_public;
+      const response = await updateFile(file.id, {
+        is_public: newPublicStatus
+      });
+      
+      if (response.success) {
+        toast.success(newPublicStatus ? '文件已設為公開' : '文件已設為私有');
+        // 重新載入檔案列表
+        await loadFiles();
+      } else {
+        toast.error(response.message || '更新失敗');
+      }
+    } catch (error) {
+      console.error('更新錯誤:', error);
+      toast.error('更新文件狀態失敗');
     }
   };
 
@@ -350,6 +371,9 @@ function KnowledgeBase() {
                   大小
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                  公開狀態
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                   上傳日期
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
@@ -391,11 +415,37 @@ function KnowledgeBase() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {file.size}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      file.is_public 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {file.is_public ? '公開' : '私有'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {file.uploadDate}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleTogglePublic(file)}
+                        className={`${file.is_public ? 'text-orange-600 hover:text-orange-900' : 'text-gray-400 hover:text-gray-600'} transition-colors cursor-pointer`}
+                        title={file.is_public ? '設為私有' : '設為公開'}
+                      >
+                        {file.is_public ? (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                  d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                  d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </button>
                       <button 
                         className="text-blue-600 hover:text-blue-900 transition-colors cursor-pointer" 
                         onClick={() => handleViewDetail(file)}

@@ -1,7 +1,11 @@
 """API 路由總入口"""
 
 from fastapi import APIRouter
-from app.api import auth, users, departments, files, categories, rag, activities, settings, statistics, backups, upload, public, faqs
+from app.api import (
+    auth, users, departments, files, categories, rag, activities, 
+    settings, statistics, backups, upload, public, faqs,
+    query_auth, query_users  # 新增查詢用戶相關路由
+)
 
 # 建立 API 路由器
 api_router = APIRouter()
@@ -18,6 +22,8 @@ async def health_check():
 # 註冊各模組路由
 api_router.include_router(public.router)
 api_router.include_router(auth.router)
+api_router.include_router(query_auth.router)  # 查詢用戶認證
+api_router.include_router(query_users.router)  # 查詢用戶管理（後台）
 api_router.include_router(users.router)
 api_router.include_router(departments.router)
 api_router.include_router(files.router)

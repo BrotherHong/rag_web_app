@@ -9,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt, JWTError
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_query_user_optional
 from app.config import settings
-from app.models.user import User
+from app.models.query_user import QueryUser
 from app.models.query_history import QueryHistory
 from app.schemas.rag import (
     QueryRequest,
@@ -22,36 +22,6 @@ from app.services.rag.rag_engine import RAGEngine
 from app.services.activity import activity_service
 
 router = APIRouter(prefix="/rag", tags=["RAG查詢"])
-
-
-# 可選認證：允許匿名訪問
-async def get_current_user_optional(
-    authorization: Optional[str] = Header(None),
-    db: AsyncSession = Depends(get_db)
-) -> Optional[User]:
-    """
-    可選的用戶認證
-    如果提供 token 則驗證，否則返回 None（匿名用戶）
-    """
-    if not authorization:
-        return None
-    
-    try:
-        token = authorization.replace("Bearer ", "")
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
-        )
-        user_id = payload.get("sub")
-        
-        if user_id:
-            result = await db.execute(select(User).where(User.id == int(user_id)))
-            return result.scalar_one_or_none()
-    except (JWTError, ValueError):
-        pass
-    
-    return None
 
 # TODO: Support multiple departments - currently hardcoded to department 1 (人事室)
 DEPARTMENT_ID = 1
@@ -70,23 +40,31 @@ except Exception as e:
 async def query_documents(
     request: QueryRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[QueryUser] = Depends(get_current_query_user_optional)
 ):
-    """RAG 查詢（公開端點，無需認證）
+    """RAG 查詢（公開端點，支援訪客和查詢用戶）
     
-    - 使用語義搜尋找到相關文檔
-    - 生成基於文檔的答案（使用真實 LLM）
-    - 自動記錄查詢歷史（如果已登入）
-    - 支援處室資料過濾
+    此端點專用於前端查詢系統（rag_web_query），支援：
+    - 訪客：只能訪問公開文件
+    - 查詢用戶：可以訪問公開文件 + 被授權的文件
+    
+    後台管理員使用獨立的後台系統，不使用此端點
     """
     
+    # 調試：檢查當前用戶狀態
+    if current_user:
+        print(f"🔐 [RAG Query] 已登入用戶: {current_user.username} (ID: {current_user.id})")
+    else:
+        print(f"👤 [RAG Query] 訪客查詢")
+    
     try:
-        # 決定處室 ID：優先使用 scope_ids[0]，否則使用已登入用戶的處室
+        # 決定處室 ID
         department_id = None
         if request.scope_ids and len(request.scope_ids) > 0:
             department_id = request.scope_ids[0]
-        elif current_user and current_user.department_id:
-            department_id = current_user.department_id
+        elif current_user and current_user.default_department_id:
+            # 查詢用戶使用預設處室
+            department_id = current_user.default_department_id
         else:
             raise HTTPException(
                 status_code=400,
@@ -95,6 +73,69 @@ async def query_documents(
         
         # 處理分類過濾：如果有指定 category_ids，查詢符合條件的檔案清單
         allowed_filenames = None  # None 表示不過濾（查詢所有檔案）
+        
+        # 訪客權限過濾：只能訪問公開文件
+        if current_user is None:
+            from app.models.file import File as FileModel
+            
+            # 獲取公開文件列表
+            public_query = select(FileModel.original_filename).where(
+                FileModel.department_id == department_id,
+                FileModel.is_public == True,
+                FileModel.is_vectorized == True
+            )
+            
+            public_result = await db.execute(public_query)
+            allowed_filenames = {row[0] for row in public_result.all()}
+            
+            if not allowed_filenames:
+                # 該處室沒有公開文件
+                return QueryResponse(
+                    query=request.query,
+                    answer="抱歉，目前沒有可供查詢的公開資料。請登入以訪問更多內容。",
+                    sources=[]
+                )
+        
+        # 查詢用戶權限過濾：公開文件 + 被授權的文件
+        elif isinstance(current_user, QueryUser):
+            # 查詢用戶可以訪問：公開文件 + 被授權的文件
+            from app.models.file import File as FileModel
+            from app.models.query_user import FilePermission
+            
+            # 1. 獲取公開文件
+            public_query = select(FileModel.original_filename).where(
+                FileModel.department_id == department_id,
+                FileModel.is_public == True,
+                FileModel.is_vectorized == True
+            )
+            public_result = await db.execute(public_query)
+            public_filenames = {row[0] for row in public_result.all()}
+            
+            # 2. 獲取用戶被授權的文件
+            permission_query = select(FileModel.original_filename).join(
+                FilePermission,
+                FileModel.id == FilePermission.file_id
+            ).where(
+                FilePermission.query_user_id == current_user.id,
+                FileModel.department_id == department_id,
+                FileModel.is_vectorized == True
+            )
+            
+            permission_result = await db.execute(permission_query)
+            authorized_filenames = {row[0] for row in permission_result.all()}
+            
+            # 3. 合併：公開文件 + 授權文件
+            allowed_filenames = public_filenames | authorized_filenames
+            
+            if not allowed_filenames:
+                # 沒有任何可訪問的文件
+                return QueryResponse(
+                    query=request.query,
+                    answer="抱歉，您目前沒有權限訪問任何文件。請聯繫管理員獲取訪問權限。",
+                    sources=[]
+                )
+        
+        # 分類過濾（對所有用戶類型生效）
         if request.category_ids:
             from app.models.category import Category
             from app.models.file import File as FileModel
@@ -116,23 +157,39 @@ async def query_documents(
             file_query = select(FileModel.original_filename).where(
                 FileModel.department_id == department_id,
                 FileModel.category_id.in_(filter_category_ids),
-                FileModel.is_vectorized == True  # 只查詢已向量化的檔案
+                FileModel.is_vectorized == True
             )
-            file_result = await db.execute(file_query)
-            allowed_filenames = {row[0] for row in file_result.all()}  # 使用 set 加速查詢
+            
+            # 根據用戶類型進行不同的過濾
+            if current_user is None:
+                # 訪客：只看公開文件 + 分類過濾
+                file_query = file_query.where(FileModel.is_public == True)
+                file_result = await db.execute(file_query)
+                allowed_filenames = {row[0] for row in file_result.all()}
+            else:
+                # 查詢用戶：已有權限列表（公開+授權），與分類過濾求交集
+                file_result = await db.execute(file_query)
+                category_filenames = {row[0] for row in file_result.all()}
+                allowed_filenames = allowed_filenames & category_filenames  # 交集
             
             if not allowed_filenames:
-                # 沒有符合條件的檔案，直接回傳空結果
+                # 沒有符合條件的檔案
+                msg = "抱歉，在選定的分類中找不到"
+                if current_user is None:
+                    msg += "公開的"
+                else:
+                    msg += "您有權限訪問的"
+                msg += "相關資訊。"
                 return QueryResponse(
                     query=request.query,
-                    answer="抱歉，在選定的分類中找不到相關資訊。",
+                    answer=msg,
                     sources=[]
                 )
         
         # 動態初始化對應處室的 RAG 引擎
         base_path = f"uploads/{department_id}/processed"
         try:
-            dept_rag_engine = RAGEngine(base_path=base_path, debug_mode=True)  # 開啟 debug 模式
+            dept_rag_engine = RAGEngine(base_path=base_path, debug_mode=True)
         except Exception as e:
             raise HTTPException(
                 status_code=503,
@@ -141,17 +198,17 @@ async def query_documents(
         
         start_time = time.time()
         
-        # Execute RAG query with async implementation (top_k fixed at 250)
+        # Execute RAG query with async implementation
         result = await dept_rag_engine.query(
             question=request.query,
             top_k=250,
-            include_similarity_scores=True,  # Include scores for metadata
-            allowed_filenames=allowed_filenames  # 傳遞檔案過濾清單
+            include_similarity_scores=True,
+            allowed_filenames=allowed_filenames
         )
         
         processing_time = time.time() - start_time
         
-        # Convert sources to API format and fetch file_id from database
+        # Convert sources to API format
         sources = []
         for source in result['sources']:
             original_filename = source['filename']
@@ -166,7 +223,6 @@ async def query_documents(
             file_record = file_result.scalar_one_or_none()
             
             if not file_record:
-                # This should not happen - file record must exist for processed files
                 print(f"⚠️ Warning: File record not found for {original_filename}")
                 continue
             
@@ -174,45 +230,39 @@ async def query_documents(
                 file_id=file_record.id,
                 file_name=original_filename,
                 source_link=source.get('source_link', ''),
-                download_link=f"/public/files/{file_record.id}/download"  # 移除 /api 前綴，由前端的 BASE_URL 提供
+                download_link=f"/public/files/{file_record.id}/download"
             )
             sources.append(doc_source)
         
-        # Log activity (only if user is authenticated)
+        # Log activity and save query history
         if current_user:
-            await activity_service.log_activity(
-                db=db,
-                user_id=current_user.id,
-                activity_type="query",
-                description=f"查詢: {request.query[:50]}...",
-                department_id=current_user.department_id,
-                extra_data=json.dumps({
-                    "source_count": len(sources),
-                    "retrieved_docs": result.get('retrieved_docs', 0),
-                    "query_department_id": department_id
-                })
-            )
-            
-            # 記錄到 QueryHistory (只記錄已登入使用者)
-            query_history = QueryHistory(
-                user_id=current_user.id,
-                department_id=department_id,
-                query=request.query,
-                answer=result['answer'],
-                processing_time=processing_time,
-                source_count=len(sources),
-                query_type="semantic",
-                scope="all",
-                extra_data={
-                    "category_ids": request.category_ids or [],
-                    "scope_ids": request.scope_ids or [],
-                    "retrieved_docs": result.get('retrieved_docs', 0)
-                }
-            )
-            db.add(query_history)
-            await db.commit()
-            print(f"✅ QueryHistory saved: query_id={query_history.id}, user_id={current_user.id}")
+            # 查詢用戶（記錄到 query_history）
+            try:
+                query_history = QueryHistory(
+                    user_id=None,  # 查詢用戶不關聯到 user_id（user_id 保留給後台管理員）
+                    department_id=department_id,
+                    query=request.query,
+                    answer=result['answer'],
+                    processing_time=processing_time,
+                    source_count=len(sources),
+                    query_type="semantic",
+                    scope="query_user",
+                    extra_data={
+                        "query_user_id": current_user.id,
+                        "query_user_name": current_user.username,
+                        "category_ids": request.category_ids or [],
+                        "scope_ids": request.scope_ids or [],
+                        "retrieved_docs": result.get('retrieved_docs', 0)
+                    }
+                )
+                db.add(query_history)
+                await db.commit()
+                print(f"✅ QueryHistory saved (query_user): query_id={query_history.id}, user={current_user.username}")
+            except Exception as e:
+                print(f"❌ Failed to save QueryHistory for query_user: {e}")
+                await db.rollback()
         else:
+            # 訪客
             try:
                 anonymous_history = QueryHistory(
                     user_id=None,
@@ -222,7 +272,7 @@ async def query_documents(
                     processing_time=processing_time,
                     source_count=len(sources),
                     query_type="semantic",
-                    scope="all",
+                    scope="anonymous",
                     extra_data={
                         "category_ids": request.category_ids or [],
                         "scope_ids": request.scope_ids or [],
@@ -234,11 +284,8 @@ async def query_documents(
                 print(f"✅ QueryHistory saved (anonymous): query_id={anonymous_history.id}")
             except Exception as e:
                 print(f"❌ Failed to save anonymous QueryHistory: {e}")
-                import traceback
-                traceback.print_exc()
                 await db.rollback()
 
-        # Return simplified response
         return QueryResponse(
             query=request.query,
             answer=result['answer'],

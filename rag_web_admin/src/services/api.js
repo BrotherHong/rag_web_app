@@ -8,7 +8,7 @@
 export { login, logout, verifyToken } from './api/auth.js';
 
 // 導入檔案管理模組
-export { getFiles, uploadFile, deleteFile, downloadFile } from './api/files.js';
+export { getFiles, uploadFile, deleteFile, downloadFile, updateFile } from './api/files.js';
 
 // 導入分類管理模組
 export { getCategories, getCategoriesWithDetails, addCategory, deleteCategory, getCategoryStats } from './api/categories.js';
@@ -31,3 +31,20 @@ export { getDepartments, getDepartmentById, addDepartment, updateDepartment, del
 // 導入 FAQ 管理模組
 export { getFaqs, addFaq, updateFaq, deleteFaq, toggleFaqStatus, updateFaqOrder } from './api/faqs.js';
 
+// 導入查詢用戶管理模組
+export { 
+  getQueryUserStats, 
+  getQueryUsers, 
+  getQueryUserDetail, 
+  createQueryUser, 
+  approveQueryUser, 
+  updateQueryUser, 
+  suspendQueryUser, 
+  activateQueryUser,
+  deleteQueryUser,
+  getQueryUserPermissions,
+  grantFilePermission,
+  batchGrantPermissions,
+  revokeFilePermission,
+  getAvailableFilesForPermissions
+} from './api/queryUsers.js';

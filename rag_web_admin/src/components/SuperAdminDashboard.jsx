@@ -20,12 +20,13 @@ import UserManagement from './superadmin/UserManagement';
 import SystemSettings from './superadmin/SystemSettings';
 import ActivityLog from './superadmin/ActivityLog';
 import GlobalOverview from './superadmin/GlobalOverview';
+import QueryUserManagement from './QueryUserManagement';
 import { getActivityConfig } from '../utils/activityConfig';
 
 function SuperAdminDashboard() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [currentPage, setCurrentPage] = useState('overview'); // overview, departments, users, settings, activities
+  const [currentPage, setCurrentPage] = useState('overview'); // overview, departments, users, query-users, settings, activities
   const [departments, setDepartments] = useState([]);
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -522,6 +523,26 @@ function SuperAdminDashboard() {
               </div>
             </button>
             <button
+              onClick={() => setCurrentPage('query-users')}
+              className={`px-6 py-3 font-medium transition-all cursor-pointer relative ${
+                currentPage === 'query-users'
+                  ? 'text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              style={currentPage === 'query-users' ? {
+                backgroundColor: 'var(--ncku-red)',
+                borderRadius: '8px 8px 0 0'
+              } : {}}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span>查詢用戶</span>
+              </div>
+            </button>
+            <button
               onClick={() => setCurrentPage('settings')}
               className={`px-6 py-3 font-medium transition-all cursor-pointer relative ${
                 currentPage === 'settings'
@@ -584,6 +605,11 @@ function SuperAdminDashboard() {
               onRefresh={refreshUsersAndDepartments}
               isLoading={isLoading}
             />
+          )}
+
+          {/* 查詢用戶管理頁面 */}
+          {currentPage === 'query-users' && (
+            <QueryUserManagement />
           )}
 
           {/* 系統設定頁面 */}

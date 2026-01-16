@@ -90,7 +90,7 @@ function NotFoundPage() {
                 <button
                   key={dept.id}
                   onClick={() => navigate(`/${dept.slug}`)}
-                  className="w-full px-4 py-3 rounded-lg transition-all flex items-center justify-between group"
+                  className="w-full px-4 py-3 rounded-lg transition-all flex items-center justify-between group cursor-pointer"
                   style={{
                     backgroundColor: getLightColor(dept.color),
                     color: dept.color || '#374151'
@@ -119,7 +119,7 @@ function NotFoundPage() {
         <button
           onClick={() => navigate(departments.length > 0 ? `/${departments[0].slug}` : '/')}
           disabled={loading || departments.length === 0}
-          className="w-full px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-medium rounded-lg transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-medium rounded-lg transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           返回首頁
         </button>

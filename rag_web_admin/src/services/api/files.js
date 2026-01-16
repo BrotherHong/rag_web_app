@@ -42,6 +42,7 @@ export const getFiles = async (params = {}) => {
       limit: params.limit || 20,  // 預設每頁 20 筆
       ...(params.search && { search: params.search }),
       ...(params.category && params.category !== 'all' && { category_id: params.category }),
+      ...(params.department_id && { department_id: params.department_id }),
       ...(params.sort && { sort: params.sort }),
       ...(params.order && { order: params.order })
     }).toString();
@@ -65,7 +66,8 @@ export const getFiles = async (params = {}) => {
         uploader: file.uploader?.full_name || file.uploader?.username || '未知',
         isVectorized: file.is_vectorized,
         vectorCount: file.vector_count || 0,
-        downloadCount: file.download_count || 0
+        downloadCount: file.download_count || 0,
+        is_public: file.is_public || false
       }));
       
       return {
@@ -225,6 +227,44 @@ export const downloadFile = async (fileId, fileName = null) => {
     return {
       success: false,
       message: '檔案下載失敗，請檢查網路連線'
+    };
+  }
+};
+
+/**
+ * 更新檔案資訊
+ * @param {number} fileId - 檔案 ID
+ * @param {Object} data - 更新資料 { category_id, description, tags, is_public }
+ * @returns {Promise} 更新結果
+ */
+export const updateFile = async (fileId, data) => {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/files/${fileId}`, {
+      method: 'PUT',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    
+    if (response.ok) {
+      return {
+        success: true,
+        message: '檔案資訊已更新'
+      };
+    } else {
+      const error = await response.json();
+      return {
+        success: false,
+        message: error.detail || '更新檔案資訊失敗'
+      };
+    }
+  } catch (error) {
+    console.error('Update file error:', error);
+    return {
+      success: false,
+      message: '更新檔案資訊失敗，請檢查網路連線'
     };
   }
 };
