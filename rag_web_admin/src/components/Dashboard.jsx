@@ -914,7 +914,7 @@ function CategoryManagement() {
                       <span className="ml-2 text-xs text-gray-500">(預設)</span>
                     )}
                   </h4>
-                  <p className="text-sm text-gray-500">{category.count} 個檔案</p>
+                  <p className="text-sm text-gray-500">{category.fileCount || 0} 個檔案</p>
                 </div>
               </div>
               {category.name !== '其他' && (
