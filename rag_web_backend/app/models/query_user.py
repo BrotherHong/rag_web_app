@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.department import Department
     from app.models.user import User
     from app.models.file import File
+    from app.models.user_group import UserGroup
 
 
 class QueryUserStatus(str, Enum):
@@ -140,6 +141,13 @@ class QueryUser(Base, TimestampMixin):
         "FilePermission",
         back_populates="query_user",
         cascade="all, delete-orphan"
+    )
+    
+    # 多對多：此用戶所屬的身分組
+    user_groups: Mapped[List["UserGroup"]] = relationship(
+        "UserGroup",
+        secondary="query_user_groups",
+        back_populates="query_users"
     )
 
 

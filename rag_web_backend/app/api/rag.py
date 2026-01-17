@@ -96,11 +96,12 @@ async def query_documents(
                     sources=[]
                 )
         
-        # 查詢用戶權限過濾：公開文件 + 被授權的文件
+        # 查詢用戶權限過濾：公開文件 + 被授權的文件 + 身分組授權的文件
         elif isinstance(current_user, QueryUser):
-            # 查詢用戶可以訪問：公開文件 + 被授權的文件
+            # 查詢用戶可以訪問：公開文件 + 被授權的文件 + 身分組授權的文件
             from app.models.file import File as FileModel
             from app.models.query_user import FilePermission
+            from app.models.user_group import FileUserGroupPermission
             
             # 1. 獲取公開文件
             public_query = select(FileModel.original_filename).where(
@@ -111,7 +112,7 @@ async def query_documents(
             public_result = await db.execute(public_query)
             public_filenames = {row[0] for row in public_result.all()}
             
-            # 2. 獲取用戶被授權的文件
+            # 2. 獲取用戶被授權的文件（個人權限）
             permission_query = select(FileModel.original_filename).join(
                 FilePermission,
                 FileModel.id == FilePermission.file_id
@@ -124,8 +125,26 @@ async def query_documents(
             permission_result = await db.execute(permission_query)
             authorized_filenames = {row[0] for row in permission_result.all()}
             
-            # 3. 合併：公開文件 + 授權文件
-            allowed_filenames = public_filenames | authorized_filenames
+            # 3. 獲取用戶通過身分組授權的文件
+            # 首先獲取用戶所屬的所有身分組 ID
+            user_group_ids = [group.id for group in current_user.user_groups]
+            
+            group_permission_filenames = set()
+            if user_group_ids:
+                group_permission_query = select(FileModel.original_filename).join(
+                    FileUserGroupPermission,
+                    FileModel.id == FileUserGroupPermission.file_id
+                ).where(
+                    FileUserGroupPermission.user_group_id.in_(user_group_ids),
+                    FileModel.department_id == department_id,
+                    FileModel.is_vectorized == True
+                )
+                
+                group_permission_result = await db.execute(group_permission_query)
+                group_permission_filenames = {row[0] for row in group_permission_result.all()}
+            
+            # 4. 合併：公開文件 + 個人授權文件 + 身分組授權文件
+            allowed_filenames = public_filenames | authorized_filenames | group_permission_filenames
             
             if not allowed_filenames:
                 # 沒有任何可訪問的文件

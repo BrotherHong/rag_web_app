@@ -48,3 +48,17 @@ export {
   revokeFilePermission,
   getAvailableFilesForPermissions
 } from './api/queryUsers.js';
+
+// 導入用戶身分組管理模組
+export {
+  getUserGroups,
+  getUserGroupDetail,
+  createUserGroup,
+  updateUserGroup,
+  deleteUserGroup,
+  addMemberToGroup,
+  removeMemberFromGroup,
+  setFileUserGroupPermissions,
+  batchSetFileUserGroupPermissions,
+  getFileUserGroupPermissions
+} from './api/userGroups.js';

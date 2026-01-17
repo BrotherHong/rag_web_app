@@ -11,6 +11,7 @@ import {
   activateQueryUser
 } from '../services/api/queryUsers';
 import { getDepartments } from '../services/api';
+import { getUserGroups, addMemberToGroup, removeMemberFromGroup } from '../services/api/userGroups';
 import QueryUserPermissions from './QueryUserPermissions';
 
 function QueryUserManagement() {
@@ -18,6 +19,7 @@ function QueryUserManagement() {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [userGroups, setUserGroups] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -32,6 +34,18 @@ function QueryUserManagement() {
   const userModal = useModalAnimation(showUserModal, () => setShowUserModal(false));
   const deleteModal = useModalAnimation(showDeleteConfirm !== null, () => setShowDeleteConfirm(null));
   
+  // 獲取使用者資訊
+  const getUserInfo = () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      return userStr ? JSON.parse(userStr) : { name: '管理員', username: 'Admin', role: 'ADMIN' };
+    } catch {
+      return { name: '管理員', username: 'Admin', role: 'ADMIN' };
+    }
+  };
+  
+  const user = getUserInfo();
+  
   // 表單狀態
   const [formData, setFormData] = useState({
     username: '',
@@ -40,12 +54,14 @@ function QueryUserManagement() {
     full_name: '',
     organization: '',
     default_department_id: '',
-    admin_notes: ''
+    admin_notes: '',
+    user_group_ids: []
   });
 
   useEffect(() => {
     loadStats();
     loadDepartments();
+    loadUserGroups();
   }, []);
 
   useEffect(() => {
@@ -85,30 +101,72 @@ function QueryUserManagement() {
     }
   };
 
+  const loadUserGroups = async () => {
+    try {
+      // 調試：檢查localStorage中的用戶信息
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      console.log('Loading user groups...');
+      console.log('Current user info:', user);
+      console.log('Department ID:', user?.departmentId);
+      console.log('Is SuperAdmin Proxy:', user?.isSuperAdminProxy);
+      
+      const response = await getUserGroups();
+      console.log('User groups response:', response);
+      if (response.success) {
+        setUserGroups(response.data || []);
+        console.log('Loaded user groups:', response.data?.length || 0);
+        if (response.data?.length === 0) {
+          console.warn('⚠️ 沒有找到身分組！請確認：');
+          console.warn('1. 您是否已在「身分組管理」中創建身分組？');
+          console.warn('2. 您的處室ID是否正確？', user?.departmentId);
+          console.warn('3. 如果是超級管理員，是否已選擇處室？');
+        }
+      } else {
+        console.error('Failed to load user groups:', response.message);
+        toast.error(response.message || '載入身分組失敗');
+      }
+    } catch (error) {
+      console.error('Failed to load user groups:', error);
+      toast.error('載入身分組失敗');
+    }
+  };
+
   const handleOpenCreateModal = () => {
     setEditingUser(null);
+    // 獲取當前管理員的處室ID
+    const currentDeptId = user.departmentId ? user.departmentId.toString() : '';
     setFormData({
       username: '',
       email: '',
       password: '',
       full_name: '',
       organization: '',
-      default_department_id: '',
-      admin_notes: ''
+      default_department_id: currentDeptId,  // 自動設定為當前處室
+      admin_notes: '',
+      user_group_ids: []
     });
     setShowUserModal(true);
   };
 
   const handleOpenEditModal = (user) => {
     setEditingUser(user);
+    console.log('[Edit User] User data:', user);
+    console.log('[Edit User] User groups:', user.user_groups);
+    
+    // 提取用戶的身分組ID
+    const groupIds = user.user_groups ? user.user_groups.map(g => g.id) : [];
+    console.log('[Edit User] Extracted group IDs:', groupIds);
+    
     setFormData({
       username: user.username,
       email: user.email,
       password: '', // 不顯示密碼
       full_name: user.full_name || '',
       organization: user.organization || '',
-      default_department_id: user.default_department_id || '',
-      admin_notes: user.admin_notes || ''
+      default_department_id: user.default_department_id ? user.default_department_id.toString() : '',
+      admin_notes: user.admin_notes || '',
+      user_group_ids: groupIds
     });
     setShowUserModal(true);
   };
@@ -118,11 +176,31 @@ function QueryUserManagement() {
     
     try {
       if (editingUser) {
-        // 編輯模式：只更新允許的欄位
+        // 編輯模式：更新用戶資訊和身分組
         await updateQueryUser(editingUser.id, {
           default_department_id: formData.default_department_id ? parseInt(formData.default_department_id) : null,
           admin_notes: formData.admin_notes
         });
+
+        // 更新身分組成員關係
+        const currentGroupIds = editingUser.user_groups ? editingUser.user_groups.map(g => g.id) : [];
+        const newGroupIds = formData.user_group_ids;
+        
+        // 找出要新增的組別
+        const groupsToAdd = newGroupIds.filter(id => !currentGroupIds.includes(id));
+        // 找出要移除的組別
+        const groupsToRemove = currentGroupIds.filter(id => !newGroupIds.includes(id));
+        
+        // 執行新增
+        for (const groupId of groupsToAdd) {
+          await addMemberToGroup(groupId, editingUser.id);
+        }
+        
+        // 執行移除
+        for (const groupId of groupsToRemove) {
+          await removeMemberFromGroup(groupId, editingUser.id);
+        }
+        
         toast.success('用戶資訊已更新');
       } else {
         // 新增模式
@@ -130,8 +208,20 @@ function QueryUserManagement() {
           ...formData,
           default_department_id: formData.default_department_id ? parseInt(formData.default_department_id) : null
         };
+        delete createData.user_group_ids; // 創建用戶時不包含此欄位
+        
         const newUser = await createQueryUser(createData);
         console.log('創建成功，用戶狀態:', newUser.status, '啟用狀態:', newUser.is_active);
+        
+        // 將用戶加入選定的身分組
+        for (const groupId of formData.user_group_ids) {
+          try {
+            await addMemberToGroup(groupId, newUser.id);
+          } catch (error) {
+            console.error(`Failed to add user to group ${groupId}:`, error);
+          }
+        }
+        
         toast.success('查詢用戶創建成功');
       }
       
@@ -395,6 +485,7 @@ function QueryUserManagement() {
                       id="password"
                       name="password"
                       type="password"
+                      autoComplete="new-password"
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -457,6 +548,78 @@ function QueryUserManagement() {
                     <option key={dept.id} value={dept.id}>{dept.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  身分組（可多選）
+                  <button
+                    type="button"
+                    onClick={loadUserGroups}
+                    className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                  >
+                    重新載入
+                  </button>
+                </label>
+                <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
+                  {userGroups.length > 0 ? (
+                    <div className="space-y-2">
+                      {userGroups.map(group => (
+                        <label
+                          key={group.id}
+                          className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-md cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.user_group_ids.includes(group.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({
+                                  ...formData,
+                                  user_group_ids: [...formData.user_group_ids, group.id]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  user_group_ids: formData.user_group_ids.filter(id => id !== group.id)
+                                });
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-sm text-gray-700 flex items-center">
+                            <span
+                              className="inline-block w-3 h-3 rounded-full mr-1.5"
+                              style={{ backgroundColor: group.color }}
+                            ></span>
+                            {group.name}
+                            <span className="text-xs text-gray-500 ml-2">
+                              (優先級: {group.priority})
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-gray-500 italic mb-2">目前沒有可用的身分組</p>
+                      {!user.departmentId ? (
+                        <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                          <p className="text-xs text-yellow-800 font-medium">💡 提示：</p>
+                          <p className="text-xs text-yellow-700 mt-1">
+                            您是超級管理員，請先到「處室管理」選擇一個處室，<br/>
+                            然後點擊「管理」按鈕進入該處室的管理介面。
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400">請先在「身分組管理」中創建身分組</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  用戶將能訪問授權給這些身分組的檔案
+                </p>
               </div>
 
               <div>

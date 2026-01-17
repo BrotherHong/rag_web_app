@@ -66,6 +66,7 @@ async def batch_upload(
     files: List[UploadFile] = File(...),
     categories: str = Form("{}"),  # JSON 字串格式的分類對應
     removeFileIds: str = Form("[]"),  # 要刪除的舊檔案 ID 列表
+    user_group_ids: Optional[str] = Form(None),  # 身分組 ID 列表
     startProcessing: str = Form("false"),  # 是否立即開始處理
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -77,6 +78,7 @@ async def batch_upload(
     - files: 檔案列表
     - categories: JSON 字串 {"filename1.pdf": "分類名稱1", ...}
     - removeFileIds: JSON 字串 [1, 2, 3, ...]
+    - user_group_ids: JSON 字串 [1, 2, 3, ...]
     
     返回格式:
     {
@@ -89,6 +91,7 @@ async def batch_upload(
     import json
     import os
     from app.models import File as FileModel, Category
+    from app.models.user_group import FileUserGroupPermission
     from app.services.file_storage import file_storage
     from app.services.activity import activity_service
     
@@ -96,6 +99,7 @@ async def batch_upload(
     print(f"\n{'='*60}")
     print(f"📤 收到上傳請求")
     print(f"檔案數量: {len(files)}")
+    print(f"user_group_ids: {user_group_ids}")
     print(f"startProcessing 參數: {startProcessing}")
     print(f"{'='*60}\n")
     
@@ -103,9 +107,11 @@ async def batch_upload(
     try:
         category_map = json.loads(categories)
         remove_ids = json.loads(removeFileIds)
+        group_ids = json.loads(user_group_ids) if user_group_ids else []
     except:
         category_map = {}
         remove_ids = []
+        group_ids = []
     
     # 生成任務 ID
     task_id = str(uuid.uuid4())
@@ -214,6 +220,15 @@ async def batch_upload(
             
             db.add(db_file)
             await db.flush()
+            
+            # 處理身分組權限
+            if group_ids:
+                for group_id in group_ids:
+                    permission = FileUserGroupPermission(
+                        file_id=db_file.id,
+                        user_group_id=group_id
+                    )
+                    db.add(permission)
             
             # 更新檔案狀態為完成
             task["files"][idx]["status"] = "completed"

@@ -10,6 +10,7 @@ from app.models.query_history import QueryHistory
 from app.models.system_setting import SystemSetting
 from app.models.faq import FAQ
 from app.models.query_user import QueryUser, QueryUserStatus, FilePermission
+from app.models.user_group import UserGroup, FileUserGroupPermission, query_user_groups
 
 __all__ = [
     "Base",
@@ -27,4 +28,7 @@ __all__ = [
     "QueryUser",
     "QueryUserStatus",
     "FilePermission",
+    "UserGroup",
+    "FileUserGroupPermission",
+    "query_user_groups",
 ]

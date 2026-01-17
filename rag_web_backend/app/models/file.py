@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.category import Category
     from app.models.activity import Activity
     from app.models.query_user import FilePermission
+    from app.models.user_group import FileUserGroupPermission
 
 
 class FileStatus(str, Enum):
@@ -221,6 +222,12 @@ class File(Base, TimestampMixin):
     
     query_user_permissions: Mapped[List["FilePermission"]] = relationship(
         "FilePermission",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
+    
+    user_group_permissions: Mapped[List["FileUserGroupPermission"]] = relationship(
+        "FileUserGroupPermission",
         back_populates="file",
         cascade="all, delete-orphan"
     )

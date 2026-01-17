@@ -87,6 +87,12 @@ export const batchUpload = async (uploadData) => {
     uploadData.files.forEach(file => formData.append('files', file));
     formData.append('categories', JSON.stringify(uploadData.categories || {}));
     formData.append('removeFileIds', JSON.stringify(uploadData.removeFileIds || []));
+    
+    // 添加身分組 IDs
+    if (uploadData.userGroupIds && uploadData.userGroupIds.length > 0) {
+      formData.append('user_group_ids', JSON.stringify(uploadData.userGroupIds));
+    }
+    
     formData.append('startProcessing', 'true');
     
     const response = await apiFetch(`${API_BASE_URL}/upload/batch`, {

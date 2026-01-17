@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getFiles, deleteFile, downloadFile, updateFile, getCategoriesWithDetails } from '../services/api';
+import { getUserGroups, getFileUserGroupPermissions, setFileUserGroupPermissions } from '../services/api/userGroups';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useToast } from '../contexts/ToastContext';
 
@@ -8,12 +9,15 @@ function KnowledgeBase() {
   const [files, setFiles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryMap, setCategoryMap] = useState({}); // 用於儲存分類名稱到顏色的對應
+  const [userGroups, setUserGroups] = useState([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all'); // 使用 'all' 或分類 ID
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showFileDetail, setShowFileDetail] = useState(false);
+  const [showEditPermissions, setShowEditPermissions] = useState(false);
+  const [editingFilePermissions, setEditingFilePermissions] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalFiles, setTotalFiles] = useState(0);
@@ -22,6 +26,17 @@ function KnowledgeBase() {
   // 對話框動畫
   const deleteModal = useModalAnimation(showDeleteConfirm !== null, () => setShowDeleteConfirm(null));
   const detailModal = useModalAnimation(showFileDetail, () => setShowFileDetail(false));
+  const permissionsModal = useModalAnimation(showEditPermissions, () => {
+    setShowEditPermissions(false);
+  });
+
+  // 當權限 modal 完全關閉後重置狀態
+  useEffect(() => {
+    if (!showEditPermissions && !permissionsModal.shouldRender) {
+      setEditingFilePermissions([]);
+      setSelectedFile(null);
+    }
+  }, [showEditPermissions, permissionsModal.shouldRender]);
   
   // 獲取當前使用者權限
   const getUserInfo = () => {
@@ -39,6 +54,7 @@ function KnowledgeBase() {
   useEffect(() => {
     loadFiles();
     loadCategories();
+    loadUserGroups();
   }, [searchTerm, currentPage, selectedCategory]);
 
   // 載入檔案列表
@@ -83,6 +99,29 @@ function KnowledgeBase() {
       }
     } catch (error) {
       console.error('載入分類錯誤:', error);
+    }
+  };
+
+  // 載入身分組列表
+  const loadUserGroups = async () => {
+    try {
+      // 調試：檢查localStorage中的用戶信息
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      console.log('[KnowledgeBase] Loading user groups...');
+      console.log('[KnowledgeBase] Current user:', user);
+      console.log('[KnowledgeBase] Department ID:', user?.departmentId);
+      
+      const response = await getUserGroups();
+      console.log('[KnowledgeBase] User groups response:', response);
+      if (response.success) {
+        setUserGroups(response.data || []);
+        console.log('[KnowledgeBase] Loaded user groups:', response.data?.length || 0);
+      } else {
+        console.error('[KnowledgeBase] Failed to load user groups:', response.message);
+      }
+    } catch (error) {
+      console.error('[KnowledgeBase] 載入身分組錯誤:', error);
     }
   };
 
@@ -147,6 +186,65 @@ function KnowledgeBase() {
     } catch (error) {
       console.error('更新錯誤:', error);
       toast.error('更新文件狀態失敗');
+    }
+  };
+
+  // 處理編輯身分組權限
+  const handleEditPermissions = async (file) => {
+    try {
+      console.log('Loading permissions for file:', file.id, file.name);
+      // 載入檔案的身分組權限
+      const response = await getFileUserGroupPermissions(file.id);
+      console.log('Permissions response:', response);
+      
+      if (response.success) {
+        // 確保 response.data 是陣列
+        const permissions = Array.isArray(response.data) ? response.data : [];
+        console.log('Permissions data:', permissions);
+        
+        // 提取 userGroupId（注意：API 返回 camelCase）
+        const groupIds = permissions
+          .map(p => p.userGroupId || p.user_group_id)
+          .filter(id => id !== undefined && id !== null);
+        console.log('Setting editing permissions to:', groupIds);
+        
+        setEditingFilePermissions(groupIds);
+        setSelectedFile(file);
+        setShowEditPermissions(true);
+      } else {
+        console.error('Failed to load permissions:', response.message);
+        toast.error(response.message || '載入權限失敗');
+      }
+    } catch (error) {
+      console.error('載入權限錯誤:', error);
+      toast.error('載入權限失敗');
+    }
+  };
+
+  // 處理儲存身分組權限
+  const handleSavePermissions = async () => {
+    try {
+      console.log('Saving permissions for file:', selectedFile?.id, 'groups:', editingFilePermissions);
+      const response = await setFileUserGroupPermissions(
+        selectedFile.id,
+        editingFilePermissions
+      );
+      console.log('Save permissions response:', response);
+      
+      if (response.success) {
+        toast.success('權限設定已更新');
+        permissionsModal.handleClose();
+        // 重置編輯狀態
+        setEditingFilePermissions([]);
+        setSelectedFile(null);
+        await loadFiles();
+      } else {
+        console.error('Failed to save permissions:', response.message);
+        toast.error(response.message || '更新權限失敗');
+      }
+    } catch (error) {
+      console.error('更新權限錯誤:', error);
+      toast.error('更新權限失敗');
     }
   };
 
@@ -446,6 +544,16 @@ function KnowledgeBase() {
                           </svg>
                         )}
                       </button>
+                      <button
+                        onClick={() => handleEditPermissions(file)}
+                        className="text-purple-600 hover:text-purple-900 transition-colors cursor-pointer"
+                        title="設定身分組權限"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </button>
                       <button 
                         className="text-blue-600 hover:text-blue-900 transition-colors cursor-pointer" 
                         onClick={() => handleViewDetail(file)}
@@ -693,6 +801,87 @@ function KnowledgeBase() {
               >
                 確認刪除
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 編輯身分組權限模態框 */}
+      {permissionsModal.shouldRender && (
+        <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 ${permissionsModal.animationClass}`}>
+          <div className={`bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto ${permissionsModal.contentAnimationClass}`}>
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-xl font-bold text-gray-900">
+                設定檔案身分組權限
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                檔案：{selectedFile?.name}
+              </p>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  可訪問的身分組
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  不選擇任何組別代表只有標記為公開時所有人才能訪問
+                </p>
+                <div className="border border-gray-300 rounded-lg p-4 max-h-96 overflow-y-auto bg-gray-50">
+                  {userGroups.length > 0 ? (
+                    <div className="space-y-2">
+                      {userGroups.map(group => (
+                        <label
+                          key={group.id}
+                          className="flex items-center space-x-3 p-3 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editingFilePermissions.includes(group.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditingFilePermissions([...editingFilePermissions, group.id]);
+                              } else {
+                                setEditingFilePermissions(editingFilePermissions.filter(id => id !== group.id));
+                              }
+                            }}
+                            className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer"
+                          />
+                          <span className="flex items-center text-sm text-gray-700 flex-1">
+                            <span
+                              className="inline-block w-4 h-4 rounded-full mr-2"
+                              style={{ backgroundColor: group.color }}
+                            ></span>
+                            <span className="font-medium">{group.name}</span>
+                            <span className="text-xs text-gray-500 ml-2">
+                              (優先級: {group.priority}, 成員: {group.member_count})
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic text-center py-4">
+                      目前沒有可用的身分組
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                <button
+                  onClick={permissionsModal.handleClose}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer font-medium"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSavePermissions}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors cursor-pointer font-medium"
+                >
+                  儲存權限
+                </button>
+              </div>
             </div>
           </div>
         </div>

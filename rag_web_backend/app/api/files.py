@@ -179,6 +179,7 @@ async def upload_file(
     file: UploadFile = File(..., description="上傳的檔案"),
     category_id: Optional[int] = Form(None, description="分類ID"),
     description: Optional[str] = Form(None, description="檔案描述"),
+    user_group_ids: Optional[str] = Form(None, description="身分組ID列表（JSON字串）"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -188,6 +189,7 @@ async def upload_file(
     - 最大檔案大小：50MB
     - 自動生成唯一檔名
     - 儲存到處室專屬目錄
+    - 支援設定身分組權限
     """
     # 1. 驗證檔案
     is_valid, error_msg = await file_storage.validate_file(file, db)
@@ -244,7 +246,25 @@ async def upload_file(
     await db.commit()
     await db.refresh(db_file)
     
-    # 6. 記錄活動
+    # 6. 處理身分組權限
+    if user_group_ids:
+        try:
+            import json
+            from app.models.user_group import FileUserGroupPermission
+            group_ids = json.loads(user_group_ids)
+            if isinstance(group_ids, list):
+                for group_id in group_ids:
+                    permission = FileUserGroupPermission(
+                        file_id=db_file.id,
+                        user_group_id=group_id
+                    )
+                    db.add(permission)
+                await db.commit()
+        except (json.JSONDecodeError, ValueError) as e:
+            # 忽略身分組設定錯誤，不影響檔案上傳
+            print(f"Warning: Failed to set user group permissions: {e}")
+    
+    # 7. 記錄活動
     await activity_service.log_activity(
         db=db,
         user_id=current_user.id,
@@ -254,7 +274,7 @@ async def upload_file(
         department_id=current_user.department_id
     )
     
-    # 7. 設置檔案為待處理狀態
+    # 8. 設置檔案為待處理狀態
     db_file.status = ProcessingStatus.PENDING
     db_file.processing_step = "pending"
     db_file.processing_progress = 0
@@ -277,13 +297,14 @@ async def batch_upload_files(
     files: List[UploadFile] = File(..., description="上傳的多個檔案"),
     category_id: Optional[int] = Form(None, description="分類ID"),
     description: Optional[str] = Form(None, description="檔案描述（套用到所有檔案）"),
+    user_group_ids: Optional[str] = Form(None, description="身分組ID列表（JSON字串）"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """批次上傳檔案
     
     - 支援一次上傳多個檔案
-    - 所有檔案使用相同的分類和描述
+    - 所有檔案使用相同的分類、描述和身分組權限
     - 返回每個檔案的上傳結果
     - 部分失敗不影響其他檔案
     - 前端可使用 /files/batch-upload 或 /upload/batch
@@ -360,6 +381,24 @@ async def batch_upload_files(
             db.add(db_file)
             await db.commit()
             await db.refresh(db_file)
+            
+            # 5. 處理身分組權限
+            if user_group_ids:
+                try:
+                    import json
+                    from app.models.user_group import FileUserGroupPermission
+                    group_ids = json.loads(user_group_ids)
+                    if isinstance(group_ids, list):
+                        for group_id in group_ids:
+                            permission = FileUserGroupPermission(
+                                file_id=db_file.id,
+                                user_group_id=group_id
+                            )
+                            db.add(permission)
+                        await db.commit()
+                except (json.JSONDecodeError, ValueError) as e:
+                    # 忽略身分組設定錯誤，不影響檔案上傳
+                    print(f"Warning: Failed to set user group permissions for {file.filename}: {e}")
             
             uploaded_file_ids.append(db_file.id)
             

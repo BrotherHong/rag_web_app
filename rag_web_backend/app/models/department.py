@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.query_history import QueryHistory
     from app.models.category import Category
     from app.models.activity import Activity
+    from app.models.user_group import UserGroup
 
 
 class Department(Base, TimestampMixin):
@@ -79,6 +80,12 @@ class Department(Base, TimestampMixin):
     
     activities: Mapped[List["Activity"]] = relationship(
         "Activity",
+        back_populates="department",
+        cascade="all, delete-orphan"
+    )
+    
+    user_groups: Mapped[List["UserGroup"]] = relationship(
+        "UserGroup",
         back_populates="department",
         cascade="all, delete-orphan"
     )

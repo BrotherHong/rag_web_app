@@ -1,8 +1,11 @@
 """查詢用戶相關的 Pydantic Schemas"""
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .user_group import UserGroupBrief
 
 
 # ==================== 處室簡要資訊 ====================
@@ -97,7 +100,9 @@ class QueryUserDetail(QueryUserInfo):
     admin_notes: Optional[str] = None
     updated_at: datetime
     default_department: Optional[DepartmentBrief] = None
+    default_department_id: Optional[int] = None
     approver: Optional[UserBrief] = None
+    user_groups: List["UserGroupBrief"] = []
     
     class Config:
         from_attributes = True
@@ -130,7 +135,7 @@ class QueryUserCreateRequest(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=100, description="全名")
     organization: Optional[str] = Field(None, max_length=200, description="所屬單位/組織")
     default_department_id: Optional[int] = Field(None, description="預設可見處室 ID")
-
+    user_group_ids: Optional[List[int]] = Field(None, description="身分組 ID 列表")
     admin_notes: Optional[str] = Field(None, description="管理員備註")
     
     @field_validator('username')
@@ -147,6 +152,7 @@ class QueryUserUpdateRequest(BaseModel):
     default_department_id: Optional[int] = None
     max_queries_per_day: Optional[int] = None
     admin_notes: Optional[str] = None
+    user_group_ids: Optional[List[int]] = None
 
 
 # ==================== 文件權限相關 ====================
@@ -220,3 +226,8 @@ class QueryUserStats(BaseModel):
     suspended: int
     active: int
     inactive: int
+
+
+# 解決 forward reference
+from .user_group import UserGroupBrief
+QueryUserDetail.model_rebuild()

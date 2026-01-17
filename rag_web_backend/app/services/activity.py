@@ -65,6 +65,54 @@ class ActivityService:
         await db.flush()
         
         return activity
+    
+    async def log_user_group_activity(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        department_id: int,
+        action: str,  # create, update, delete, add_member, remove_member
+        user_group_id: Optional[int] = None,
+        details: str = "",
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Activity:
+        """記錄身分組相關活動
+        
+        Args:
+            db: 資料庫 Session
+            user_id: 使用者 ID
+            department_id: 處室 ID
+            action: 動作類型 (create, update, delete, add_member, remove_member)
+            user_group_id: 身分組 ID
+            details: 詳細描述
+            ip_address: IP 位址
+            user_agent: User Agent
+            
+        Returns:
+            Activity: 活動記錄物件
+        """
+        # 根據動作選擇活動類型
+        activity_type_map = {
+            "create": ActivityType.CREATE_USER_GROUP,
+            "update": ActivityType.UPDATE_USER_GROUP,
+            "delete": ActivityType.DELETE_USER_GROUP,
+            "add_member": ActivityType.USER_GROUP_ADD_MEMBER,
+            "remove_member": ActivityType.USER_GROUP_REMOVE_MEMBER,
+        }
+        
+        activity_type = activity_type_map.get(action, ActivityType.UPDATE_USER_GROUP)
+        
+        return await self.log_activity(
+            db=db,
+            user_id=user_id,
+            activity_type=activity_type,
+            description=details,
+            department_id=department_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            extra_data=f'{{"user_group_id": {user_group_id}}}' if user_group_id else None
+        )
 
 
 # 建立全域活動記錄服務實例

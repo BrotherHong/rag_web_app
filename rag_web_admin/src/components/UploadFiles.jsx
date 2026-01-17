@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { checkDuplicates, batchUpload, getUploadProgress, getCategories } from '../services/api';
+import { checkDuplicates, batchUpload, getUploadProgress, getCategories, getUserGroups } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 
 const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
@@ -9,6 +9,8 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [fileCategories, setFileCategories] = useState({});
+  const [userGroups, setUserGroups] = useState([]);
+  const [selectedUserGroups, setSelectedUserGroups] = useState([]);
   
   // 重複檢查結果
   const [duplicateCheckResults, setDuplicateCheckResults] = useState([]);
@@ -39,9 +41,10 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
   
   const user = getUserInfo();
   
-  // 載入分類列表
+  // 載入分類列表和身分組列表
   useEffect(() => {
     loadCategories();
+    loadUserGroups();
   }, []);
   
   // 輪詢上傳進度
@@ -61,6 +64,13 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     const response = await getCategories();
     if (response.success) {
       setCategories(response.data);
+    }
+  };
+  
+  const loadUserGroups = async () => {
+    const response = await getUserGroups(false);
+    if (response.success) {
+      setUserGroups(response.data);
     }
   };
   
@@ -209,7 +219,8 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     const uploadData = {
       files: selectedFiles,
       categories: fileCategories,
-      removeFileIds: filesToRemove
+      removeFileIds: filesToRemove,
+      userGroupIds: selectedUserGroups  // 添加身分組 IDs
     };
     
     const response = await batchUpload(uploadData);
@@ -485,6 +496,47 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                       一鍵設定所有檔案分類
                     </span>
                   </div>
+                </div>
+
+                {/* 身分組選擇區域 */}
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="mb-2">
+                    <span className="text-sm font-medium text-gray-700">可訪問的身分組：</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      （不選擇任何組別代表所有人都可以訪問）
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {userGroups.map(group => (
+                      <label
+                        key={group.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-green-100 rounded-md cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedUserGroups.includes(group.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedUserGroups([...selectedUserGroups, group.id]);
+                            } else {
+                              setSelectedUserGroups(selectedUserGroups.filter(id => id !== group.id));
+                            }
+                          }}
+                          className="w-4 h-4 text-ncku-red border-gray-300 rounded focus:ring-ncku-red cursor-pointer"
+                        />
+                        <span className="text-sm text-gray-700 flex items-center">
+                          <span
+                            className="inline-block w-3 h-3 rounded-full mr-1.5"
+                            style={{ backgroundColor: group.color }}
+                          ></span>
+                          {group.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {userGroups.length === 0 && (
+                    <p className="text-sm text-gray-500 italic">目前沒有可用的身分組</p>
+                  )}
                 </div>
               </div>
               

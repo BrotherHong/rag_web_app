@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from math import ceil
@@ -15,6 +15,7 @@ from app.core.database import get_db
 from app.core.security import get_current_super_admin, get_password_hash
 from app.models.user import User
 from app.models.query_user import QueryUser, QueryUserStatus, FilePermission
+from app.models.user_group import query_user_groups
 from app.models.file import File
 from app.models.category import Category
 from app.schemas.query_user import (
@@ -43,41 +44,56 @@ async def get_query_user_stats(
     獲取查詢用戶統計資訊
     
     需要管理員權限
+    自動根據當前管理員的處室過濾
     """
+    # 基礎查詢條件
+    base_conditions = []
+    if current_user.department_id:
+        base_conditions.append(QueryUser.default_department_id == current_user.department_id)
+    
     # 總數
-    total_result = await db.execute(select(func.count(QueryUser.id)))
+    total_query = select(func.count(QueryUser.id))
+    if base_conditions:
+        total_query = total_query.where(and_(*base_conditions))
+    total_result = await db.execute(total_query)
     total = total_result.scalar()
     
     # 各狀態數量
-    pending_result = await db.execute(
-        select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.PENDING)
-    )
+    pending_query = select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.PENDING)
+    if base_conditions:
+        pending_query = pending_query.where(and_(*base_conditions))
+    pending_result = await db.execute(pending_query)
     pending = pending_result.scalar()
     
-    approved_result = await db.execute(
-        select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.APPROVED)
-    )
+    approved_query = select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.APPROVED)
+    if base_conditions:
+        approved_query = approved_query.where(and_(*base_conditions))
+    approved_result = await db.execute(approved_query)
     approved = approved_result.scalar()
     
-    rejected_result = await db.execute(
-        select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.REJECTED)
-    )
+    rejected_query = select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.REJECTED)
+    if base_conditions:
+        rejected_query = rejected_query.where(and_(*base_conditions))
+    rejected_result = await db.execute(rejected_query)
     rejected = rejected_result.scalar()
     
-    suspended_result = await db.execute(
-        select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.SUSPENDED)
-    )
+    suspended_query = select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.SUSPENDED)
+    if base_conditions:
+        suspended_query = suspended_query.where(and_(*base_conditions))
+    suspended_result = await db.execute(suspended_query)
     suspended = suspended_result.scalar()
     
     # 啟用/停用數量
-    active_result = await db.execute(
-        select(func.count(QueryUser.id)).where(QueryUser.is_active == True)
-    )
+    active_query = select(func.count(QueryUser.id)).where(QueryUser.is_active == True)
+    if base_conditions:
+        active_query = active_query.where(and_(*base_conditions))
+    active_result = await db.execute(active_query)
     active = active_result.scalar()
     
-    inactive_result = await db.execute(
-        select(func.count(QueryUser.id)).where(QueryUser.is_active == False)
-    )
+    inactive_query = select(func.count(QueryUser.id)).where(QueryUser.is_active == False)
+    if base_conditions:
+        inactive_query = inactive_query.where(and_(*base_conditions))
+    inactive_result = await db.execute(inactive_query)
     inactive = inactive_result.scalar()
     
     return QueryUserStats(
@@ -141,13 +157,26 @@ async def create_query_user(
     
     db.add(query_user)
     await db.commit()
+    await db.refresh(query_user)
+    
+    # 處理用戶身分組
+    if user_data.user_group_ids:
+        for group_id in user_data.user_group_ids:
+            await db.execute(
+                query_user_groups.insert().values(
+                    query_user_id=query_user.id,
+                    user_group_id=group_id
+                )
+            )
+        await db.commit()
     
     # 重新查詢以預加載關聯
     result = await db.execute(
         select(QueryUser)
         .options(
             selectinload(QueryUser.approver),
-            selectinload(QueryUser.default_department)
+            selectinload(QueryUser.default_department),
+            selectinload(QueryUser.user_groups)
         )
         .where(QueryUser.id == query_user.id)
     )
@@ -170,12 +199,18 @@ async def list_query_users(
     獲取查詢用戶列表（分頁）
     
     需要管理員權限
+    自動根據當前管理員的處室過濾查詢用戶
     """
     # 構建查詢
     query = select(QueryUser).options(
         selectinload(QueryUser.approver),
-        selectinload(QueryUser.default_department)
+        selectinload(QueryUser.default_department),
+        selectinload(QueryUser.user_groups)
     )
+    
+    # 根據當前管理員的處室過濾（只顯示該處室的查詢用戶）
+    if current_user.department_id:
+        query = query.where(QueryUser.default_department_id == current_user.department_id)
     
     # 狀態篩選
     if status:
@@ -348,6 +383,23 @@ async def update_query_user(
     if request.admin_notes is not None:
         query_user.admin_notes = request.admin_notes
     
+    # 更新用戶身分組
+    if request.user_group_ids is not None:
+        # 清除現有的身分組關聯
+        await db.execute(
+            delete(query_user_groups).where(query_user_groups.c.query_user_id == user_id)
+        )
+        
+        # 添加新的身分組關聯
+        if request.user_group_ids:
+            for group_id in request.user_group_ids:
+                await db.execute(
+                    query_user_groups.insert().values(
+                        query_user_id=user_id,
+                        user_group_id=group_id
+                    )
+                )
+    
     await db.commit()
     
     # 重新查詢以預加載關聯
@@ -355,7 +407,8 @@ async def update_query_user(
         select(QueryUser)
         .options(
             selectinload(QueryUser.approver),
-            selectinload(QueryUser.default_department)
+            selectinload(QueryUser.default_department),
+            selectinload(QueryUser.user_groups)
         )
         .where(QueryUser.id == user_id)
     )

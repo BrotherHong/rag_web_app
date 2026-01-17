@@ -36,6 +36,11 @@ class ActivityType(str, Enum):
     CREATE_SETTING = "CREATE_SETTING"  # 建立系統設定
     UPDATE_SETTING = "UPDATE_SETTING"  # 更新系統設定
     DELETE_SETTING = "DELETE_SETTING"  # 刪除系統設定
+    CREATE_USER_GROUP = "CREATE_USER_GROUP"  # 建立身分組
+    UPDATE_USER_GROUP = "UPDATE_USER_GROUP"  # 更新身分組
+    DELETE_USER_GROUP = "DELETE_USER_GROUP"  # 刪除身分組
+    USER_GROUP_ADD_MEMBER = "USER_GROUP_ADD_MEMBER"  # 身分組新增成員
+    USER_GROUP_REMOVE_MEMBER = "USER_GROUP_REMOVE_MEMBER"  # 身分組移除成員
 
 
 class Activity(Base, TimestampMixin):

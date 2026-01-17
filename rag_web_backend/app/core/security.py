@@ -429,7 +429,10 @@ async def get_current_query_user_optional(
         if user_id and user_type == "query_user":
             result = await db.execute(
                 select(QueryUser)
-                .options(selectinload(QueryUser.default_department))
+                .options(
+                    selectinload(QueryUser.default_department),
+                    selectinload(QueryUser.user_groups)
+                )
                 .where(QueryUser.id == int(user_id))
             )
             query_user = result.scalar_one_or_none()

@@ -18,6 +18,7 @@ import { useToast } from '../contexts/ToastContext';
 import ConfirmDialog from './common/ConfirmDialog';
 import KnowledgeBase from './KnowledgeBase';
 import UploadFiles from './UploadFiles';
+import QueryUserManagement from './QueryUserManagement';
 import { getActivityConfig } from '../utils/activityConfig';
 
 function Dashboard() {
@@ -247,6 +248,38 @@ function Dashboard() {
             </button>
 
             <button
+              onClick={() => setCurrentPage('user-groups')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'user-groups'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'user-groups' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span className="font-medium">身分組管理</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('query-users')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'query-users'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'query-users' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="font-medium">查詢用戶</span>
+            </button>
+
+            <button
               onClick={() => setCurrentPage('faqs')}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
                 currentPage === 'faqs'
@@ -284,6 +317,8 @@ function Dashboard() {
           )}
           {currentPage === 'dashboard' && <DashboardHome />}
           {currentPage === 'categories' && <CategoryManagement />}
+          {currentPage === 'user-groups' && <UserGroupManagement />}
+          {currentPage === 'query-users' && <QueryUserManagement />}
           {currentPage === 'faqs' && <FaqManagement />}
         </main>
       </div>
@@ -1448,6 +1483,428 @@ function FaqManagement() {
         onConfirm={confirmDelete}
         title="確認刪除"
         message={`確定要刪除「${showDeleteConfirm?.question}」嗎？`}
+        confirmText="刪除"
+        cancelText="取消"
+      />
+    </div>
+  );
+}
+
+// 身分組管理頁面組件
+function UserGroupManagement() {
+  const toast = useToast();
+  const [userGroups, setUserGroups] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 表單資料
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    priority: 100,
+    color: '#3B82F6'
+  });
+
+  // 可用的顏色選項
+  const colorOptions = [
+    { value: '#3B82F6', label: '藍色' },
+    { value: '#10B981', label: '綠色' },
+    { value: '#F59E0B', label: '黃色' },
+    { value: '#EF4444', label: '紅色' },
+    { value: '#8B5CF6', label: '紫色' },
+    { value: '#EC4899', label: '粉色' },
+    { value: '#6366F1', label: '靛藍' },
+    { value: '#F97316', label: '橙色' },
+  ];
+
+  // 對話框動畫
+  const addModal = useModalAnimation(showAddModal, () => setShowAddModal(false));
+  const editModal = useModalAnimation(showEditModal, () => setShowEditModal(false));
+  const deleteModal = useModalAnimation(showDeleteConfirm !== null, () => setShowDeleteConfirm(null));
+
+  // 載入身分組列表
+  useEffect(() => {
+    loadUserGroups();
+  }, []);
+
+  const loadUserGroups = async () => {
+    setIsLoading(true);
+    try {
+      const { getUserGroups } = await import('../services/api');
+      const response = await getUserGroups(true);
+      if (response.success) {
+        setUserGroups(response.data);
+      } else {
+        toast.error('載入身分組失敗：' + response.message);
+      }
+    } catch (error) {
+      console.error('載入身分組錯誤:', error);
+      toast.error('載入身分組失敗');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddGroup = async () => {
+    if (!formData.name.trim()) {
+      toast.error('請輸入身分組名稱');
+      return;
+    }
+
+    try {
+      const { createUserGroup } = await import('../services/api');
+      const response = await createUserGroup(formData);
+      if (response.success) {
+        await loadUserGroups();
+        setFormData({ name: '', description: '', priority: 100, color: '#3B82F6' });
+        addModal.handleClose();
+        toast.success('身分組新增成功');
+      } else {
+        toast.error('新增失敗：' + response.message);
+      }
+    } catch (error) {
+      console.error('新增身分組錯誤:', error);
+      toast.error('新增身分組失敗');
+    }
+  };
+
+  const handleEditGroup = (group) => {
+    setEditingGroup(group);
+    setFormData({
+      name: group.name,
+      description: group.description || '',
+      priority: group.priority,
+      color: group.color
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateGroup = async () => {
+    if (!formData.name.trim()) {
+      toast.error('請輸入身分組名稱');
+      return;
+    }
+
+    try {
+      const { updateUserGroup } = await import('../services/api');
+      const response = await updateUserGroup(editingGroup.id, formData);
+      if (response.success) {
+        await loadUserGroups();
+        setEditingGroup(null);
+        editModal.handleClose();
+        toast.success('身分組更新成功');
+      } else {
+        toast.error('更新失敗：' + response.message);
+      }
+    } catch (error) {
+      console.error('更新身分組錯誤:', error);
+      toast.error('更新身分組失敗');
+    }
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!showDeleteConfirm) return;
+
+    try {
+      const { deleteUserGroup } = await import('../services/api');
+      const response = await deleteUserGroup(showDeleteConfirm.id);
+      if (response.success) {
+        await loadUserGroups();
+        toast.success('身分組刪除成功');
+      } else {
+        toast.error('刪除失敗：' + response.message);
+      }
+    } catch (error) {
+      console.error('刪除身分組錯誤:', error);
+      toast.error('刪除身分組失敗');
+    } finally {
+      setShowDeleteConfirm(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-solid border-current border-r-transparent"
+               style={{ color: 'var(--ncku-red)' }}>
+          </div>
+          <p className="mt-4 text-gray-600">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-semibold">身分組管理</h3>
+          <p className="text-sm text-gray-600 mt-1">管理處室的用戶身分組別與權限層級</p>
+        </div>
+        <button
+          onClick={() => {
+            setFormData({ name: '', description: '', priority: 100, color: '#3B82F6' });
+            setShowAddModal(true);
+          }}
+          className="px-4 py-2 text-white rounded-lg shadow hover:shadow-lg transition-all cursor-pointer"
+          style={{ backgroundColor: 'var(--ncku-red)' }}
+        >
+          + 新增身分組
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {userGroups.map(group => (
+          <div key={group.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                <div 
+                  className="w-4 h-4 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: group.color }}
+                ></div>
+                <div>
+                  <h4 className="font-medium text-gray-900">{group.name}</h4>
+                  {group.description && (
+                    <p className="text-xs text-gray-500 mt-1">{group.description}</p>
+                  )}
+                </div>
+              </div>
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                優先級 {group.priority}
+              </span>
+            </div>
+            
+            <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
+              <span>{group.memberCount || 0} 位成員</span>
+              <span>{group.fileCount || 0} 個檔案</span>
+            </div>
+
+            <div className="flex space-x-2">
+              <button
+                onClick={() => handleEditGroup(group)}
+                className="flex-1 px-3 py-1.5 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors cursor-pointer"
+              >
+                編輯
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(group)}
+                className="flex-1 px-3 py-1.5 text-sm text-red-600 border border-red-600 rounded hover:bg-red-50 transition-colors cursor-pointer"
+              >
+                刪除
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {userGroups.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <p>尚未建立任何身分組</p>
+        </div>
+      )}
+
+      {/* 新增身分組對話框 */}
+      {addModal.shouldRender && (
+        <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 ${addModal.animationClass}`}>
+          <div className={`bg-white rounded-lg p-6 w-96 mx-4 ${addModal.contentAnimationClass}`}>
+            <h3 className="text-lg font-semibold mb-4">新增身分組</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  身分組名稱 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="例如：主管、組A、組B"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  描述
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="選填：簡單描述此身分組的用途"
+                  rows="2"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  優先級（數字越小權限越高）
+                </label>
+                <input
+                  type="number"
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
+                  min="0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  顏色標識
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {colorOptions.map(option => (
+                    <button
+                      key={option.value}
+                      onClick={() => setFormData({ ...formData, color: option.value })}
+                      className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                        formData.color === option.value
+                          ? 'border-gray-800 ring-2 ring-offset-2 ring-gray-800'
+                          : 'border-gray-200 hover:border-gray-400'
+                      }`}
+                      style={{ backgroundColor: option.value }}
+                      title={option.label}
+                    >
+                      {formData.color === option.value && (
+                        <svg className="w-4 h-4 text-white mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={addModal.handleClose}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAddGroup}
+                className="flex-1 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
+                style={{ backgroundColor: 'var(--ncku-red)' }}
+              >
+                新增
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 編輯身分組對話框 */}
+      {editModal.shouldRender && (
+        <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 ${editModal.animationClass}`}>
+          <div className={`bg-white rounded-lg p-6 w-96 mx-4 ${editModal.contentAnimationClass}`}>
+            <h3 className="text-lg font-semibold mb-4">編輯身分組</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  身分組名稱 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  描述
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows="2"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  優先級
+                </label>
+                <input
+                  type="number"
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
+                  min="0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  顏色標識
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {colorOptions.map(option => (
+                    <button
+                      key={option.value}
+                      onClick={() => setFormData({ ...formData, color: option.value })}
+                      className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                        formData.color === option.value
+                          ? 'border-gray-800 ring-2 ring-offset-2 ring-gray-800'
+                          : 'border-gray-200 hover:border-gray-400'
+                      }`}
+                      style={{ backgroundColor: option.value }}
+                      title={option.label}
+                    >
+                      {formData.color === option.value && (
+                        <svg className="w-4 h-4 text-white mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={editModal.handleClose}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleUpdateGroup}
+                className="flex-1 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
+                style={{ backgroundColor: 'var(--ncku-red)' }}
+              >
+                更新
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 刪除確認對話框 */}
+      <ConfirmDialog
+        shouldRender={deleteModal.shouldRender}
+        isClosing={deleteModal.isClosing}
+        animationClass={deleteModal.animationClass}
+        contentAnimationClass={deleteModal.contentAnimationClass}
+        onClose={deleteModal.handleClose}
+        onConfirm={confirmDeleteGroup}
+        title="確認刪除"
+        message={`確定要刪除身分組「${showDeleteConfirm?.name}」嗎？此操作無法復原。`}
         confirmText="刪除"
         cancelText="取消"
       />
