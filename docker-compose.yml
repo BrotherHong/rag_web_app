@@ -136,7 +136,7 @@ services:
     container_name: rag_nginx
     restart: unless-stopped
     ports:
-      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_PORT:-8889}:80"
     
     # 掛載本地配置檔案（開發模式：修改後只需 restart）
     volumes:
