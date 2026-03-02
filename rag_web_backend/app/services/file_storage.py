@@ -11,7 +11,6 @@ from fastapi import UploadFile, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.services.system_settings import system_settings_service
 
 
 class FileStorageService:
@@ -331,16 +330,16 @@ class FileStorageService:
         Returns:
             tuple: (is_valid, error_message)
         """
-        # 從資料庫取得檔案大小限制
-        max_file_size = await system_settings_service.get_max_file_size(db)
+        # 使用環境變數的檔案大小限制
+        max_file_size = settings.MAX_FILE_SIZE
         
         # 檢查檔案大小
         if hasattr(upload_file, 'size') and upload_file.size:
             if upload_file.size > max_file_size:
                 return False, f"檔案大小超過限制 ({max_file_size / (1024**2):.0f} MB)"
         
-        # 從資料庫取得允許的檔案類型
-        allowed_exts = await system_settings_service.get_allowed_file_types(db)
+        # 使用環境變數的允許檔案類型
+        allowed_exts = settings.allowed_extensions_list
         
         # 檢查檔案類型
         ext = os.path.splitext(upload_file.filename)[1].lower()

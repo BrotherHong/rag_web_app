@@ -29,12 +29,6 @@ if [ "${INIT_DB:-true}" = "true" ]; then
     echo "🔄 執行資料庫初始化檢查..."
     python scripts/init_db.py
     echo ""
-    
-    if [ "${INIT_SYSTEM_SETTINGS:-true}" = "true" ]; then
-        echo "🔄 執行系統設定初始化..."
-        python scripts/init_system_settings.py
-        echo ""
-    fi
 else
     echo "⏭️  跳過資料庫初始化（INIT_DB=false）"
     echo ""

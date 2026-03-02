@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 from app.api import (
     auth, users, departments, files, categories, rag, activities, 
-    settings, statistics, backups, upload, public, faqs,
+    statistics, backups, upload, public, faqs,
     query_auth, query_users, user_groups  # 新增查詢用戶相關路由
 )
 
@@ -31,7 +31,6 @@ api_router.include_router(files.router)
 api_router.include_router(categories.router)
 api_router.include_router(rag.router)
 api_router.include_router(activities.router)
-api_router.include_router(settings.router)
 api_router.include_router(statistics.router)
 api_router.include_router(backups.router)
 api_router.include_router(upload.router)

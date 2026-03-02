@@ -99,10 +99,36 @@ export default function GlobalOverview() {
             重新整理
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <StatCard title="資料庫大小" value={systemInfo?.databaseSize || '-'} />
           <StatCard title="API 請求量" value={systemInfo?.apiRequests ?? '-'} colorClass="text-orange-600" bgClass="bg-orange-50" />
         </div>
+        
+        {/* 儲存空間使用 */}
+        {systemInfo?.storage && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="font-medium text-gray-900 mb-3">儲存空間使用</h4>
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-gray-600">磁碟空間</span>
+              <span className="font-medium text-gray-900">
+                {systemInfo.storage.used} / {systemInfo.storage.total}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3">
+              <div
+                className="h-3 rounded-full transition-all"
+                style={{
+                  width: `${Math.min(systemInfo.storage.percentage || 0, 100)}%`,
+                  backgroundColor: (systemInfo.storage.percentage || 0) > 80 ? '#ef4444' : 'var(--ncku-red)'
+                }}
+              ></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {(systemInfo.storage.percentage || 0).toFixed(1)}% 使用中
+            </p>
+          </div>
+        )}
+        
         {systemInfo?.updatedAt && (
           <p className="text-xs text-gray-500 mt-2">更新時間：{new Date(systemInfo.updatedAt).toLocaleString('zh-TW')}</p>
         )}

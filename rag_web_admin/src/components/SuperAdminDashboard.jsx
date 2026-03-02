@@ -8,8 +8,6 @@ import {
   deleteDepartment,
   getDepartmentStats,
   getUsers,
-  getSettings,
-  updateSettings,
   getSystemInfo,
   getAllActivities
 } from '../services/api';
@@ -17,7 +15,6 @@ import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useToast } from '../contexts/ToastContext';
 import DepartmentManagement from './superadmin/DepartmentManagement';
 import UserManagement from './superadmin/UserManagement';
-import SystemSettings from './superadmin/SystemSettings';
 import ActivityLog from './superadmin/ActivityLog';
 import GlobalOverview from './superadmin/GlobalOverview';
 import { getActivityConfig } from '../utils/activityConfig';
@@ -25,7 +22,7 @@ import { getActivityConfig } from '../utils/activityConfig';
 function SuperAdminDashboard() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [currentPage, setCurrentPage] = useState('overview'); // overview, departments, users, settings, activities
+  const [currentPage, setCurrentPage] = useState('overview'); // overview, departments, users, activities
   const [departments, setDepartments] = useState([]);
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,15 +31,6 @@ function SuperAdminDashboard() {
   // 活動記錄相關
   const [allActivities, setAllActivities] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState('all'); // 'all' 或 departmentId
-  
-  // 系統設定相關
-  const [systemSettings, setSystemSettings] = useState(null);
-  const [tempSettings, setTempSettings] = useState(null); // 暫存修改
-  const [systemInfo, setSystemInfo] = useState(null);
-  const [activeSettingTab, setActiveSettingTab] = useState('ai-model'); // ai-model, rag, backup, system-info
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [lastSavedTime, setLastSavedTime] = useState(null); // 上次儲存時間
   
   // 處室相關的 state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -97,8 +85,6 @@ function SuperAdminDashboard() {
   useEffect(() => {
     loadDepartments();
     loadUsers();
-    loadSystemSettings();
-    loadSystemInfo();
     loadActivities();
   }, []);
   
@@ -144,36 +130,6 @@ function SuperAdminDashboard() {
     await Promise.all([loadUsers(), loadDepartments()]);
   };
   
-  // 載入系統設定
-  const loadSystemSettings = async () => {
-    try {
-      const response = await getSettings();
-      if (response.success) {
-        setSystemSettings(response.data);
-        setTempSettings(response.data); // 初始化暫存設定
-        setHasUnsavedChanges(false);
-      } else {
-        console.error('載入系統設定失敗:', response.message);
-      }
-    } catch (error) {
-      console.error('載入系統設定錯誤:', error);
-    }
-  };
-  
-  // 載入系統資訊
-  const loadSystemInfo = async () => {
-    try {
-      const response = await getSystemInfo();
-      if (response.success) {
-        setSystemInfo(response.data);
-      } else {
-        console.error('載入系統資訊失敗:', response.message);
-      }
-    } catch (error) {
-      console.error('載入系統資訊錯誤:', error);
-    }
-  };
-  
   // 載入活動記錄
   const loadActivities = async () => {
     try {
@@ -187,39 +143,6 @@ function SuperAdminDashboard() {
     } catch (error) {
       console.error('載入活動記錄錯誤:', error);
     }
-  };
-  
-  // 更新暫存設定
-  const handleSettingsChange = (key, value) => {
-    setTempSettings({ ...tempSettings, [key]: value });
-    setHasUnsavedChanges(true);
-  };
-  
-  // 儲存設定
-  const handleSaveSettings = async () => {
-    setIsSavingSettings(true);
-    try {
-      const response = await updateSettings(tempSettings);
-      if (response.success) {
-        setSystemSettings(tempSettings);
-        setHasUnsavedChanges(false);
-        setLastSavedTime(new Date()); // 記錄儲存時間
-        toast.success('設定已成功儲存!');
-      } else {
-        toast.error('儲存失敗：' + response.message);
-      }
-    } catch (error) {
-      console.error('儲存設定錯誤:', error);
-      toast.error('儲存設定失敗');
-    } finally {
-      setIsSavingSettings(false);
-    }
-  };
-  
-  // 取消變更
-  const handleCancelSettings = () => {
-    setTempSettings({ ...systemSettings }); // 使用深拷貝
-    setHasUnsavedChanges(false);
   };
 
   // 處理登出
@@ -521,27 +444,7 @@ function SuperAdminDashboard() {
                 <span>使用者管理</span>
               </div>
             </button>
-            <button
-              onClick={() => setCurrentPage('settings')}
-              className={`px-6 py-3 font-medium transition-all cursor-pointer relative ${
-                currentPage === 'settings'
-                  ? 'text-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-              style={currentPage === 'settings' ? {
-                backgroundColor: 'var(--ncku-red)',
-                borderRadius: '8px 8px 0 0'
-              } : {}}
-            >
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>系統設定</span>
-              </div>
-            </button>
+
             <button
               onClick={() => setCurrentPage('activities')}
               className={`px-6 py-3 font-medium transition-all cursor-pointer relative ${
@@ -586,16 +489,7 @@ function SuperAdminDashboard() {
             />
           )}
 
-          {/* 系統設定頁面 */}
-          {currentPage === 'settings' && (
-            <SystemSettings 
-              systemSettings={systemSettings}
-              systemInfo={systemInfo}
-              onSettingsUpdate={handleSettingsChange}
-              onSettingsSave={handleSaveSettings}
-              onSettingsCancel={handleCancelSettings}
-            />
-          )}
+
 
           {/* 活動記錄頁面 */}
           {currentPage === 'activities' && (

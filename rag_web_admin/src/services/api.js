@@ -23,7 +23,7 @@ export { checkDuplicates, batchUpload, getUploadProgress, getUserUploadTasks, de
 export { getUsers, addUser, updateUser, deleteUser, getUsersByDepartment } from './api/users.js';
 
 // 導入系統設定模組
-export { getSettings, updateSettings, getBackupHistory, createBackup, restoreBackup, getSystemInfo } from './api/settings.js';
+export { getSystemInfo } from './api/settings.js';
 
 // 導入處室管理模組
 export { getDepartments, getDepartmentById, addDepartment, updateDepartment, deleteDepartment, getDepartmentStats } from './api/departments.js';

@@ -7,7 +7,6 @@ from app.models.file import File, FileStatus
 from app.models.category import Category
 from app.models.activity import Activity, ActivityType
 from app.models.query_history import QueryHistory
-from app.models.system_setting import SystemSetting
 from app.models.faq import FAQ
 from app.models.query_user import QueryUser, QueryUserStatus, FilePermission
 from app.models.user_group import UserGroup, FileUserGroupPermission, query_user_groups
@@ -23,7 +22,6 @@ __all__ = [
     "Activity",
     "ActivityType",
     "QueryHistory",
-    "SystemSetting",
     "FAQ",
     "QueryUser",
     "QueryUserStatus",
