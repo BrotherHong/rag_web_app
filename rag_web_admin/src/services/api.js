@@ -42,11 +42,6 @@ export {
   suspendQueryUser, 
   activateQueryUser,
   deleteQueryUser,
-  getQueryUserPermissions,
-  grantFilePermission,
-  batchGrantPermissions,
-  revokeFilePermission,
-  getAvailableFilesForPermissions
 } from './api/queryUsers.js';
 
 // 導入用戶身分組管理模組

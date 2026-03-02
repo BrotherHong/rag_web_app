@@ -158,60 +158,11 @@ class QueryUserUpdateRequest(BaseModel):
     user_group_ids: Optional[List[int]] = None
 
 
-# ==================== 文件權限相關 ====================
-
-class FilePermissionCreate(BaseModel):
-    """創建文件權限"""
-    file_id: int = Field(..., description="文件 ID")
-    notes: Optional[str] = Field(None, description="權限備註")
-
-
-class FilePermissionBatchCreate(BaseModel):
-    """批量創建文件權限"""
-    file_ids: List[int] = Field(..., description="文件 ID 列表")
-    notes: Optional[str] = Field(None, description="權限備註")
-
-
-class FilePermissionInfo(BaseModel):
-    """文件權限資訊"""
-    id: int
-    query_user_id: int
-    file_id: int
-    granted_by: Optional[int] = None
-    granted_at: datetime
-    notes: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
-
-
-class FilePermissionDetail(FilePermissionInfo):
-    """文件權限詳細資訊（包含關聯資料）"""
-    file_name: Optional[str] = None
-    category_name: Optional[str] = None
-    department_name: Optional[str] = None
-    is_public: Optional[bool] = None  # 檔案是否公開
-    user_name: Optional[str] = None
-    granter_name: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
-
-
 # ==================== 列表查詢相關 ====================
 
 class QueryUserListResponse(BaseModel):
     """查詢用戶列表回應"""
     items: List[QueryUserDetail]
-    total: int
-    page: int
-    limit: int
-    pages: int
-
-
-class FilePermissionListResponse(BaseModel):
-    """文件權限列表回應"""
-    items: List[FilePermissionDetail]
     total: int
     page: int
     limit: int

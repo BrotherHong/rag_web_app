@@ -13,7 +13,6 @@ import {
 } from '../services/api/queryUsers';
 import { getDepartments } from '../services/api';
 import { getUserGroups, addMemberToGroup, removeMemberFromGroup } from '../services/api/userGroups';
-import QueryUserPermissions from './QueryUserPermissions';
 
 function QueryUserManagement() {
   const toast = useToast();
@@ -29,7 +28,6 @@ function QueryUserManagement() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
-  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState(null);
   const [showApproveModal, setShowApproveModal] = useState(null); // user object
   const [approveAction, setApproveAction] = useState('approve'); // 'approve' | 'reject'
   const [rejectionReason, setRejectionReason] = useState('');
@@ -371,9 +369,6 @@ function QueryUserManagement() {
                       用戶資訊
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      組織/處室
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       審批狀態
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -410,12 +405,6 @@ function QueryUserManagement() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{user.organization || '-'}</div>
-                        <div className="text-xs text-gray-500">
-                          {user.default_department?.name || '未設定處室'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
                         {getStatusBadge(user.status)}
                       </td>
                       <td className="px-6 py-4">
@@ -436,12 +425,6 @@ function QueryUserManagement() {
                             className="text-blue-600 hover:text-blue-800 cursor-pointer text-sm font-medium"
                           >
                             編輯
-                          </button>
-                          <button
-                            onClick={() => setSelectedUserForPermissions(user)}
-                            className="text-purple-600 hover:text-purple-800 cursor-pointer text-sm font-medium"
-                          >
-                            權限
                           </button>
                           <button
                             onClick={() => handleToggleActive(user)}
@@ -588,21 +571,27 @@ function QueryUserManagement() {
               )}
 
               <div>
-                <label htmlFor="default_department_id" className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   預設處室
                 </label>
-                <select
-                  id="default_department_id"
-                  name="default_department_id"
-                  value={formData.default_department_id}
-                  onChange={(e) => setFormData({ ...formData, default_department_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
-                >
-                  <option value="">請選擇處室</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                  ))}
-                </select>
+                {editingUser ? (
+                  <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
+                    {editingUser.default_department?.name || departments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室'}
+                  </div>
+                ) : (
+                  <select
+                    id="default_department_id"
+                    name="default_department_id"
+                    value={formData.default_department_id}
+                    onChange={(e) => setFormData({ ...formData, default_department_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                  >
+                    <option value="">請選擇處室</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id}>{dept.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
@@ -737,15 +726,6 @@ function QueryUserManagement() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* 權限管理 Modal */}
-      {selectedUserForPermissions && (
-        <QueryUserPermissions
-          userId={selectedUserForPermissions.id}
-          userName={selectedUserForPermissions.full_name}
-          onClose={() => setSelectedUserForPermissions(null)}
-        />
       )}
 
       {/* 審核 Modal */}
