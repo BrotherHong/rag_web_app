@@ -4,15 +4,17 @@
 與後台管理員系統完全獨立
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
+import secrets
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import (
     get_password_hash,
+    verify_password,
     authenticate_query_user,
     create_query_user_token,
     get_current_query_user
@@ -23,7 +25,12 @@ from app.schemas.query_user import (
     QueryUserRegisterResponse,
     QueryUserLoginRequest,
     QueryUserLoginResponse,
-    QueryUserInfo
+    QueryUserInfo,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
+    ChangePasswordRequest,
 )
 
 router = APIRouter(prefix="/query-auth", tags=["查詢用戶認證"])
@@ -67,6 +74,7 @@ async def register_query_user(
         full_name=request.full_name,
         organization=request.organization,
         application_reason=request.application_reason,
+        default_department_id=request.default_department_id,
         status=QueryUserStatus.PENDING,
         is_active=True
     )
@@ -79,7 +87,7 @@ async def register_query_user(
         id=query_user.id,
         username=query_user.username,
         email=query_user.email,
-        status=query_user.status.value,
+        status=query_user.status if isinstance(query_user.status, str) else query_user.status.value,
         message="註冊申請已提交，請等待管理員審批。審批通過後您將收到電子郵件通知。"
     )
 
@@ -194,3 +202,104 @@ async def check_email_available(
         "available": not exists,
         "message": "電子郵件已被使用" if exists else "電子郵件可用"
     }
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    忘記密碼 - 申請重設代碼
+
+    用戶提供帳號或電郵，後端產生一個 8 位數字代碼（有效期 24 小時）。
+    用戶需聯繫管理員取得此代碼，再到重設痃碼頁面輸入。
+    """
+    # 查找用戶（支持 username 或 email）
+    result = await db.execute(
+        select(QueryUser).where(
+            or_(
+                QueryUser.username == request.username,
+                QueryUser.email == request.username
+            )
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    # 無論用戶是否存在，一律回傳相同訊息（防止帳號列舉攻擊）
+    if not user:
+        return ForgotPasswordResponse(
+            message="若帳號存在，重設申請已提交。請聯繫管理員取得重設代碼。"
+        )
+
+    # 產生 8 位大寫字母+數字代碼
+    token = secrets.token_hex(4).upper()  # 8位十六進字串
+    expires = datetime.utcnow() + timedelta(hours=24)
+
+    user.reset_password_token = token
+    user.reset_token_expires = expires
+    await db.commit()
+
+    return ForgotPasswordResponse(
+        message="重設申請已提交。請聯繫管理員取得重設代碼（有效期 24 小時）。"
+    )
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    使用重設代碼設定新密碼
+    """
+    result = await db.execute(
+        select(QueryUser).where(
+            QueryUser.reset_password_token == request.reset_token.upper()
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="重設代碼無效，請重新申請"
+        )
+
+    if user.reset_token_expires and datetime.utcnow() > user.reset_token_expires:
+        user.reset_password_token = None
+        user.reset_token_expires = None
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="重設代碼已過期，請重新申請"
+        )
+
+    # 更新密碼並清除重設代碼
+    user.hashed_password = get_password_hash(request.new_password)
+    user.reset_password_token = None
+    user.reset_token_expires = None
+    await db.commit()
+
+    return ResetPasswordResponse(message="密碼已成功重設，請使用新密碼登入。")
+
+
+@router.post("/change-password", response_model=ResetPasswordResponse)
+async def change_password(
+    request: ChangePasswordRequest,
+    current_user: QueryUser = Depends(get_current_query_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    已登入用戶修改密碼（需提供舊密碼驗證）
+    """
+    if not verify_password(request.old_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="目前密碼错誤"
+        )
+
+    current_user.hashed_password = get_password_hash(request.new_password)
+    await db.commit()
+
+    return ResetPasswordResponse(message="密碼已成功修改。")

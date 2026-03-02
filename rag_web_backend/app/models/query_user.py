@@ -125,7 +125,21 @@ class QueryUser(Base, TimestampMixin):
         nullable=True,
         comment="管理員備註"
     )
-    
+
+    # 密碼重設
+    reset_password_token: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+        comment="密碼重設代碼"
+    )
+
+    reset_token_expires: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+        comment="重設代碼有效期限"
+    )
+
     # 關聯
     approver: Mapped[Optional["User"]] = relationship(
         "User",

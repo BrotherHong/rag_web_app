@@ -38,7 +38,8 @@ class QueryUserRegisterRequest(BaseModel):
     password: str = Field(..., min_length=6, description="密碼")
     full_name: str = Field(..., min_length=1, max_length=100, description="全名")
     organization: Optional[str] = Field(None, max_length=200, description="所屬單位/組織")
-    application_reason: str = Field(..., min_length=10, description="申請理由")
+    application_reason: Optional[str] = Field(None, description="申請理由")
+    default_department_id: Optional[int] = Field(None, description="預設處室 ID")
     
     @field_validator('username')
     @classmethod
@@ -103,6 +104,8 @@ class QueryUserDetail(QueryUserInfo):
     default_department_id: Optional[int] = None
     approver: Optional[UserBrief] = None
     user_groups: List["UserGroupBrief"] = []
+    reset_password_token: Optional[str] = None
+    reset_token_expires: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -226,6 +229,35 @@ class QueryUserStats(BaseModel):
     suspended: int
     active: int
     inactive: int
+
+
+# ==================== 密碼重設相關 ====================
+
+class ForgotPasswordRequest(BaseModel):
+    """忘記密碼請求"""
+    username: str = Field(..., description="使用者名稱或電子郵件")
+
+
+class ForgotPasswordResponse(BaseModel):
+    """忘記密碼回應"""
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """重設密碼請求"""
+    reset_token: str = Field(..., description="管理員提供的重設代碼")
+    new_password: str = Field(..., min_length=6, description="新密碼")
+
+
+class ResetPasswordResponse(BaseModel):
+    """重設密碼回應"""
+    message: str
+
+
+class ChangePasswordRequest(BaseModel):
+    """已登入用戶修改密碼"""
+    old_password: str = Field(..., description="目前密碼")
+    new_password: str = Field(..., min_length=6, description="新密碼")
 
 
 # 解決 forward reference

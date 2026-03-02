@@ -315,10 +315,11 @@ async def approve_query_user(
         )
     
     # 檢查是否已審批
-    if query_user.status != QueryUserStatus.PENDING:
+    status_val = query_user.status if isinstance(query_user.status, str) else query_user.status.value
+    if status_val != QueryUserStatus.PENDING.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"該申請已處理（當前狀態：{query_user.status.value}）"
+            detail=f"該申請已處理（當前狀態：{status_val}）"
         )
     
     # 更新狀態
@@ -338,10 +339,21 @@ async def approve_query_user(
         message = "申請已拒絕"
     
     await db.commit()
-    await db.refresh(query_user)
-    
+
+    # 重新載入並 eager load 關聯避免 MissingGreenlet
+    result = await db.execute(
+        select(QueryUser)
+        .where(QueryUser.id == user_id)
+        .options(
+            selectinload(QueryUser.approver),
+            selectinload(QueryUser.user_groups),
+            selectinload(QueryUser.default_department),
+        )
+    )
+    query_user = result.scalar_one()
+
     # TODO: 發送郵件通知用戶
-    
+
     return {
         "success": True,
         "message": message,

@@ -146,6 +146,84 @@ export const logoutQueryUser = () => {
 };
 
 /**
+ * 查詢用戶自行註冊（申請帳號，需等待管理員審批）
+ */
+export const registerQueryUser = async ({ username, email, password, full_name, organization, application_reason, default_department_id }) => {
+  const response = await fetch(`${API_BASE_URL}/query-auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, email, password, full_name, organization, application_reason, default_department_id })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `註冊失敗 (${response.status})`);
+  }
+
+  return response.json();
+};
+
+/**
+ * 申請重設密碼（產生重設代碼，需管理員轉交）
+ */
+export const forgotPasswordRequest = async (username) => {
+  const response = await fetch(`${API_BASE_URL}/query-auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `請求失敗 (${response.status})`);
+  }
+
+  return response.json();
+};
+
+/**
+ * 使用重設代碼設定新密碼
+ */
+export const resetPasswordWithToken = async (reset_token, new_password) => {
+  const response = await fetch(`${API_BASE_URL}/query-auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reset_token, new_password })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `重設失敗 (${response.status})`);
+  }
+
+  return response.json();
+};
+
+/**
+ * 已登入用戶修改密碼
+ */
+export const changePassword = async (old_password, new_password) => {
+  const token = getQueryToken();
+  if (!token) throw new Error('未登入');
+
+  const response = await fetch(`${API_BASE_URL}/query-auth/change-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ old_password, new_password })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `修改失敗 (${response.status})`);
+  }
+
+  return response.json();
+};
+
+/**
  * 獲取當前查詢用戶資訊
  */
 export const getCurrentQueryUser = async () => {

@@ -1504,7 +1504,6 @@ function UserGroupManagement() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    priority: 100,
     color: '#3B82F6'
   });
 
@@ -1559,7 +1558,7 @@ function UserGroupManagement() {
       const response = await createUserGroup(formData);
       if (response.success) {
         await loadUserGroups();
-        setFormData({ name: '', description: '', priority: 100, color: '#3B82F6' });
+        setFormData({ name: '', description: '', color: '#3B82F6' });
         addModal.handleClose();
         toast.success('身分組新增成功');
       } else {
@@ -1576,7 +1575,6 @@ function UserGroupManagement() {
     setFormData({
       name: group.name,
       description: group.description || '',
-      priority: group.priority,
       color: group.color
     });
     setShowEditModal(true);
@@ -1647,7 +1645,7 @@ function UserGroupManagement() {
         </div>
         <button
           onClick={() => {
-            setFormData({ name: '', description: '', priority: 100, color: '#3B82F6' });
+            setFormData({ name: '', description: '', color: '#3B82F6' });
             setShowAddModal(true);
           }}
           className="px-4 py-2 text-white rounded-lg shadow hover:shadow-lg transition-all cursor-pointer"
@@ -1673,9 +1671,7 @@ function UserGroupManagement() {
                   )}
                 </div>
               </div>
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                優先級 {group.priority}
-              </span>
+
             </div>
             
             <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
@@ -1740,19 +1736,6 @@ function UserGroupManagement() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="選填：簡單描述此身分組的用途"
                   rows="2"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  優先級（數字越小權限越高）
-                </label>
-                <input
-                  type="number"
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
-                  min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -1831,19 +1814,6 @@ function UserGroupManagement() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows="2"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  優先級
-                </label>
-                <input
-                  type="number"
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
-                  min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>

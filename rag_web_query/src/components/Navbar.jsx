@@ -58,7 +58,13 @@ function Navbar() {
               </>
             ) : (
               <>
-                {/* 未登入：顯示登入按鈕 */}
+                {/* 未登入：顯示註冊與登入按鈕 */}
+                <button
+                  onClick={() => navigate('/register', { state: { from: location.pathname } })}
+                  className="px-4 py-2 text-sm font-medium text-red-600 border border-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                >
+                  註冊
+                </button>
                 <button
                   onClick={() => navigate('/login', { state: { from: location.pathname } })}
                   className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg shadow-md hover:shadow-lg transition-all cursor-pointer"

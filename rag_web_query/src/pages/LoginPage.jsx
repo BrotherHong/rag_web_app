@@ -154,6 +154,17 @@ function LoginPage() {
                 '登入'
               )}
             </button>
+
+            {/* 忘記密碼連結 */}
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                className="text-sm text-blue-600 hover:underline cursor-pointer"
+              >
+                忘記密碼？
+              </button>
+            </div>
           </form>
         </div>
 
