@@ -19,7 +19,6 @@ from app.models.user_group import query_user_groups
 from app.schemas.query_user import (
     QueryUserDetail,
     QueryUserListResponse,
-    QueryUserApprovalRequest,
     QueryUserCreateRequest,
     QueryUserUpdateRequest,
     QueryUserStats
@@ -281,77 +280,6 @@ async def get_query_user_detail(
         )
     
     return QueryUserDetail.model_validate(query_user)
-
-
-@router.post("/{user_id}/approve")
-async def approve_query_user(
-    user_id: int,
-    request: QueryUserApprovalRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
-):
-    """
-    審批查詢用戶申請
-    
-    需要管理員權限
-    """
-    # 獲取查詢用戶
-    result = await db.execute(
-        select(QueryUser).where(QueryUser.id == user_id)
-    )
-    query_user = result.scalar_one_or_none()
-    
-    if not query_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="查詢用戶不存在"
-        )
-    
-    # 檢查是否已審批
-    status_val = query_user.status if isinstance(query_user.status, str) else query_user.status.value
-    if status_val != QueryUserStatus.PENDING.value:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"該申請已處理（當前狀態：{status_val}）"
-        )
-    
-    # 更新狀態
-    if request.approve:
-        query_user.status = QueryUserStatus.APPROVED
-        query_user.approved_by = current_user.id
-        query_user.approved_at = datetime.utcnow()
-        query_user.default_department_id = request.default_department_id
-        query_user.admin_notes = request.admin_notes
-        message = "申請已批准"
-    else:
-        query_user.status = QueryUserStatus.REJECTED
-        query_user.approved_by = current_user.id
-        query_user.approved_at = datetime.utcnow()
-        query_user.rejection_reason = request.rejection_reason
-        query_user.admin_notes = request.admin_notes
-        message = "申請已拒絕"
-    
-    await db.commit()
-
-    # 重新載入並 eager load 關聯避免 MissingGreenlet
-    result = await db.execute(
-        select(QueryUser)
-        .where(QueryUser.id == user_id)
-        .options(
-            selectinload(QueryUser.approver),
-            selectinload(QueryUser.user_groups),
-            selectinload(QueryUser.default_department),
-        )
-    )
-    query_user = result.scalar_one()
-
-    # TODO: 發送郵件通知用戶
-
-    return {
-        "success": True,
-        "message": message,
-        "user": QueryUserDetail.model_validate(query_user)
-    }
 
 
 @router.patch("/{user_id}")

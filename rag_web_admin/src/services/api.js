@@ -37,7 +37,6 @@ export {
   getQueryUsers, 
   getQueryUserDetail, 
   createQueryUser, 
-  approveQueryUser, 
   updateQueryUser, 
   suspendQueryUser, 
   activateQueryUser,

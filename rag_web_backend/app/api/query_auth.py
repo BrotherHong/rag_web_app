@@ -42,9 +42,9 @@ async def register_query_user(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    查詢用戶註冊申請
+    查詢用戶註冊
     
-    提交註冊申請後，需要等待後台管理員審批
+    註冊後即可直接登入使用
     """
     # 檢查 username 是否已存在
     result = await db.execute(
@@ -66,7 +66,7 @@ async def register_query_user(
             detail="電子郵件已被使用"
         )
     
-    # 創建查詢用戶（狀態為待審批）
+    # 創建查詢用戶（直接為已批准狀態）
     query_user = QueryUser(
         username=request.username,
         email=request.email,
@@ -75,7 +75,7 @@ async def register_query_user(
         organization=request.organization,
         application_reason=request.application_reason,
         default_department_id=request.default_department_id,
-        status=QueryUserStatus.PENDING,
+        status=QueryUserStatus.APPROVED,
         is_active=True
     )
     
@@ -88,7 +88,7 @@ async def register_query_user(
         username=query_user.username,
         email=query_user.email,
         status=query_user.status if isinstance(query_user.status, str) else query_user.status.value,
-        message="註冊申請已提交，請等待管理員審批。審批通過後您將收到電子郵件通知。"
+        message="註冊成功，請使用您的帳號登入。"
     )
 
 
@@ -112,13 +112,8 @@ async def login_query_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # 檢查審批狀態
-    if query_user.status == QueryUserStatus.PENDING:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="您的申請尚未通過審批，請等待管理員處理"
-        )
-    elif query_user.status == QueryUserStatus.REJECTED:
+    # 檢查帳號狀態
+    if query_user.status == QueryUserStatus.REJECTED:
         rejection_msg = f"您的申請已被拒絕"
         if query_user.rejection_reason:
             rejection_msg += f"：{query_user.rejection_reason}"

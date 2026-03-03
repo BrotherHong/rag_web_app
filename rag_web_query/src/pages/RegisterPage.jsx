@@ -106,10 +106,10 @@ function RegisterPage() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">申請已提交！</h2>
             <p className="text-gray-600 mb-2">
-              您的帳號申請已成功提交，請等待管理員審核。
+              您的帳號已成功建立！
             </p>
             <p className="text-sm text-gray-500 mb-6">
-              審核通過後即可使用帳號登入。如有疑問，請聯繫系統管理員。
+              請使用您的帳號和密碼登入系統。
             </p>
             <button
               onClick={() => navigate(backPath)}

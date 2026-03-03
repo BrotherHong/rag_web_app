@@ -111,25 +111,6 @@ class QueryUserDetail(QueryUserInfo):
         from_attributes = True
 
 
-# ==================== 管理員審批相關 ====================
-
-class QueryUserApprovalRequest(BaseModel):
-    """審批查詢用戶申請"""
-    approve: bool = Field(..., description="true=批准, false=拒絕")
-    rejection_reason: Optional[str] = Field(None, description="拒絕理由（拒絕時必填）")
-    default_department_id: Optional[int] = Field(None, description="預設可見處室 ID")
-    max_queries_per_day: Optional[int] = Field(None, description="每日查詢次數限制")
-    admin_notes: Optional[str] = Field(None, description="管理員備註")
-    
-    @field_validator('rejection_reason')
-    @classmethod
-    def validate_rejection_reason(cls, v: Optional[str], info) -> Optional[str]:
-        # 如果拒絕申請，必須提供拒絕理由
-        if info.data.get('approve') is False and not v:
-            raise ValueError('拒絕申請時必須提供拒絕理由')
-        return v
-
-
 class QueryUserCreateRequest(BaseModel):
     """管理員直接創建查詢用戶（無需審批）"""
     username: str = Field(..., min_length=3, max_length=50, description="使用者名稱")

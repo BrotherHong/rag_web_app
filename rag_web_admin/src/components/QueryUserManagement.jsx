@@ -9,7 +9,6 @@ import {
   deleteQueryUser,
   suspendQueryUser,
   activateQueryUser,
-  approveQueryUser
 } from '../services/api/queryUsers';
 import { getDepartments } from '../services/api';
 import { getUserGroups, addMemberToGroup, removeMemberFromGroup } from '../services/api/userGroups';
@@ -28,15 +27,9 @@ function QueryUserManagement() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
-  const [showApproveModal, setShowApproveModal] = useState(null); // user object
-  const [approveAction, setApproveAction] = useState('approve'); // 'approve' | 'reject'
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [approveLoading, setApproveLoading] = useState(false);
-  
   // Modal 動畫
   const userModal = useModalAnimation(showUserModal, () => setShowUserModal(false));
   const deleteModal = useModalAnimation(showDeleteConfirm !== null, () => setShowDeleteConfirm(null));
-  const approveModal = useModalAnimation(showApproveModal !== null, () => { setShowApproveModal(null); setRejectionReason(''); setApproveAction('approve'); });
   
   // 獲取使用者資訊
   const getUserInfo = () => {
@@ -271,30 +264,6 @@ function QueryUserManagement() {
     }
   };
 
-  const handleApprove = async () => {
-    if (!showApproveModal) return;
-    if (approveAction === 'reject' && !rejectionReason.trim()) {
-      toast.error('請輸入拒絕理由');
-      return;
-    }
-    setApproveLoading(true);
-    try {
-      await approveQueryUser(showApproveModal.id, {
-        approve: approveAction === 'approve',
-        rejection_reason: approveAction === 'reject' ? rejectionReason.trim() : undefined,
-        default_department_id: showApproveModal.default_department_id || (user.departmentId ? parseInt(user.departmentId) : undefined)
-      });
-      toast.success(approveAction === 'approve' ? '已批准用戶' : '已拒絕用戶');
-      approveModal.handleClose();
-      await loadUsers();
-      await loadStats();
-    } catch (error) {
-      toast.error(error.message || '操作失敗');
-    } finally {
-      setApproveLoading(false);
-    }
-  };
-
   const getStatusBadge = (status) => {
     const statusMap = {
       'pending': { text: '待審批', class: 'bg-yellow-100 text-yellow-800' },
@@ -412,14 +381,6 @@ function QueryUserManagement() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2 flex-wrap">
-                          {user.status === 'pending' && (
-                            <button
-                              onClick={() => { setShowApproveModal(user); setApproveAction('approve'); }}
-                              className="text-green-600 hover:text-green-800 cursor-pointer text-sm font-medium"
-                            >
-                              審核
-                            </button>
-                          )}
                           <button
                             onClick={() => handleOpenEditModal(user)}
                             className="text-blue-600 hover:text-blue-800 cursor-pointer text-sm font-medium"
@@ -728,73 +689,6 @@ function QueryUserManagement() {
         </div>
       )}
 
-      {/* 審核 Modal */}
-      {approveModal.shouldRender && showApproveModal && (
-        <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 ${approveModal.animationClass}`}>
-          <div className={`bg-white rounded-lg shadow-xl max-w-md w-full mx-4 ${approveModal.contentAnimationClass}`}>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">審核用戶申請</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                {showApproveModal.full_name}（{showApproveModal.email}）
-              </p>
-
-              {/* 批准 / 拒絕 切換 */}
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setApproveAction('approve')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer ${approveAction === 'approve' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                >
-                  ✓ 批准
-                </button>
-                <button
-                  onClick={() => setApproveAction('reject')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer ${approveAction === 'reject' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                >
-                  ✗ 拒絕
-                </button>
-              </div>
-
-              {approveAction === 'approve' && (
-                <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 mb-4">
-                  批准後用戶即可立即登入使用系統。
-                </p>
-              )}
-
-              {approveAction === 'reject' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    拒絕理由 <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    rows={3}
-                    placeholder="請說明拒絕原因..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                  />
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={approveModal.handleClose}
-                  disabled={approveLoading}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleApprove}
-                  disabled={approveLoading}
-                  className={`px-4 py-2 text-white rounded-lg transition-colors cursor-pointer disabled:opacity-50 ${approveAction === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
-                >
-                  {approveLoading ? '處理中...' : approveAction === 'approve' ? '確認批准' : '確認拒絕'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

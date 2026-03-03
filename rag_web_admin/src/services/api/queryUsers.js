@@ -150,40 +150,6 @@ export const createQueryUser = async (userData) => {
 };
 
 /**
- * 審批查詢用戶申請
- * @param {number} userId - 用戶 ID
- * @param {Object} approvalData - 審批資料
- * @param {boolean} approvalData.approve - true=批准, false=拒絕
- * @param {string} approvalData.rejection_reason - 拒絕理由（拒絕時必填）
- * @param {number} approvalData.default_department_id - 預設處室 ID
- * @param {number} approvalData.max_queries_per_day - 每日查詢限額
- * @param {string} approvalData.admin_notes - 管理員備註
- */
-export const approveQueryUser = async (userId, approvalData) => {
-  try {
-    const response = await apiFetch(`${API_BASE_URL}/query-users/${userId}/approve`, {
-      method: 'POST',
-      headers: {
-        ...getAuthHeader(),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(approvalData)
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    } else {
-      const error = await response.json();
-      throw new Error(error.detail || '審批失敗');
-    }
-  } catch (error) {
-    console.error('Approve query user error:', error);
-    throw error;
-  }
-};
-
-/**
  * 更新查詢用戶資訊
  * @param {number} userId - 用戶 ID
  * @param {Object} userData - 更新資料
