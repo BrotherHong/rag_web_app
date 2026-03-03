@@ -87,14 +87,6 @@ async def query_documents(
             
             public_result = await db.execute(public_query)
             allowed_filenames = {row[0] for row in public_result.all()}
-            
-            if not allowed_filenames:
-                # 該處室沒有公開文件
-                return QueryResponse(
-                    query=request.query,
-                    answer="抱歉，目前沒有可供查詢的公開資料。請登入以訪問更多內容。",
-                    sources=[]
-                )
         
         # 查詢用戶權限過濾：公開文件 + 被授權的文件 + 身分組授權的文件
         elif isinstance(current_user, QueryUser):
@@ -145,14 +137,41 @@ async def query_documents(
             
             # 4. 合併：公開文件 + 個人授權文件 + 身分組授權文件
             allowed_filenames = public_filenames | authorized_filenames | group_permission_filenames
+        
+        # 「其他」分類的檔案對所有人開放，不受公開/身分組權限限制
+        if allowed_filenames is not None:
+            from app.models.category import Category as CategoryModel
+            from app.models.file import File as FileModel
             
-            if not allowed_filenames:
-                # 沒有任何可訪問的文件
-                return QueryResponse(
-                    query=request.query,
-                    answer="抱歉，您目前沒有權限訪問任何文件。請聯繫管理員獲取訪問權限。",
-                    sources=[]
+            other_cat_query = select(CategoryModel.id).where(
+                CategoryModel.department_id == department_id,
+                CategoryModel.name == "其他"
+            )
+            other_cat_result = await db.execute(other_cat_query)
+            other_cat_id = other_cat_result.scalar_one_or_none()
+            
+            if other_cat_id:
+                other_files_query = select(FileModel.original_filename).where(
+                    FileModel.department_id == department_id,
+                    FileModel.category_id == other_cat_id,
+                    FileModel.is_vectorized == True
                 )
+                other_files_result = await db.execute(other_files_query)
+                other_filenames = {row[0] for row in other_files_result.all()}
+                allowed_filenames = allowed_filenames | other_filenames
+                print(f"📂 [RAG] 加入「其他」分類公開檔案: {len(other_filenames)} 個")
+        
+        # 若沒有任何可訪問的文件，提早返回
+        if allowed_filenames is not None and not allowed_filenames:
+            if current_user is None:
+                msg = "抱歉，目前沒有可供查詢的公開資料。請登入以訪問更多內容。"
+            else:
+                msg = "抱歉，您目前沒有權限訪問任何文件。請聯繫管理員獲取訪問權限。"
+            return QueryResponse(
+                query=request.query,
+                answer=msg,
+                sources=[]
+            )
         
         # 分類過濾（對所有用戶類型生效）
         if request.category_ids:
@@ -179,17 +198,12 @@ async def query_documents(
                 FileModel.is_vectorized == True
             )
             
-            # 根據用戶類型進行不同的過濾
-            if current_user is None:
-                # 訪客：只看公開文件 + 分類過濾
-                file_query = file_query.where(FileModel.is_public == True)
-                file_result = await db.execute(file_query)
-                allowed_filenames = {row[0] for row in file_result.all()}
-            else:
-                # 查詢用戶：已有權限列表（公開+授權），與分類過濾求交集
-                file_result = await db.execute(file_query)
-                category_filenames = {row[0] for row in file_result.all()}
-                allowed_filenames = allowed_filenames & category_filenames  # 交集
+            # 所有用戶類型統一：已有權限列表（公開+授權+其他分類），與選定分類求交集
+            # 訪客的 allowed_filenames 已包含公開文件 + 「其他」分類文件
+            # 查詢用戶的 allowed_filenames 已包含公開+授權+「其他」分類文件
+            file_result = await db.execute(file_query)
+            category_filenames = {row[0] for row in file_result.all()}
+            allowed_filenames = allowed_filenames & category_filenames  # 交集
             
             if not allowed_filenames:
                 # 沒有符合條件的檔案
