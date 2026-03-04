@@ -272,7 +272,8 @@ async def query_documents(
             # 查詢用戶（記錄到 query_history）
             try:
                 query_history = QueryHistory(
-                    user_id=None,  # 查詢用戶不關聯到 user_id（user_id 保留給後台管理員）
+                    user_id=None,
+                    query_user_id=current_user.id,
                     department_id=department_id,
                     query=request.query,
                     answer=result['answer'],
@@ -281,10 +282,7 @@ async def query_documents(
                     query_type="semantic",
                     scope="query_user",
                     extra_data={
-                        "query_user_id": current_user.id,
-                        "query_user_name": current_user.username,
                         "category_ids": request.category_ids or [],
-                        "scope_ids": request.scope_ids or [],
                         "retrieved_docs": result.get('retrieved_docs', 0)
                     }
                 )
@@ -299,6 +297,7 @@ async def query_documents(
             try:
                 anonymous_history = QueryHistory(
                     user_id=None,
+                    query_user_id=None,
                     department_id=department_id,
                     query=request.query,
                     answer=result['answer'],
@@ -308,7 +307,6 @@ async def query_documents(
                     scope="anonymous",
                     extra_data={
                         "category_ids": request.category_ids or [],
-                        "scope_ids": request.scope_ids or [],
                         "retrieved_docs": result.get('retrieved_docs', 0)
                     }
                 )

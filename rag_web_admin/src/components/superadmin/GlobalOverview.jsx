@@ -282,7 +282,7 @@ export default function GlobalOverview() {
         </div>
         
         <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>處室造訪人次</h3>
+          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>查詢用戶數</h3>
           <div className="min-h-[150px]">
             {visitsByDept.length > 0 ? (
               <div className="space-y-3">
@@ -292,7 +292,7 @@ export default function GlobalOverview() {
                   <div key={idx} className="space-y-1">
                     <div className="flex items-center justify-between text-sm text-gray-800">
                       <span>{dept.departmentName}</span>
-                      <span className="font-semibold text-gray-900">{dept.visits} 人次</span>
+                      <span className="font-semibold text-gray-900">{dept.visits} 位</span>
                     </div>
                     <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
                       <div
@@ -306,7 +306,7 @@ export default function GlobalOverview() {
             </div>
           ) : (
             <div className="flex items-center justify-center h-[150px]">
-              <p className="text-gray-500">暫無造訪資料</p>
+              <p className="text-gray-500">暫無查詢用戶</p>
             </div>
           )}
           </div>

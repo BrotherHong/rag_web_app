@@ -397,11 +397,11 @@ async def get_system_info(
         if avg_time is not None:
             query_stats["averageResponseTime"] = round(float(avg_time), 2)
         
-        # 處室造訪人次（使用不同使用者的查詢次數統計）
+        # 查詢用戶數
         visit_query = select(
             Department.id,
             Department.name,
-            func.count(func.distinct(QueryHistory.user_id)).label('visits')
+            func.count(func.distinct(QueryHistory.query_user_id)).label('visits')
         ).select_from(QueryHistory).join(
             Department, QueryHistory.department_id == Department.id
         )
