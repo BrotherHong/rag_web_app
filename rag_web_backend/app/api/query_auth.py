@@ -20,6 +20,7 @@ from app.core.security import (
     get_current_query_user
 )
 from app.models.query_user import QueryUser, QueryUserStatus
+from app.models.user_group import UserGroup
 from app.schemas.query_user import (
     QueryUserRegisterRequest,
     QueryUserRegisterResponse,
@@ -82,6 +83,26 @@ async def register_query_user(
     db.add(query_user)
     await db.commit()
     await db.refresh(query_user)
+    
+    # 自動加入所屬處室的「一般登入」身分組
+    if query_user.default_department_id:
+        group_result = await db.execute(
+            select(UserGroup).where(
+                UserGroup.department_id == query_user.default_department_id,
+                UserGroup.name == "一般登入"
+            )
+        )
+        general_group = group_result.scalar_one_or_none()
+        if general_group:
+            from sqlalchemy.orm import selectinload
+            user_result = await db.execute(
+                select(QueryUser)
+                .where(QueryUser.id == query_user.id)
+                .options(selectinload(QueryUser.user_groups))
+            )
+            query_user = user_result.scalar_one()
+            query_user.user_groups.append(general_group)
+            await db.commit()
     
     return QueryUserRegisterResponse(
         id=query_user.id,

@@ -535,24 +535,12 @@ function QueryUserManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   預設處室
                 </label>
-                {editingUser ? (
-                  <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
-                    {editingUser.default_department?.name || departments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室'}
-                  </div>
-                ) : (
-                  <select
-                    id="default_department_id"
-                    name="default_department_id"
-                    value={formData.default_department_id}
-                    onChange={(e) => setFormData({ ...formData, default_department_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
-                  >
-                    <option value="">請選擇處室</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
-                )}
+                <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
+                  {editingUser
+                    ? (editingUser.default_department?.name || departments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室')
+                    : (departments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室')
+                  }
+                </div>
               </div>
 
               <div>

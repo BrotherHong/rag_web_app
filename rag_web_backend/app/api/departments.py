@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
 from app.models import Activity, ActivityType, Category, Department, File, User, UserRole
+from app.models.user_group import UserGroup
+from app.models.query_user import QueryUser
 from app.schemas import (
     DepartmentCreate,
     DepartmentListResponse,
@@ -66,10 +68,14 @@ async def list_departments(
     # 為每個處室添加統計資訊
     dept_list = []
     for dept in departments:
-        # 計算使用者數量
-        user_count = await db.scalar(
+        # 計算使用者數量（後台管理員 + 查詢用戶）
+        admin_user_count = await db.scalar(
             select(func.count()).where(User.department_id == dept.id)
         ) or 0
+        query_user_count = await db.scalar(
+            select(func.count()).where(QueryUser.default_department_id == dept.id)
+        ) or 0
+        user_count = admin_user_count + query_user_count
         
         # 計算檔案數量
         file_count = await db.scalar(
@@ -142,10 +148,14 @@ async def get_department_by_slug(
             detail="處室不存在"
         )
 
-    # 計算使用者數量
-    user_count = await db.scalar(
+    # 計算使用者數量（後台管理員 + 查詢用戶）
+    admin_user_count = await db.scalar(
         select(func.count()).where(User.department_id == department.id)
     ) or 0
+    query_user_count = await db.scalar(
+        select(func.count()).where(QueryUser.default_department_id == department.id)
+    ) or 0
+    user_count = admin_user_count + query_user_count
     
     # 計算檔案數量
     file_count = await db.scalar(
@@ -217,6 +227,22 @@ async def create_department(
         department_id=department.id
     )
     db.add(default_category)
+    
+    # 自動建立預設身分組
+    db.add(UserGroup(
+        name="一般登入",
+        description="透過查詢網站一般註冊的用戶",
+        color="#3B82F6",
+        priority=100,
+        department_id=department.id
+    ))
+    db.add(UserGroup(
+        name="成功入口登入",
+        description="透過成功入口登入的用戶",
+        color="#10B981",
+        priority=90,
+        department_id=department.id
+    ))
     
     # 記錄活動
     await activity_service.log_activity(
