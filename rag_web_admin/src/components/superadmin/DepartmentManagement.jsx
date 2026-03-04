@@ -446,6 +446,25 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 />
               </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  URL 識別碼 (Slug)
+                </label>
+                <input
+                  type="text"
+                  value={formData.slug}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed font-mono text-sm"
+                />
+                <p className="mt-1 text-xs text-amber-600">
+                  ⚠️ URL 識別碼不可修改，以避免已分享的連結失效
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  查詢網址：{window.location.origin}/query/{formData.slug}
+                </p>
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   處室描述

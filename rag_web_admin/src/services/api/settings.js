@@ -29,11 +29,13 @@ const getAuthHeader = () => {
 
 /**
  * 取得系統資訊
+ * @param {string} timeRange - 時間範圍 (today/week/month/all)
  * @returns {Promise} 系統資訊
  */
-export const getSystemInfo = async () => {
+export const getSystemInfo = async (timeRange = 'all') => {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/system/info`, {
+    const url = `${API_BASE_URL}/system/info?time_range=${timeRange}`;
+    const response = await apiFetch(url, {
       method: 'GET',
       headers: getAuthHeader()
     });

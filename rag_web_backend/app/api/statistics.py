@@ -197,11 +197,15 @@ async def get_statistics(
 
 @router.get("/system/info", summary="取得系統資訊")
 async def get_system_info(
+    time_range: str = Query("all", regex="^(today|week|month|all)$"),
     current_user: User = Depends(require_role(UserRole.SUPER_ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """
     取得系統詳細資訊（僅管理員）
+    
+    參數:
+    - time_range: 時間範圍 (today/week/month/all)
     
     返回格式:
     {
@@ -337,14 +341,29 @@ async def get_system_info(
         "totalQueries": 0,
         "queriesByDepartment": [],
         "averageResponseTime": None,
-        "visitsByDepartment": []
+        "visitsByDepartment": [],
+        "timeRange": time_range
     }
     
     try:
         from app.models import Department
         
+        # 計算時間過濾條件
+        time_filter = None
+        now = datetime.now()
+        if time_range == "today":
+            time_filter = QueryHistory.created_at >= now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif time_range == "week":
+            time_filter = QueryHistory.created_at >= now - timedelta(days=7)
+        elif time_range == "month":
+            time_filter = QueryHistory.created_at >= now - timedelta(days=30)
+        # time_range == "all" 時不過濾
+        
         # 總查詢次數
-        total_queries = await db.scalar(select(func.count(QueryHistory.id))) or 0
+        query_count_stmt = select(func.count(QueryHistory.id))
+        if time_filter is not None:
+            query_count_stmt = query_count_stmt.where(time_filter)
+        total_queries = await db.scalar(query_count_stmt) or 0
         query_stats["totalQueries"] = total_queries
         
         # 各處室查詢次數
@@ -354,7 +373,10 @@ async def get_system_info(
             func.count(QueryHistory.id).label('query_count')
         ).select_from(QueryHistory).join(
             Department, QueryHistory.department_id == Department.id
-        ).group_by(Department.id, Department.name).order_by(desc('query_count'))
+        )
+        if time_filter is not None:
+            dept_query = dept_query.where(time_filter)
+        dept_query = dept_query.group_by(Department.id, Department.name).order_by(desc('query_count'))
         
         dept_result = await db.execute(dept_query)
         queries_by_dept = [
@@ -368,7 +390,10 @@ async def get_system_info(
         query_stats["queriesByDepartment"] = queries_by_dept
         
         # 平均回應時間（秒）
-        avg_time = await db.scalar(select(func.avg(QueryHistory.processing_time)))
+        avg_time_stmt = select(func.avg(QueryHistory.processing_time))
+        if time_filter is not None:
+            avg_time_stmt = avg_time_stmt.where(time_filter)
+        avg_time = await db.scalar(avg_time_stmt)
         if avg_time is not None:
             query_stats["averageResponseTime"] = round(float(avg_time), 2)
         
@@ -379,7 +404,10 @@ async def get_system_info(
             func.count(func.distinct(QueryHistory.user_id)).label('visits')
         ).select_from(QueryHistory).join(
             Department, QueryHistory.department_id == Department.id
-        ).group_by(Department.id, Department.name).order_by(desc('visits'))
+        )
+        if time_filter is not None:
+            visit_query = visit_query.where(time_filter)
+        visit_query = visit_query.group_by(Department.id, Department.name).order_by(desc('visits'))
         
         visit_result = await db.execute(visit_query)
         visits_by_dept = [

@@ -4,14 +4,40 @@
  */
 
 import { useModalAnimation } from '../../hooks/useModalAnimation';
+import { useToast } from '../../contexts/ToastContext';
 import { getActivityConfig } from '../../utils/activityConfig';
 
 function DepartmentStatsModal({ department, statsData, onClose, isOpen = true }) {
   const modal = useModalAnimation(isOpen, onClose);
+  const toast = useToast();
 
   if (!modal.shouldRender) return null;
 
-  // 提取目標名稱的輔助函數
+  // 複製網址（支援 HTTP 環境）
+  const handleCopyUrl = async () => {
+    const url = `${window.location.origin}/query/${department.slug}`;
+    
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('已複製查詢網址');
+    } catch {
+      // 備用方案：相容 HTTP 環境
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        toast.success('已複製查詢網址');
+      } catch {
+        toast.error('複製失敗，請手動複製');
+      }
+      document.body.removeChild(textarea);
+    }
+  };
+
   const extractTarget = (description) => {
     const colonIndex = description?.indexOf(':');
     if (colonIndex > -1) {
@@ -38,6 +64,39 @@ function DepartmentStatsModal({ department, statsData, onClose, isOpen = true })
         </div>
         
         <div className="space-y-6">
+          {/* 查詢地址資訊 */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 mb-2">查詢系統網址</p>
+                <div className="bg-white rounded-lg p-3 border border-blue-100">
+                  <div className="flex items-center justify-between space-x-2">
+                    <code className="text-sm font-mono text-blue-800 break-all">
+                      {window.location.origin}/query/{department.slug}
+                    </code>
+                    <button
+                      onClick={handleCopyUrl}
+                      className="flex-shrink-0 p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                      title="複製完整網址"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  URL 識別碼：<span className="font-mono font-semibold">{department.slug}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* 總覽 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-blue-50 rounded-lg p-4">

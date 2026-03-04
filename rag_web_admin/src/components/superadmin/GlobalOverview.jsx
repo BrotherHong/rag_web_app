@@ -28,7 +28,9 @@ export default function GlobalOverview() {
   const [users, setUsers] = useState([]);
   const [systemInfo, setSystemInfo] = useState(null);
   const [queryStats, setQueryStats] = useState(null);
+  const [timeRange, setTimeRange] = useState('all');
 
+  // 初始載入
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -36,14 +38,13 @@ export default function GlobalOverview() {
         const [deptRes, userRes, sysRes] = await Promise.all([
           getDepartments(),
           getUsers(),
-          getSystemInfo(),
+          getSystemInfo(timeRange),
         ]);
 
         if (deptRes?.success) setDepartments(deptRes.data);
         if (userRes?.success) setUsers(userRes.data);
         if (sysRes?.success) {
           setSystemInfo(sysRes.data);
-          // 從 systemInfo 取得查詢統計
           if (sysRes.data.queryStats) {
             setQueryStats(sysRes.data.queryStats);
           }
@@ -54,6 +55,24 @@ export default function GlobalOverview() {
     };
     load();
   }, []);
+
+  // 切換時間範圍時只更新統計資料
+  useEffect(() => {
+    const updateStats = async () => {
+      try {
+        const sysRes = await getSystemInfo(timeRange);
+        if (sysRes?.success) {
+          setSystemInfo(sysRes.data);
+          if (sysRes.data.queryStats) {
+            setQueryStats(sysRes.data.queryStats);
+          }
+        }
+      } catch (err) {
+        console.error('更新統計失敗:', err);
+      }
+    };
+    updateStats();
+  }, [timeRange]);
 
   const totalFiles = departments.reduce((sum, d) => sum + (d.fileCount || 0), 0);
   const totalUsers = users.length;
@@ -88,8 +107,13 @@ export default function GlobalOverview() {
             onClick={async () => {
               setLoading(true);
               try {
-                const res = await getSystemInfo();
-                if (res?.success) setSystemInfo(res.data);
+                const res = await getSystemInfo(timeRange);
+                if (res?.success) {
+                  setSystemInfo(res.data);
+                  if (res.data.queryStats) {
+                    setQueryStats(res.data.queryStats);
+                  }
+                }
               } finally {
                 setLoading(false);
               }
@@ -136,8 +160,31 @@ export default function GlobalOverview() {
 
       {/* 查詢統計 - 圓餅圖 */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>查詢統計</h3>
-        {queriesByDept.length > 0 ? (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--ncku-red)' }}>查詢統計</h3>
+          <div className="flex gap-1 text-xs">
+            {[
+              { value: 'today', label: '今日' },
+              { value: 'week', label: '本週' },
+              { value: 'month', label: '本月' },
+              { value: 'all', label: '全部' }
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setTimeRange(value)}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  timeRange === value
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="min-h-[200px]">
+          {queriesByDept.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 左側：各處室數據列表 */}
             <div className="space-y-3">
@@ -207,15 +254,18 @@ export default function GlobalOverview() {
             </div>
           </div>
         ) : (
-          <p className="text-gray-500">暫無查詢統計資料</p>
+          <div className="flex items-center justify-center h-[200px]">
+            <p className="text-gray-500">暫無查詢統計資料</p>
+          </div>
         )}
+        </div>
       </div>
 
       {/* 平均回應時間與造訪人次 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>平均回應時間</h3>
-          <div className="text-center">
+          <div className="text-center min-h-[150px] flex flex-col justify-center">
             <div className="text-4xl font-bold text-green-600">
               {avgResponse != null 
                 ? `${avgResponse.toFixed(2)}s` 
@@ -233,8 +283,9 @@ export default function GlobalOverview() {
         
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>處室造訪人次</h3>
-          {visitsByDept.length > 0 ? (
-            <div className="space-y-3">
+          <div className="min-h-[150px]">
+            {visitsByDept.length > 0 ? (
+              <div className="space-y-3">
               {visitsByDept.map((dept, idx) => {
                 const pct = maxVisits ? Math.round((dept.visits / maxVisits) * 100) : 0;
                 return (
@@ -254,8 +305,11 @@ export default function GlobalOverview() {
               })}
             </div>
           ) : (
-            <p className="text-gray-500">暫無造訪資料</p>
+            <div className="flex items-center justify-center h-[150px]">
+              <p className="text-gray-500">暫無造訪資料</p>
+            </div>
           )}
+          </div>
         </div>
       </div>
     </div>
