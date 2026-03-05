@@ -6,7 +6,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  getDepartmentStats,
   addDepartment,
   updateDepartment,
   deleteDepartment
@@ -14,7 +13,6 @@ import {
 import { useModalAnimation } from '../../hooks/useModalAnimation';
 import { useToast } from '../../contexts/ToastContext';
 import ConfirmDialog from '../common/ConfirmDialog';
-import DepartmentStatsModal from './DepartmentStatsModal';
 
 function DepartmentManagement({ departments, onRefresh, isLoading }) {
   const navigate = useNavigate();
@@ -24,9 +22,7 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [showStatsModal, setShowStatsModal] = useState(null);
   const [editingDept, setEditingDept] = useState(null);
-  const [statsData, setStatsData] = useState(null);
 
   // 對話框動畫 Hooks
   const addModal = useModalAnimation(showAddModal, () => setShowAddModal(false));
@@ -195,20 +191,10 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     }, 0);
   };
 
-  // 查看處室統計
-  const viewStats = async (dept) => {
-    try {
-      const response = await getDepartmentStats(dept.id);
-      if (response.success) {
-        setStatsData(response.data);
-        setShowStatsModal(dept);
-      } else {
-        toast.error('獲取統計資料失敗：' + response.message);
-      }
-    } catch (error) {
-      console.error('獲取統計資料錯誤:', error);
-      toast.error('獲取統計資料失敗');
-    }
+  // 複製查詢網址
+  const handleCopyUrl = (slug) => {
+    navigator.clipboard.writeText(`${window.location.origin}/query/${slug}`);
+    toast.success('查詢網址已複製');
   };
 
   return (
@@ -280,7 +266,7 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                       </svg>
                       <div>
                         <p className="text-2xl font-bold text-gray-900">{dept.userCount}</p>
-                        <p className="text-xs text-gray-500">使用者</p>
+                        <p className="text-xs text-gray-500">用戶數</p>
                       </div>
                     </div>
                   </div>
@@ -298,6 +284,22 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                   </div>
                 </div>
 
+                {/* 查詢系統網址 */}
+                <div className="bg-blue-50 rounded-lg px-3 py-2 flex items-center justify-between mb-3">
+                  <code className="text-xs font-mono text-blue-700 truncate mr-2">
+                    {window.location.origin}/query/{dept.slug}
+                  </code>
+                  <button
+                    onClick={() => handleCopyUrl(dept.slug)}
+                    className="flex-shrink-0 p-1 text-blue-600 hover:bg-blue-100 rounded cursor-pointer"
+                    title="複製查詢網址"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                </div>
+
                 {/* 操作按鈕 */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -308,14 +310,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                     進入管理
                   </button>
                   <button
-                    onClick={() => viewStats(dept)}
-                    className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-sm font-medium"
-                  >
-                    查看詳情
-                  </button>
-                  <button
                     onClick={() => openEditModal(dept)}
-                    className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer text-sm font-medium"
+                    className="col-span-2 px-4 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer text-sm font-medium"
                   >
                     編輯
                   </button>
@@ -536,17 +532,6 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
         type="danger"
       />
 
-      {/* 處室統計 Modal */}
-      {showStatsModal && statsData && (
-        <DepartmentStatsModal
-          department={showStatsModal}
-          statsData={statsData}
-          onClose={() => {
-            setShowStatsModal(null);
-            setStatsData(null);
-          }}
-        />
-      )}
     </>
   );
 }

@@ -148,9 +148,9 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
         <div>
           <h2 className="text-3xl font-bold" style={{ color: 'var(--ncku-red)' }}>
-            使用者管理
+            管理員帳號
           </h2>
-          <p className="text-gray-600 mt-2">管理處室管理員帳號</p>
+          <p className="text-gray-600 mt-2">管理所有管理員帳號</p>
         </div>
         <button
           onClick={() => setShowAddUserModal(true)}
@@ -160,7 +160,7 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          <span>新增使用者</span>
+          <span>新增管理員</span>
         </button>
       </div>
 
@@ -189,13 +189,16 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {users.filter(u => u.role === 'ADMIN').map(user => (
+                {users.filter(u => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN').map(user => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{user.name}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{user.username}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap hidden md:table-cell">{user.email}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                      {getDepartmentNameById(user.departmentId)}
+                      {user.role === 'SUPER_ADMIN'
+                        ? <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800">系統管理員</span>
+                        : getDepartmentNameById(user.departmentId)
+                      }
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
@@ -203,18 +206,24 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      <button 
-                        onClick={() => openEditUserModal(user)}
-                        className="text-blue-600 hover:text-blue-800 mr-2 sm:mr-3 cursor-pointer"
-                      >
-                        編輯
-                      </button>
-                      <button 
-                        onClick={() => setShowDeleteUserConfirm(user)}
-                        className="text-red-600 hover:text-red-800 cursor-pointer"
-                      >
-                        刪除
-                      </button>
+                      {user.role === 'SUPER_ADMIN' ? (
+                        <span className="text-gray-400 text-xs">—</span>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={() => openEditUserModal(user)}
+                            className="text-blue-600 hover:text-blue-800 mr-2 sm:mr-3 cursor-pointer"
+                          >
+                            編輯
+                          </button>
+                          <button 
+                            onClick={() => setShowDeleteUserConfirm(user)}
+                            className="text-red-600 hover:text-red-800 cursor-pointer"
+                          >
+                            刪除
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
