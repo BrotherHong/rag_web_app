@@ -1,6 +1,7 @@
 from sentence_transformers import CrossEncoder
 from typing import List
 import logging
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -12,9 +13,10 @@ class Reranker:
     """
 
     def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3"):
-        # 載入 CrossEncoder 模型
-        logger.info(f"[Reranker] loading model: {model_name}")
-        self.model = CrossEncoder(model_name)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"[Reranker] loading model: {model_name} (device: {device})")
+        self.model = CrossEncoder(model_name, device=device)
+        logger.info(f"[Reranker] model loaded on {device}")
 
     def rerank(self, query: str, candidates: List[dict], threshold: float = None) -> List[dict]:
         """
@@ -39,7 +41,10 @@ class Reranker:
         pairs = [[query, c["summary"]] for c in candidates]
 
         # 模型預測分數 (相關性分數，float，越高越相關)
-        scores = self.model.predict(pairs)
+        with torch.no_grad():
+            scores = self.model.predict(pairs)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         # 將分數加回 candidates
         results = []

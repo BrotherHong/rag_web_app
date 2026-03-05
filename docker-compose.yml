@@ -42,9 +42,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # GPU 支援（使用主機 NVIDIA GPU 加速 reranker）
+    runtime: nvidia
     environment:
       # 時區設定
       TZ: Asia/Taipei
+      
+      # GPU 設定
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      # HuggingFace 快取（使用主機快取，避免每次重啟重下載）
+      HF_HOME: /root/.cache/huggingface
+      HF_HUB_OFFLINE: "1"
       
       # 應用設定
       APP_NAME: ${APP_NAME:-RAG Knowledge Base}
@@ -96,6 +105,8 @@ services:
       - ./rag_web_backend/uploads:/app/uploads
       # 日誌檔案持久化（Bind Mount）
       - ./rag_web_backend/logs:/app/logs
+      # HuggingFace 模型快取（掛載主機快取，避免重啟後重下載）
+      - /home/brick2/.cache/huggingface:/root/.cache/huggingface
       
       # 開發模式：掛載程式碼（修改後不需重新 build）
       - ./rag_web_backend/app:/app/app

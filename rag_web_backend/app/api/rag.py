@@ -23,17 +23,15 @@ from app.services.activity import activity_service
 
 router = APIRouter(prefix="/rag", tags=["RAG查詢"])
 
-# TODO: Support multiple departments - currently hardcoded to department 1 (人事室)
-DEPARTMENT_ID = 1
-BASE_PATH = f"uploads/{DEPARTMENT_ID}/processed"
+# 快取各處室的 RAGEngine，避免每次 request 重新載入 reranker 模型
+_dept_rag_engines: dict = {}
 
-# Initialize RAG Engine
-try:
-    rag_engine = RAGEngine(base_path=BASE_PATH, debug_mode=True)  # 開啟 debug 模式
-    print(f"✅ RAG Engine initialized with base_path: {BASE_PATH}")
-except Exception as e:
-    print(f"⚠️ Warning: Failed to initialize RAG Engine: {e}")
-    rag_engine = None
+def get_dept_rag_engine(department_id: int) -> RAGEngine:
+    if department_id not in _dept_rag_engines:
+        base_path = f"uploads/{department_id}/processed"
+        _dept_rag_engines[department_id] = RAGEngine(base_path=base_path, debug_mode=True)
+        print(f"✅ RAG Engine initialized for dept {department_id}: {base_path}")
+    return _dept_rag_engines[department_id]
 
 
 @router.post("/query", response_model=QueryResponse)
@@ -219,10 +217,9 @@ async def query_documents(
                     sources=[]
                 )
         
-        # 動態初始化對應處室的 RAG 引擎
-        base_path = f"uploads/{department_id}/processed"
+        # 取得（或初始化）對應處室的 RAG 引擎（全域快取，reranker 只載入一次）
         try:
-            dept_rag_engine = RAGEngine(base_path=base_path, debug_mode=True)
+            dept_rag_engine = get_dept_rag_engine(department_id)
         except Exception as e:
             raise HTTPException(
                 status_code=503,

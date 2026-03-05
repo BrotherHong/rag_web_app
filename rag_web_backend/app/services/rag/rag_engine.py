@@ -111,7 +111,7 @@ class RAGEngine:
                 'retrieved_docs': 0
             }
         
-        # 準備候選文檔並進行 rerank
+        # 準備候選文件並進行 rerank（GPU 上全量跑，速度快）
         candidates = [{
             'document': doc['document'],
             'similarity': doc['similarity'],
