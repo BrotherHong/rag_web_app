@@ -47,7 +47,7 @@ class OllamaClient:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(url, json=data)
                 response.raise_for_status()
-                raw_response = response.json()["response"]
+                raw_response = response.json()["response"].strip()
                 # 將簡體中文轉換為繁體中文
                 return self.converter.convert(raw_response)
                 

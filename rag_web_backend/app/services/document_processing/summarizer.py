@@ -3,6 +3,7 @@
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Dict, Optional, List, Tuple
 from app.services.llm.ollama_client import OllamaClient
@@ -103,6 +104,10 @@ class SummaryProcessor:
         返回:
             (生成的摘要, 文檔類型, chunk內容) tuple
         """
+        # 去除 HTML 標籤，只保留文字（避免標籤佔用 chunk 空間且干擾 LLM）
+        content = re.sub(r'<[^>]+>', ' ', content)
+        content = re.sub(r'\s{2,}', ' ', content).strip()
+
         # 先判斷文檔類型
         doc_type = await self._classify_document(content)
         print(f"  文檔分類: {doc_type}")
