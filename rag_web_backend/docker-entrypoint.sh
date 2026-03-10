@@ -37,7 +37,7 @@ fi
 # 啟動應用服務
 echo "=================================="
 echo "🚀 啟動 FastAPI 應用服務..."
-echo "   Workers: ${UVICORN_WORKERS:-4}（並發處理）"
+echo "   Workers: ${UVICORN_WORKERS:-2}（並發處理）"
 echo "   時區: Asia/Taipei (${TZ})"
 echo "=================================="
 echo ""
@@ -47,4 +47,4 @@ echo ""
 exec uvicorn app.main:app \
     --host 0.0.0.0 \
     --port 8000 \
-    --workers ${UVICORN_WORKERS:-4}
+    --workers ${UVICORN_WORKERS:-2}

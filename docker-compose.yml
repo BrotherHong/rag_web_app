@@ -61,7 +61,7 @@ services:
       API_V1_PREFIX: ${API_V1_PREFIX:-/api}
       
       # Uvicorn 服務器設定
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
       
       # 安全設定
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
