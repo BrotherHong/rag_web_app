@@ -16,7 +16,9 @@ from app.models.query_history import QueryHistory
 from app.schemas.rag import (
     QueryRequest,
     QueryResponse,
-    DocumentSource
+    DocumentSource,
+    DirectQueryRequest,
+    DirectQueryResponse
 )
 from app.services.rag.rag_engine import RAGEngine
 from app.services.activity import activity_service
@@ -332,3 +334,112 @@ async def query_documents(
             status_code=500,
             detail=f"查詢處理失敗: {str(e)}"
         )
+
+
+@router.post("/direct-query", response_model=DirectQueryResponse)
+async def direct_query(
+    request: DirectQueryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[QueryUser] = Depends(get_current_query_user_optional)
+):
+    """直接用 LLM 回覆（不依賴 RAG 知識庫）
+    
+    當 RAG 找不到相關資料時，使用此端點讓 LLM 直接回答。
+    - 若處室有設定 external_api_key，使用該 API Key 呼叫外部模型
+    - 否則使用本地 Ollama 模型直接回答
+    """
+    department_id = None
+    if request.scope_ids and len(request.scope_ids) > 0:
+        department_id = request.scope_ids[0]
+    elif current_user and current_user.default_department_id:
+        department_id = current_user.default_department_id
+    else:
+        raise HTTPException(status_code=400, detail="未登入用戶必須指定 scope_ids")
+
+    # 取得處室的 external_api_key
+    from app.models.department import Department
+    dept_result = await db.execute(select(Department).where(Department.id == department_id))
+    department = dept_result.scalar_one_or_none()
+
+    if not department:
+        raise HTTPException(status_code=404, detail="處室不存在")
+
+    answer = await _call_llm_direct(request.query, department.external_api_key)
+
+    return DirectQueryResponse(
+        query=request.query,
+        answer=answer,
+        used_external_api=bool(department.external_api_key)
+    )
+
+
+async def _call_llm_direct(question: str, api_key: str | None) -> str:
+    """呼叫 LLM 直接回覆（不使用 RAG）"""
+    import httpx
+    import opencc
+    converter = opencc.OpenCC('s2t')
+
+    prompt = f"""請直接回答以下問題。請以繁體中文回覆，回答要清晰、完整、有條理。
+
+問題：{question}
+
+回答："""
+
+    if api_key:
+        # 使用外部 API（支援 OpenAI / Gemini / Claude 等 OpenAI-compatible 介面）
+        if api_key.startswith("sk-ant-"):
+            # Claude (Anthropic)
+            base_url = "https://api.anthropic.com/v1"
+            model = "claude-3-5-haiku-20241022"
+            headers = {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            payload = {
+                "model": model,
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            try:
+                async with httpx.AsyncClient(timeout=60) as client:
+                    resp = await client.post(f"{base_url}/messages", headers=headers, json=payload)
+                    resp.raise_for_status()
+                    raw = resp.json()["content"][0]["text"].strip()
+                    return converter.convert(raw)
+            except Exception as e:
+                return f"外部 API 呼叫失敗：{str(e)}"
+
+        elif api_key.startswith("AIza"):
+            # Google Gemini（OpenAI-compatible endpoint）
+            base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+            model = "gemini-2.0-flash"
+        else:
+            # OpenAI 或其他 OpenAI-compatible
+            base_url = "https://api.openai.com/v1"
+            model = "gpt-4o-mini"
+
+        # OpenAI-compatible 呼叫
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 1024
+        }
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.post(f"{base_url}/chat/completions", headers=headers, json=payload)
+                resp.raise_for_status()
+                raw = resp.json()["choices"][0]["message"]["content"].strip()
+                return converter.convert(raw)
+        except Exception as e:
+            return f"外部 API 呼叫失敗：{str(e)}"
+
+    else:
+        # 使用本地 Ollama
+        from app.services.llm.ollama_client import OllamaClient
+        client = OllamaClient()
+        return await client.generate(prompt)

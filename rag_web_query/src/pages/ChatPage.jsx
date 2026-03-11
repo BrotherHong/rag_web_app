@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { getQuickQuestions, sendChatMessage, getWelcomeMessage, getCategories } from '../services/api'
+import { getQuickQuestions, sendChatMessage, sendDirectQuery, getWelcomeMessage, getCategories } from '../services/api'
 import { useDepartment } from '../contexts/DepartmentContext'
 import { API_CONFIG, APP_CONSTANTS, PathUtils } from '../config/constants'
 
@@ -17,6 +17,47 @@ function ChatPage() {
   const [expandedSource, setExpandedSource] = useState({})
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState(null) // null 表示「全部」
+  const [directQueryLoading, setDirectQueryLoading] = useState(null) // 儲存正在處理的 messageId
+
+  // 判斷是否為「找不到相關資料」的回覆
+  const isNoResultsAnswer = (text) => {
+    return text && text.includes('資料庫中沒有找到與您的問題相關的文檔')
+  }
+
+  // 處理「使用模型直接回覆」
+  const handleDirectQuery = async (originalQuestion, messageId) => {
+    setDirectQueryLoading(messageId)
+    try {
+      const response = await sendDirectQuery(originalQuestion)
+      if (response.success) {
+        const directAnswer = response.data.answer || '無法取得回覆'
+        const usedExternal = response.data.used_external_api
+        const label = usedExternal ? '（使用外部模型直接回覆）' : '（使用本地模型直接回覆）'
+        const newMsg = {
+          id: Date.now(),
+          text: `${label}\n\n${directAnswer}`,
+          sources: [],
+          sender: 'ai',
+          timestamp: new Date(),
+          isDirectReply: true
+        }
+        setMessages(prev => [...prev, newMsg])
+      } else {
+        const errMsg = {
+          id: Date.now(),
+          text: '抱歉，直接回覆失敗，請稍後再試。',
+          sources: [],
+          sender: 'ai',
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, errMsg])
+      }
+    } catch (error) {
+      console.error('Direct query error:', error)
+    } finally {
+      setDirectQueryLoading(null)
+    }
+  }
 
   // 處理檔案下載
   const handleDownload = async (downloadLink, fileName) => {
@@ -212,7 +253,8 @@ function ChatPage() {
             text: aiResponseData.text,
             sources: aiResponseData.sources,
             sender: 'ai',
-            timestamp: new Date()
+            timestamp: new Date(),
+            originalQuestion: location.state.question
           }
           // 直接設置完整的訊息陣列，而不是使用 prev
           setMessages([userMessage, aiResponse])
@@ -281,7 +323,8 @@ function ChatPage() {
         text: aiResponseData.text,
         sources: aiResponseData.sources,
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date(),
+        originalQuestion: messageText
       }
       
       setMessages(prev => [...prev, aiResponse])
@@ -544,6 +587,35 @@ function ChatPage() {
                   <p className="text-xs text-gray-500 mt-2">
                     {message.timestamp.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
                   </p>
+
+                  {/* 所有 AI 回覆都顯示「詢問看看現在的模型怎麼回答」按鈕 */}
+                  {message.sender === 'ai' && !message.isDirectReply && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <button
+                        onClick={() => {
+                          const q = message.originalQuestion ||
+                            [...messages].reverse().find(m => m.sender === 'user' && m.id < message.id)?.text
+                          if (q) handleDirectQuery(q, message.id)
+                        }}
+                        disabled={directQueryLoading === message.id}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {directQueryLoading === message.id ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                            <span>模型思考中...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.347a3.75 3.75 0 01-5.303-5.303l-.347.347a5 5 0 010 7.072z" />
+                            </svg>
+                            <span>詢問看看現在的模型怎麼回答</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

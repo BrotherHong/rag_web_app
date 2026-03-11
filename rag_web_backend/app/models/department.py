@@ -52,7 +52,13 @@ class Department(Base, TimestampMixin):
         nullable=False,
         comment="處室顏色"
     )
-    
+
+    external_api_key: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="外部 LLM API Key（選填）"
+    )
+
     # 關聯
     users: Mapped[List["User"]] = relationship(
         "User",
@@ -92,3 +98,7 @@ class Department(Base, TimestampMixin):
     
     def __repr__(self) -> str:
         return f"<Department(id={self.id}, name='{self.name}')>"
+
+    @property
+    def has_external_api_key(self) -> bool:
+        return bool(self.external_api_key)

@@ -34,7 +34,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     name: '',
     slug: '',
     description: '',
-    color: '#3B82F6' // 預設藍色
+    color: '#3B82F6', // 預設藍色
+    external_api_key: ''
   });
 
   // 可用的顏色選項
@@ -56,7 +57,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       name: dept.name,
       slug: dept.slug,
       description: dept.description || '',
-      color: dept.color
+      color: dept.color,
+      external_api_key: '' // 編輯時不顯示已儲存的 key，只顯示是否已設定
     });
     setShowEditModal(true);
   };
@@ -67,7 +69,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       name: '',
       slug: '',
       description: '',
-      color: '#3B82F6' // 預設藍色
+      color: '#3B82F6', // 預設藍色
+      external_api_key: ''
     });
   };
 
@@ -91,7 +94,12 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     }
 
     try {
-      const response = await addDepartment(formData);
+      // 若 external_api_key 為空字串，不傳遞該欄位
+      const addData = { ...formData };
+      if (!addData.external_api_key.trim()) {
+        delete addData.external_api_key;
+      }
+      const response = await addDepartment(addData);
       if (response.success) {
         await onRefresh();
         addModal.handleClose();
@@ -114,7 +122,12 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     }
 
     try {
-      const response = await updateDepartment(editingDept.id, formData);
+      // 若 external_api_key 為空字串，不傳遞該欄位（保留原本設定）
+      const updateData = { ...formData };
+      if (!updateData.external_api_key.trim()) {
+        delete updateData.external_api_key;
+      }
+      const response = await updateDepartment(editingDept.id, updateData);
       if (response.success) {
         await onRefresh();
         editModal.handleClose();
@@ -400,6 +413,22 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                   ))}
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  外部模型 API Key
+                  <span className="ml-2 text-xs font-normal text-gray-500">（選填）</span>
+                </label>
+                <input
+                  type="password"
+                  value={formData.external_api_key}
+                  onChange={(e) => setFormData({...formData, external_api_key: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono text-sm"
+                  placeholder="例：sk-... （OpenAI）、AIza... （Gemini）、sk-ant-... （Claude）"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  提供後，登入用戶在查詢未找到資料時，可選擇直接用此模型回覆
+                </p>
+              </div>
             </div>
             <div className="flex space-x-3 mt-6">
               <button
@@ -489,6 +518,22 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                     />
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  外部模型 API Key
+                  <span className="ml-2 text-xs font-normal text-gray-500">（選填）</span>
+                </label>
+                {editingDept?.has_external_api_key && (
+                  <p className="mb-1 text-xs text-green-600">✓ 目前已設定 API Key，輸入新內容即可更新，留空則保持原設定</p>
+                )}
+                <input
+                  type="password"
+                  value={formData.external_api_key}
+                  onChange={(e) => setFormData({...formData, external_api_key: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono text-sm"
+                  placeholder={editingDept?.has_external_api_key ? '留空不更改' : '例：sk-... （OpenAI）、AIza... （Gemini）、sk-ant-... （Claude）'}
+                />
               </div>
             </div>
             <div className="flex space-x-3 mt-6">

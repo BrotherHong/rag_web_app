@@ -177,6 +177,23 @@ export const sendChatMessage = async (message, categoryIds = null) => {
 }
 
 /**
+ * 直接用 LLM 回覆（不依賴 RAG 知識庫）
+ * @param {string} message - 問題
+ * @returns {Promise<Object>} LLM 直接回覆
+ */
+export const sendDirectQuery = async (message) => {
+  const requestBody = {
+    query: message,
+    scope_ids: currentDeptId ? [currentDeptId] : []
+  }
+
+  return apiRequest('/rag/direct-query', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  })
+}
+
+/**
  * 獲取處室的分類列表
  * @param {number} departmentId - 處室 ID
  * @returns {Promise<Object>} 分類列表

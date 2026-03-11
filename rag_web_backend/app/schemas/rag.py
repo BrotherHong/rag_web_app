@@ -64,4 +64,16 @@ class QueryResponse(BaseModel):
         }
 
 
+class DirectQueryRequest(BaseModel):
+    """直接 LLM 查詢請求（不使用 RAG）"""
+    
+    query: str = Field(..., min_length=1, max_length=1000, description="查詢問題")
+    scope_ids: Optional[List[int]] = Field(default=None, description="範圍限定 ID（第一個元素為 department_id）")
 
+
+class DirectQueryResponse(BaseModel):
+    """直接 LLM 查詢回應"""
+    
+    query: str = Field(..., description="原始查詢")
+    answer: str = Field(..., description="LLM 生成的答案")
+    used_external_api: bool = Field(..., description="是否使用了外部 API Key")

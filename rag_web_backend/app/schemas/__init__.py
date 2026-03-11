@@ -115,6 +115,7 @@ class DepartmentCreate(BaseModel):
     slug: str = Field(..., min_length=1, max_length=50, description="URL 友善識別碼 (例: hr, acc, it)")
     description: Optional[str] = Field(None, description="處室描述")
     color: str = Field(default="#3B82F6", description="處室主題顏色 (hex格式)")
+    external_api_key: Optional[str] = Field(None, max_length=500, description="外部 LLM API Key（選填）")
 
 
 class DepartmentUpdate(BaseModel):
@@ -122,16 +123,18 @@ class DepartmentUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="處室名稱")
     description: Optional[str] = Field(None, description="處室描述")
     color: Optional[str] = Field(None, description="處室主題顏色")
+    external_api_key: Optional[str] = Field(None, max_length=500, description="外部 LLM API Key（選填，傳 null 可清除）")
 
 
 class DepartmentResponse(DepartmentBase):
     """處室響應"""
     id: int
+    has_external_api_key: bool = Field(default=False, description="是否已設定外部 API Key")
     user_count: int = Field(default=0, description="使用者數量")
     file_count: int = Field(default=0, description="檔案數量")
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
