@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     OLLAMA_SUMMARY_MODEL: str = ""
     OLLAMA_RAG_MODEL: str = ""
     OLLAMA_EMBEDDING_MODEL: str = ""
+
+    # 外部 LLM 設定
+    OPENAI_DIRECT_MODEL: str = "gpt-5.2"
+    OPENAI_ENABLE_WEB_SEARCH: bool = False
     
     model_config = SettingsConfigDict(
         env_file=".env",

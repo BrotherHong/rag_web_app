@@ -385,6 +385,32 @@ async def _call_llm_direct(question: str, api_key: str | None) -> str:
 
 回答："""
 
+    def _extract_responses_text_and_sources(data: dict) -> tuple[str, list[tuple[str, str]]]:
+        """從 OpenAI Responses 回傳中擷取文字與可驗證來源連結。"""
+        raw = data.get("output_text", "") or ""
+        parts: list[str] = []
+        sources: list[tuple[str, str]] = []
+        seen_urls: set[str] = set()
+
+        for item in data.get("output", []):
+            for content in item.get("content", []):
+                text = content.get("text")
+                if text:
+                    parts.append(text)
+
+                for ann in content.get("annotations", []) or []:
+                    url = ann.get("url") or ann.get("source")
+                    if not url or url in seen_urls:
+                        continue
+                    title = ann.get("title") or ann.get("text") or url
+                    seen_urls.add(url)
+                    sources.append((str(title), str(url)))
+
+        if not raw.strip():
+            raw = "\n".join(parts).strip()
+
+        return raw.strip(), sources
+
     if api_key:
         # 使用外部 API（支援 OpenAI / Gemini / Claude 等 OpenAI-compatible 介面）
         if api_key.startswith("sk-ant-"):
@@ -417,24 +443,107 @@ async def _call_llm_direct(question: str, api_key: str | None) -> str:
         else:
             # OpenAI 或其他 OpenAI-compatible
             base_url = "https://api.openai.com/v1"
-            model = "gpt-4o-mini"
+            model = settings.OPENAI_DIRECT_MODEL
 
-        # OpenAI-compatible 呼叫
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 1024
-        }
+
+        # OpenAI 的 gpt-5 系列優先走 Responses API，避免與 chat/completions 參數不相容。
+        use_responses_api = base_url == "https://api.openai.com/v1" and model.startswith("gpt-5")
+        use_web_search = settings.OPENAI_ENABLE_WEB_SEARCH and base_url == "https://api.openai.com/v1"
+
+        effective_prompt = prompt
+        if use_web_search:
+            effective_prompt = (
+                prompt
+                + "\n\n請使用網路檢索工具查證；若找不到可靠來源請明確說不知道。"
+                + "不要自行臆造人名、職稱、年份或網址。"
+            )
+
         try:
             async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(f"{base_url}/chat/completions", headers=headers, json=payload)
+                if use_responses_api:
+                    payload = {
+                        "model": model,
+                        "input": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "input_text", "text": effective_prompt}
+                                ]
+                            }
+                        ],
+                        "max_output_tokens": 1024
+                    }
+                    if use_web_search:
+                        payload["tools"] = [{"type": "web_search_preview"}]
+                        payload["tool_choice"] = "auto"
+                    resp = await client.post(f"{base_url}/responses", headers=headers, json=payload)
+                else:
+                    payload = {
+                        "model": model,
+                        "messages": [{"role": "user", "content": effective_prompt}],
+                        "max_tokens": 1024
+                    }
+                    resp = await client.post(f"{base_url}/chat/completions", headers=headers, json=payload)
+
                 resp.raise_for_status()
-                raw = resp.json()["choices"][0]["message"]["content"].strip()
+
+                data = resp.json()
+                if use_responses_api:
+                    raw, sources = _extract_responses_text_and_sources(data)
+                    if raw and use_web_search and sources:
+                        source_lines = [f"- {title}: {url}" for title, url in sources[:8]]
+                        raw = raw + "\n\n可驗證來源（系統擷取）:\n" + "\n".join(source_lines)
+                else:
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    if isinstance(content, list):
+                        raw = "\n".join(
+                            part.get("text", "") for part in content if isinstance(part, dict)
+                        ).strip()
+                    else:
+                        raw = str(content).strip()
+
+                if not raw:
+                    return "外部 API 呼叫成功，但未取得可用回覆內容。"
+
                 return converter.convert(raw)
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code if e.response else "unknown"
+            body = (e.response.text if e.response else str(e))
+
+            # 若 Web Search 工具不可用，退回純文字回覆，避免整體失敗。
+            if use_responses_api and use_web_search and status in (400, 404):
+                try:
+                    async with httpx.AsyncClient(timeout=60) as client:
+                        fallback_payload = {
+                            "model": model,
+                            "input": [
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "input_text", "text": effective_prompt}
+                                    ]
+                                }
+                            ],
+                            "max_output_tokens": 1024
+                        }
+                        fallback_resp = await client.post(
+                            f"{base_url}/responses",
+                            headers=headers,
+                            json=fallback_payload
+                        )
+                        fallback_resp.raise_for_status()
+                        fallback_data = fallback_resp.json()
+                        fallback_raw, _ = _extract_responses_text_and_sources(fallback_data)
+                        if fallback_raw:
+                            return converter.convert(fallback_raw)
+                except Exception:
+                    pass
+
+            return f"外部 API 呼叫失敗：HTTP {status} - {body[:1000]}"
         except Exception as e:
             return f"外部 API 呼叫失敗：{str(e)}"
 
