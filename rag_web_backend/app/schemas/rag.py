@@ -25,6 +25,7 @@ class QueryRequest(BaseModel):
 class DocumentSource(BaseModel):
     """文檔來源"""
     
+    doc_num: Optional[int] = Field(default=None, description="文檔編號（對應回答中的文檔X）")
     file_id: Optional[int] = Field(default=None, description="檔案 ID（用於下載）")
     file_name: str = Field(..., description="檔案名稱")
     source_link: str = Field(default="", description="原始連結")

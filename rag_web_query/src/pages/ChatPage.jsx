@@ -14,7 +14,6 @@ function ChatPage() {
   const messagesEndRef = useRef(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [quickQuestions, setQuickQuestions] = useState([])
-  const [expandedSource, setExpandedSource] = useState({})
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState(null) // null 表示「全部」
   const [directQueryLoading, setDirectQueryLoading] = useState(null) // 儲存正在處理的 messageId
@@ -86,66 +85,8 @@ function ChatPage() {
     }
   }
 
-  // 渲染消息內容（移除引用部分）
   const renderMessageContent = (text) => {
-    // 分離主要回答和引用部分
-    const parts = text.split(/引用[：:]\s*\n/)
-    const mainAnswer = parts[0].trim()
-    return <p className="text-gray-800 whitespace-pre-line">{mainAnswer}</p>
-  }
-
-  // 解析引用內容並按檔名分組
-  const parseCitations = (text, sources) => {
-    if (!sources || sources.length === 0) return []
-
-    const parts = text.split(/引用[：:]\s*\n/)
-    if (parts.length < 2) return []
-
-    const citationsText = parts[1]
-    const citationLines = citationsText.split('\n').filter(line => line.trim())
-    
-    const fileMap = {}
-    sources.forEach(source => {
-      fileMap[source.file_name] = source
-    })
-
-    // 先解析所有引用
-    const allCitations = []
-    citationLines.forEach(line => {
-      const match = line.match(/文檔(\d+)[（(](.+?)[）)][:：](.+)/)
-      if (match) {
-        const [, docNum, fileName, content] = match
-        allCitations.push({
-          docNum,
-          fileName,
-          content: content.trim().replace(/^「|」$/g, '')
-        })
-      }
-    })
-
-    // 按檔名分組合併
-    const groupedByFile = {}
-    allCitations.forEach(citation => {
-      if (!groupedByFile[citation.fileName]) {
-        groupedByFile[citation.fileName] = {
-          docNum: citation.docNum,
-          fileName: citation.fileName,
-          source: fileMap[citation.fileName],
-          contents: []
-        }
-      }
-      groupedByFile[citation.fileName].contents.push(citation.content)
-    })
-
-    return Object.values(groupedByFile)
-  }
-
-  // 切換展開/收合
-  const toggleSource = (messageId, fileName) => {
-    setExpandedSource(prev => ({
-      ...prev,
-      [messageId]: prev[messageId] === fileName ? null : fileName
-    }))
+    return <p className="text-gray-800 whitespace-pre-line">{text}</p>
   }
 
   // 從後端獲取快速問題列表
@@ -528,61 +469,39 @@ function ChatPage() {
                   }
                   
                   {/* 參考資料區塊（僅 AI 訊息） */}
-                  {message.sender === 'ai' && message.sources && message.sources.length > 0 && (() => {
-                    const citations = parseCitations(message.text, message.sources)
-                    return citations.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
-                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-                          </svg>
-                          參考資料（{citations.length} 份文件）
-                        </p>
-                        <div className="space-y-2">
-                          {citations.map((citation, idx) => {
-                            const isExpanded = expandedSource[message.id] === citation.fileName
-                            return (
-                              <div key={idx}>
-                                <div className="flex items-center gap-2 p-2 bg-gray-50 hover:bg-gray-100 rounded transition-colors">
-                                  <button
-                                    onClick={() => toggleSource(message.id, citation.fileName)}
-                                    className="flex items-center gap-2 flex-1 text-left"
-                                  >
-                                    <svg className="w-4 h-4 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    <span className="text-sm font-medium text-gray-800 mr-1">文檔{citation.docNum}</span>
-                                    <span className="text-sm text-gray-700">{citation.fileName}</span>
-                                  </button>
-                                  {citation.source && citation.source.download_link && (
-                                    <button
-                                      onClick={() => handleDownload(citation.source.download_link, citation.source.file_name)}
-                                      className="px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors whitespace-nowrap flex items-center gap-1"
-                                      title="下載檔案"
-                                    >
-                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                      </svg>
-                                      下載
-                                    </button>
-                                  )}
-                                </div>
-                                {isExpanded && (
-                                  <div className="ml-6 mt-1 space-y-2">
-                                    {citation.contents.map((content, contentIdx) => (
-                                      <div key={contentIdx} className="p-2 bg-gray-50 rounded text-xs text-gray-700 leading-relaxed">
-                                        「{content}」
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
+                  {message.sender === 'ai' && message.sources && message.sources.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                        </svg>
+                        參考資料（{message.sources.length} 份文件）
+                      </p>
+                      <div className="space-y-2">
+                        {message.sources.map((source, idx) => (
+                          <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                            <svg className="w-4 h-4 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="text-sm font-medium text-gray-800 mr-1">文檔{source.doc_num}</span>
+                            <span className="text-sm text-gray-700 flex-1">{source.file_name}</span>
+                            {source.download_link && (
+                              <button
+                                onClick={() => handleDownload(source.download_link, source.file_name)}
+                                className="px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors whitespace-nowrap flex items-center gap-1"
+                                title="下載檔案"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                下載
+                              </button>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    )
-                  })()}
+                    </div>
+                  )}
                   
                   <p className="text-xs text-gray-500 mt-2">
                     {message.timestamp.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}

@@ -1,6 +1,7 @@
 """RAG 查詢 API 路由"""
 
 import json
+import re
 import time
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
@@ -240,9 +241,30 @@ async def query_documents(
         
         processing_time = time.time() - start_time
         
+        # 解析 answer 中實際被引用的文檔編號
+        answer_text = result['answer']
+        all_sources = result['sources']
+
+        # 1. 匹配 （文檔X） 格式（全形/半形括號、冒號、空格皆可）
+        cited_numbers = {int(m) for m in re.findall(r'[（(]\s*(?:來源[：:]\s*)?文檔\s*(\d+)\s*[）)]', answer_text)}
+
+        # 2. 同時嘗試直接匹配括號內的檔案名稱
+        bracket_texts = re.findall(r'[（(]([^）)\n]+)[）)]', answer_text)
+        filename_to_idx = {s['filename']: i for i, s in enumerate(all_sources, 1)}
+        for text in bracket_texts:
+            fname = text.strip()
+            if fname in filename_to_idx:
+                cited_numbers.add(filename_to_idx[fname])
+
+        # 3. 若完全沒有解析到，fallback 回傳全部 sources
+        use_all = not cited_numbers
+
         # Convert sources to API format
         sources = []
-        for source in result['sources']:
+        for idx, source in enumerate(all_sources, 1):
+            if not use_all and idx not in cited_numbers:
+                continue
+
             original_filename = source['filename']
             
             # Query database to find file_id
@@ -259,6 +281,7 @@ async def query_documents(
                 continue
             
             doc_source = DocumentSource(
+                doc_num=idx,
                 file_id=file_record.id,
                 file_name=original_filename,
                 source_link=source.get('source_link', ''),
