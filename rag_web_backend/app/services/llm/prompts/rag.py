@@ -53,35 +53,67 @@ RAG_ANSWER_PROMPT = """你是專業的文檔查詢助手，請基於提供的文
 """
 
 # RAG document summary - optimized for semantic retrieval
-RAG_DOCUMENT_SUMMARY = """你是一個專業的文檔摘要生成器。請根據以下文檔內容，生成適合用於語義檢索（cosine 相似度）的摘要。
 
-文檔標題：{filename}
-文檔內容：{text}
+# English version (not used):
+RAG_DOCUMENT_SUMMARY = """You are a professional document summarizer. Based on the document content below,
+generate a summary optimized for semantic retrieval (cosine similarity).
 
-要求：
-1. 保留文件的主要內容與核心概念（主題、流程、規範、規則、定義、條件）。
-2. 特別保留人名、地點、單位、專有名詞，避免遺漏。
-3. 產生可供檢索的關鍵詞（3-5個）。
-4. 產生使用者可能會提出的常見問題（至少 3 個），用不同問法來增加語意多樣性。
-5. 摘要要足夠長，能涵蓋整個 chunk 的資訊，但不需要逐字翻譯。
+Document Title: {filename}
+Document Content: {text}
 
-## 輸出格式（請用 YAML 格式輸出）
+Requirements:
+1. Preserve the document's main content and core concepts (topics, processes, rules, definitions, conditions).
+2. Retain all names, locations, organizations, and proper nouns without omission.
+3. Generate 3-5 retrievable keywords.
+4. Generate at least 3 questions users might ask, using varied phrasings to improve semantic diversity.
+5. The summary should be long enough to cover the entire chunk, but does not need to be a verbatim translation.
+
+## Output Format (YAML):
 
 ```yaml
-title: <文件標題，如可從內容判斷則填寫，否則留空>
-doc_type: <文件類型，如 教學/流程/規範>
+title: <document title if determinable from content, otherwise leave blank>
+doc_type: <document type, e.g. Tutorial/Process/Regulation>
 summary: |
-  <完整摘要，涵蓋文檔主要內容>
+  <complete summary covering the document's main content>
 keywords:
-  - <關鍵詞1>
-  - <關鍵詞2>
-  - <關鍵詞3>
+  - <keyword1>
+  - <keyword2>
+  - <keyword3>
 query_variants:
-  - "<使用者可能會問的問題1>"
-  - "<使用者可能會問的問題2>"
-  - "<使用者可能會問的問題3>"
-```"""
+  - "<possible user question 1>"
+  - "<possible user question 2>"
+  - "<possible user question 3>"
+```
+Note: All output values must be written in Traditional Chinese."""
 
+# RAG_DOCUMENT_SUMMARY = """你是一個專業的文檔摘要生成器。請根據以下文檔內容，生成適合用於語義檢索（cosine 相似度）的摘要。
+
+# 文檔標題：{filename}
+# 文檔內容：{text}
+
+# 要求：
+# 1. 保留文件的主要內容與核心概念（主題、流程、規範、規則、定義、條件）。
+# 2. 特別保留人名、地點、單位、專有名詞，避免遺漏。
+# 3. 產生可供檢索的關鍵詞（3-5個）。
+# 4. 產生使用者可能會提出的常見問題（至少 3 個），用不同問法來增加語意多樣性。
+# 5. 摘要要足夠長，能涵蓋整個 chunk 的資訊，但不需要逐字翻譯。
+
+# ## 輸出格式（請用 YAML 格式輸出）
+
+# ```yaml
+# title: <文件標題，如可從內容判斷則填寫，否則留空>
+# doc_type: <文件類型，如 教學/流程/規範>
+# summary: |
+#   <完整摘要，涵蓋文檔主要內容>
+# keywords:
+#   - <關鍵詞1>
+#   - <關鍵詞2>
+#   - <關鍵詞3>
+# query_variants:
+#   - "<使用者可能會問的問題1>"
+#   - "<使用者可能會問的問題2>"
+#   - "<使用者可能會問的問題3>"
+# ```"""
 
 # RAG query response prompt with Chain of Thought
 RAG_QUERY_PROMPT = """你是一個智能文檔助理，專門幫助用戶從文檔庫中找到和分析信息。

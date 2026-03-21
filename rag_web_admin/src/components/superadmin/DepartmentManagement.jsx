@@ -205,9 +205,26 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
   };
 
   // 複製查詢網址
-  const handleCopyUrl = (slug) => {
-    navigator.clipboard.writeText(`${window.location.origin}/query/${slug}`);
-    toast.success('查詢網址已複製');
+  const handleCopyUrl = async (slug) => {
+    const url = `${window.location.origin}/query/${slug}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('查詢網址已複製');
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        toast.success('查詢網址已複製');
+      } catch {
+        toast.error('複製失敗，請手動複製');
+      }
+      document.body.removeChild(textarea);
+    }
   };
 
   return (
