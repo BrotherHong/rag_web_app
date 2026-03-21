@@ -105,7 +105,8 @@ class DocumentConverter:
                 "-p", str(pdf_file),
                 "-o", str(output_dir),
                 "-m", "auto",  # 自動判斷方法
-                "-b", "pipeline"  # 使用 pipeline 後端
+                "-b", "pipeline",  # 使用 pipeline 後端
+                "-d", "cpu"  # 強制 CPU，避免與 Reranker 搶 GPU
             ]
             
             result = subprocess.run(

@@ -20,36 +20,6 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("✅ 資料庫連線已初始化")
 
-    # 背景預熱 RAG Engine，不阻塞 server 啟動
-    import asyncio
-
-    async def _warmup():
-        await asyncio.sleep(2)  # 等 server 完全啟動後再預熱
-        try:
-            from app.core.database import AsyncSessionLocal
-            from sqlalchemy import select, distinct
-            from app.models.file import File as FileModel
-            from app.api.rag import get_dept_rag_engine
-            import concurrent.futures
-
-            async with AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(distinct(FileModel.department_id)).where(FileModel.is_vectorized == True)
-                )
-                dept_ids = [row[0] for row in result.all() if row[0] is not None]
-
-            loop = asyncio.get_event_loop()
-            for dept_id in dept_ids:
-                try:
-                    await loop.run_in_executor(None, get_dept_rag_engine, dept_id)
-                    logger.info(f"✅ RAG Engine 預熱完成 (dept {dept_id})")
-                except Exception as e:
-                    logger.warning(f"⚠️ RAG Engine 預熱失敗 (dept {dept_id}): {e}")
-        except Exception as e:
-            logger.warning(f"⚠️ RAG Engine 預熱流程錯誤: {e}")
-
-    asyncio.create_task(_warmup())
-
     yield
     
     # 關閉時清理資料庫連線

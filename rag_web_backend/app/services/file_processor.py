@@ -345,6 +345,16 @@ class FileProcessingService:
             print(f"✅ 檔案處理完成: {file_record.original_filename}")
             if total_chunks > 1:
                 print(f"    📄 生成了 {total_chunks} 個分塊摘要和 {total_vectors} 個向量嵌入")
+
+            # 清除對應處室的 embedding cache，讓下次查詢重新載入新檔案
+            try:
+                from app.api.rag import _dept_rag_engines
+                engine = _dept_rag_engines.get(file_record.department_id)
+                if engine:
+                    engine.vector_store.refresh_cache()
+                    print(f"🔄 已清除 dept {file_record.department_id} 的 embedding cache")
+            except Exception as e:
+                print(f"⚠️ 清除 embedding cache 失敗: {e}")
             
             # 刪除 unprocessed 中的原始檔案
             if file_path.exists() and 'unprocessed' in str(file_path):
