@@ -197,7 +197,7 @@ async def get_statistics(
 
 @router.get("/system/info", summary="取得系統資訊")
 async def get_system_info(
-    time_range: str = Query("all", regex="^(today|week|month|all)$"),
+    time_range: str = Query("all", pattern="^(today|week|month|all)$"),
     current_user: User = Depends(require_role(UserRole.SUPER_ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):

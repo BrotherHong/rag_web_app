@@ -45,8 +45,8 @@ async def get_files(
     limit: int = Query(10, ge=1, le=10000, description="每頁數量"),
     category_id: Optional[int] = Query(None, description="分類ID篩選"),
     search: Optional[str] = Query(None, description="搜尋檔名或描述"),
-    sort: str = Query("created_at", regex="^(filename|created_at|file_size)$", description="排序欄位"),
-    order: str = Query("desc", regex="^(asc|desc)$", description="排序方向"),
+    sort: str = Query("created_at", pattern="^(filename|created_at|file_size)$", description="排序欄位"),
+    order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
     status: Optional[str] = Query(None, description="狀態篩選"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)

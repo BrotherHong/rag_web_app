@@ -115,6 +115,8 @@ services:
       - ./rag_web_backend/alembic:/app/alembic
       - ./rag_web_backend/scripts:/app/scripts
       - ./rag_web_backend/alembic.ini:/app/alembic.ini
+      - ./rag_web_backend/tests:/app/tests
+      - ./rag_web_backend/pyproject.toml:/app/pyproject.toml
     
     networks:
       - rag_network

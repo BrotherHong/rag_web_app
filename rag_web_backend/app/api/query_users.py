@@ -267,12 +267,13 @@ async def get_query_user_detail(
         select(QueryUser)
         .options(
             selectinload(QueryUser.approver),
-            selectinload(QueryUser.default_department)
+            selectinload(QueryUser.default_department),
+            selectinload(QueryUser.user_groups)
         )
         .where(QueryUser.id == user_id)
     )
     query_user = result.scalar_one_or_none()
-    
+
     if not query_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

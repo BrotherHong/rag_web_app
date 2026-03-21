@@ -486,22 +486,22 @@ async def get_user_stats(
     inactive_users = total_users - active_users
     
     # 4. 依角色統計
+    role_sub = base_query.subquery()
     role_query = select(
-        User.role,
-        func.count(User.id).label('count')
-    ).select_from(base_query.subquery()).group_by(User.role)
-    
+        role_sub.c.role,
+        func.count(role_sub.c.id).label('count')
+    ).group_by(role_sub.c.role)
+
     role_result = await db.execute(role_query)
     by_role = {row[0].value: row[1] for row in role_result.all()}
-    
+
     # 5. 依處室統計
+    dept_sub = base_query.subquery()
     dept_query = select(
         Department.id,
         Department.name,
-        func.count(User.id).label('user_count')
-    ).select_from(
-        base_query.subquery()
-    ).join(Department, User.department_id == Department.id).group_by(
+        func.count(dept_sub.c.id).label('user_count')
+    ).join(dept_sub, dept_sub.c.department_id == Department.id).group_by(
         Department.id, Department.name
     ).order_by(desc('user_count'))
     
