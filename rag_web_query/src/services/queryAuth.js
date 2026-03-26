@@ -138,6 +138,46 @@ export const loginQueryUser = async (username, password) => {
 };
 
 /**
+ * Google 登入（不建立查詢用戶資料）
+ */
+export const loginWithGoogleToken = async (idToken) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/query-auth/google-login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id_token: idToken })
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Google 登入失敗';
+      try {
+        const error = await response.json();
+        errorMessage = error.detail || errorMessage;
+      } catch (parseError) {
+        errorMessage = `Google 登入失敗 (錯誤碼: ${response.status})`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    if (!data.access_token || !data.user) {
+      throw new Error('Google 登入回應格式錯誤');
+    }
+
+    saveQueryToken(data.access_token);
+    saveQueryUser(data.user);
+    return data;
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('無法連接到伺服器，請檢查網路連線');
+    }
+    throw error;
+  }
+};
+
+/**
  * 查詢用戶登出
  */
 export const logoutQueryUser = () => {

@@ -7,16 +7,21 @@
 from datetime import datetime, timedelta
 import secrets
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
+from jose import JWTError, jwt
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
+from app.config import settings
 from app.core.database import get_db
 from app.core.security import (
     get_password_hash,
     verify_password,
     authenticate_query_user,
     create_query_user_token,
+    create_google_query_token,
     get_current_query_user
 )
 from app.models.query_user import QueryUser, QueryUserStatus
@@ -26,7 +31,11 @@ from app.schemas.query_user import (
     QueryUserRegisterResponse,
     QueryUserLoginRequest,
     QueryUserLoginResponse,
+    GoogleLoginRequest,
+    QuerySessionLoginResponse,
+    QuerySessionUserInfo,
     QueryUserInfo,
+    QueryMeResponse,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     ResetPasswordRequest,
@@ -165,17 +174,151 @@ async def login_query_user(
     )
 
 
-@router.get("/me", response_model=QueryUserInfo)
+@router.post("/google-login", response_model=QuerySessionLoginResponse)
+async def google_login(
+    request: GoogleLoginRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Google 登入：只建立 session，不寫入 QueryUser 資料表"""
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google 登入尚未啟用"
+        )
+
+    try:
+        token_info = google_id_token.verify_oauth2_token(
+            request.id_token,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google 身份驗證失敗"
+        )
+
+    issuer = token_info.get("iss")
+    if issuer not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google Token 發行者無效"
+        )
+
+    email = token_info.get("email")
+    google_sub = token_info.get("sub")
+    full_name = token_info.get("name") or email
+    email_verified = token_info.get("email_verified", False)
+
+    if not email or not google_sub or not email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google 帳號資訊不完整或未驗證"
+        )
+
+    # 僅防重名提示：Google 登入不建立 QueryUser，避免出現在查詢用戶管理中
+    _ = await db.execute(select(QueryUser.id).where(QueryUser.email == email))
+
+    access_token = create_google_query_token(
+        google_sub=str(google_sub),
+        email=email,
+        name=full_name,
+    )
+
+    iat = token_info.get("iat")
+    created_at = datetime.utcfromtimestamp(iat) if isinstance(iat, (int, float)) else datetime.utcnow()
+
+    session_user = QuerySessionUserInfo(
+        id=f"google:{google_sub}",
+        username=email.split("@")[0],
+        email=email,
+        full_name=full_name,
+        status="approved",
+        is_active=True,
+        default_department_id=None,
+        max_queries_per_day=None,
+        created_at=created_at,
+        auth_provider="google",
+        is_managed_user=False,
+    )
+
+    return QuerySessionLoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=session_user,
+    )
+
+
+@router.get("/me", response_model=QueryMeResponse)
 async def get_current_query_user_info(
-    current_user: QueryUser = Depends(get_current_query_user),
+    authorization: Optional[str] = Header(None),
     db: AsyncSession = Depends(get_db)
 ):
     """
     獲取當前查詢用戶資訊
     
-    需要登入
+    需要登入（支援一般 QueryUser 與 Google session）
     """
-    return QueryUserInfo.model_validate(current_user)
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="未提供登入憑證"
+        )
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="無法驗證憑證",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    token = authorization.replace("Bearer ", "")
+
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        user_type = payload.get("type")
+    except JWTError:
+        raise credentials_exception
+
+    if user_type == "query_user":
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+
+        result = await db.execute(
+            select(QueryUser).where(QueryUser.id == int(user_id))
+        )
+        query_user = result.scalar_one_or_none()
+        if query_user is None:
+            raise credentials_exception
+
+        return QueryUserInfo.model_validate(query_user)
+
+    if user_type == "query_google":
+        google_sub = payload.get("sub")
+        email = payload.get("email")
+        name = payload.get("name")
+        issued_at = payload.get("iat")
+
+        if not google_sub or not email or not name:
+            raise credentials_exception
+
+        created_at = datetime.utcfromtimestamp(issued_at) if isinstance(issued_at, (int, float)) else datetime.utcnow()
+
+        return QuerySessionUserInfo(
+            id=f"google:{google_sub}",
+            username=email.split("@")[0],
+            email=email,
+            full_name=name,
+            status="approved",
+            is_active=True,
+            default_department_id=None,
+            max_queries_per_day=None,
+            created_at=created_at,
+            auth_provider="google",
+            is_managed_user=False,
+        )
+
+    raise credentials_exception
 
 
 @router.get("/check-username/{username}")

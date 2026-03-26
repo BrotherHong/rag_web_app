@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # 外部 LLM 設定
     OPENAI_DIRECT_MODEL: str = "gpt-5.2"
     OPENAI_ENABLE_WEB_SEARCH: bool = False
+
+    # Google 登入
+    GOOGLE_CLIENT_ID: str = ""
     
     model_config = SettingsConfigDict(
         env_file=".env",

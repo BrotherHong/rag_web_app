@@ -513,3 +513,28 @@ def create_query_user_token(query_user_id: int, expires_delta: Optional[timedelt
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     
     return encoded_jwt
+
+
+def create_google_query_token(
+    google_sub: str,
+    email: str,
+    name: str,
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """建立 Google 查詢 session token（不綁定 QueryUser 資料表）"""
+    to_encode = {
+        "sub": str(google_sub),
+        "type": "query_google",
+        "email": email,
+        "name": name,
+    }
+
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+    return encoded_jwt
