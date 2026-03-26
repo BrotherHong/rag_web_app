@@ -14,6 +14,12 @@ import { useModalAnimation } from '../../hooks/useModalAnimation';
 import { useToast } from '../../contexts/ToastContext';
 import ConfirmDialog from '../common/ConfirmDialog';
 
+const LOGIN_METHOD_OPTIONS = [
+  { key: 'normal', label: '一般登入', hint: '帳號密碼登入' },
+  { key: 'success_portal', label: '成功入口登入', hint: '校內成功入口驗證' },
+  { key: 'google', label: 'Google 登入', hint: 'Google OAuth 登入' },
+];
+
 function DepartmentManagement({ departments, onRefresh, isLoading }) {
   const navigate = useNavigate();
   const toast = useToast();
@@ -35,7 +41,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     slug: '',
     description: '',
     color: '#3B82F6', // 預設藍色
-    external_api_key: ''
+    external_api_key: '',
+    login_methods: ['normal', 'success_portal']
   });
 
   // 可用的顏色選項
@@ -58,7 +65,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       slug: dept.slug,
       description: dept.description || '',
       color: dept.color,
-      external_api_key: '' // 編輯時不顯示已儲存的 key，只顯示是否已設定
+      external_api_key: '', // 編輯時不顯示已儲存的 key，只顯示是否已設定
+      login_methods: dept.login_methods || ['normal', 'success_portal']
     });
     setShowEditModal(true);
   };
@@ -70,7 +78,27 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       slug: '',
       description: '',
       color: '#3B82F6', // 預設藍色
-      external_api_key: ''
+      external_api_key: '',
+      login_methods: ['normal', 'success_portal']
+    });
+  };
+
+  const toggleLoginMethod = (methodKey) => {
+    const methods = formData.login_methods || [];
+    const isChecked = methods.includes(methodKey);
+    
+    // Prevent unchecking if it's the last remaining method
+    if (isChecked && methods.length === 1) {
+      return;
+    }
+
+    const updated = isChecked
+      ? methods.filter((m) => m !== methodKey)
+      : [...methods, methodKey];
+
+    setFormData({
+      ...formData,
+      login_methods: updated
     });
   };
 
@@ -90,6 +118,11 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     const slugRegex = /^[a-z0-9-]+$/;
     if (!slugRegex.test(formData.slug)) {
       toast.warning('URL 識別碼只能包含小寫字母、數字和連字符(-)');
+      return;
+    }
+
+    if (!formData.login_methods || formData.login_methods.length === 0) {
+      toast.warning('請至少選擇一種登入方式');
       return;
     }
 
@@ -118,6 +151,11 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
   const handleEditDepartment = async () => {
     if (!formData.name.trim()) {
       toast.warning('請輸入處室名稱');
+      return;
+    }
+
+    if (!formData.login_methods || formData.login_methods.length === 0) {
+      toast.warning('請至少選擇一種登入方式');
       return;
     }
 
@@ -446,6 +484,36 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                   提供後，登入用戶在查詢未找到資料時，可選擇直接用此模型回覆
                 </p>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  登入方式 <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  {LOGIN_METHOD_OPTIONS.map((option) => {
+                    const methods = formData.login_methods || [];
+                    const checked = methods.includes(option.key);
+                    const isLastMethod = checked && methods.length === 1;
+                    return (
+                      <label key={option.key} className={`flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50 ${isLastMethod ? 'opacity-60 cursor-not-allowed' : ''}`} title={isLastMethod ? '需保留至少一種登入方式' : undefined}>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{option.label}</p>
+                          <p className="text-xs text-gray-500">{option.hint}</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleLoginMethod(option.key)}
+                          disabled={isLastMethod}
+                          className="w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                          title={isLastMethod ? '需保留至少一種登入方式' : undefined}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">系統會依勾選項目自動建立或移除對應預設身分組</p>
+              </div>
             </div>
             <div className="flex space-x-3 mt-6">
               <button
@@ -551,6 +619,36 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono text-sm"
                   placeholder={editingDept?.has_external_api_key ? '留空不更改' : '例：sk-... （OpenAI）、AIza... （Gemini）、sk-ant-... （Claude）'}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  登入方式 <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  {LOGIN_METHOD_OPTIONS.map((option) => {
+                    const methods = formData.login_methods || [];
+                    const checked = methods.includes(option.key);
+                    const isLastMethod = checked && methods.length === 1;
+                    return (
+                      <label key={option.key} className={`flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50 ${isLastMethod ? 'opacity-60 cursor-not-allowed' : ''}`} title={isLastMethod ? '需保留至少一種登入方式' : undefined}>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{option.label}</p>
+                          <p className="text-xs text-gray-500">{option.hint}</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleLoginMethod(option.key)}
+                          disabled={isLastMethod}
+                          className="w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                          title={isLastMethod ? '需保留至少一種登入方式' : undefined}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">系統會依勾選項目自動建立或移除對應預設身分組</p>
               </div>
             </div>
             <div className="flex space-x-3 mt-6">

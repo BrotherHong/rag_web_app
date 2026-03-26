@@ -1,7 +1,7 @@
 """處室模型"""
 
 from typing import List, TYPE_CHECKING
-from sqlalchemy import String, Text
+from sqlalchemy import String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin
@@ -57,6 +57,13 @@ class Department(Base, TimestampMixin):
         String(500),
         nullable=True,
         comment="外部 LLM API Key（選填）"
+    )
+
+    login_methods: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=lambda: ["normal", "success_portal"],
+        comment="啟用的登入方式（normal, success_portal, google）"
     )
 
     # 關聯

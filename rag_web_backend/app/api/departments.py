@@ -15,6 +15,8 @@ from app.models.user_group import UserGroup
 from app.models.query_user import QueryUser
 from app.schemas import (
     DepartmentCreate,
+    DepartmentLoginMethodsResponse,
+    DepartmentLoginMethodsUpdate,
     DepartmentListResponse,
     DepartmentResponse,
     DepartmentStatsResponse,
@@ -24,6 +26,92 @@ from app.schemas import (
 from app.services.activity import activity_service
 
 router = APIRouter(prefix="/departments", tags=["處室管理"])
+
+LOGIN_METHOD_GROUP_CONFIG = {
+    "normal": {
+        "name": "一般登入",
+        "description": "透過查詢網站一般註冊的用戶",
+        "color": "#3B82F6",
+        "priority": 100,
+    },
+    "success_portal": {
+        "name": "成功入口登入",
+        "description": "透過成功入口登入的用戶",
+        "color": "#10B981",
+        "priority": 90,
+    },
+    "google": {
+        "name": "Google登入",
+        "description": "透過 Google 帳號登入的用戶",
+        "color": "#EA4335",
+        "priority": 80,
+    },
+}
+
+DEFAULT_LOGIN_METHODS = ["normal", "success_portal"]
+
+
+def _normalize_login_methods(login_methods: Optional[list[str]]) -> list[str]:
+    methods = login_methods if login_methods is not None else DEFAULT_LOGIN_METHODS
+    normalized = [m for m in methods if isinstance(m, str)]
+
+    deduped = []
+    for method in normalized:
+        if method not in deduped:
+            deduped.append(method)
+
+    invalid_methods = [m for m in deduped if m not in LOGIN_METHOD_GROUP_CONFIG]
+    if invalid_methods:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"無效的登入方式：{', '.join(invalid_methods)}"
+        )
+
+    if not deduped:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="至少需要啟用一種登入方式"
+        )
+
+    return deduped
+
+
+async def _sync_default_login_groups(
+    db: AsyncSession,
+    department_id: int,
+    login_methods: list[str]
+) -> None:
+    target_group_names = {
+        LOGIN_METHOD_GROUP_CONFIG[method]["name"]
+        for method in login_methods
+    }
+    managed_group_names = {
+        config["name"]
+        for config in LOGIN_METHOD_GROUP_CONFIG.values()
+    }
+
+    existing_result = await db.execute(
+        select(UserGroup).where(
+            UserGroup.department_id == department_id,
+            UserGroup.name.in_(managed_group_names)
+        )
+    )
+    existing_groups = {group.name: group for group in existing_result.scalars().all()}
+
+    for method in login_methods:
+        config = LOGIN_METHOD_GROUP_CONFIG[method]
+        if config["name"] not in existing_groups:
+            db.add(UserGroup(
+                name=config["name"],
+                description=config["description"],
+                color=config["color"],
+                priority=config["priority"],
+                department_id=department_id
+            ))
+
+    for group_name, group in existing_groups.items():
+        if group_name not in target_group_names:
+            await db.delete(group)
 
 
 @router.get("/", response_model=DepartmentListResponse, summary="取得處室列表")
@@ -90,6 +178,7 @@ async def list_departments(
             "description": dept.description,
             "color": dept.color,
             "has_external_api_key": bool(dept.external_api_key),
+            "login_methods": dept.login_methods or DEFAULT_LOGIN_METHODS,
             "user_count": user_count,
             "file_count": file_count,
             "created_at": dept.created_at,
@@ -171,6 +260,7 @@ async def get_department_by_slug(
         "description": department.description,
         "color": department.color,
         "has_external_api_key": bool(department.external_api_key),
+        "login_methods": department.login_methods or DEFAULT_LOGIN_METHODS,
         "user_count": user_count,
         "file_count": file_count,
         "created_at": department.created_at,
@@ -216,8 +306,12 @@ async def create_department(
             detail=f"URL 識別碼 '{department_data.slug}' 已被使用"
         )
     
+    login_methods = _normalize_login_methods(department_data.login_methods)
+
     # 建立處室
-    department = Department(**department_data.model_dump())
+    department_payload = department_data.model_dump()
+    department_payload["login_methods"] = login_methods
+    department = Department(**department_payload)
     db.add(department)
     await db.flush()  # 先 flush 以取得 department.id
     
@@ -230,21 +324,8 @@ async def create_department(
     )
     db.add(default_category)
     
-    # 自動建立預設身分組
-    db.add(UserGroup(
-        name="一般登入",
-        description="透過查詢網站一般註冊的用戶",
-        color="#3B82F6",
-        priority=100,
-        department_id=department.id
-    ))
-    db.add(UserGroup(
-        name="成功入口登入",
-        description="透過成功入口登入的用戶",
-        color="#10B981",
-        priority=90,
-        department_id=department.id
-    ))
+    # 依登入方式建立預設身分組
+    await _sync_default_login_groups(db, department.id, login_methods)
     
     # 記錄活動
     await activity_service.log_activity(
@@ -308,8 +389,14 @@ async def update_department(
     
     # 更新欄位
     update_data = department_data.model_dump(exclude_unset=True)
+    if "login_methods" in update_data:
+        update_data["login_methods"] = _normalize_login_methods(update_data["login_methods"])
+
     for field, value in update_data.items():
         setattr(department, field, value)
+
+    if "login_methods" in update_data:
+        await _sync_default_login_groups(db, department.id, department.login_methods)
     
     # 記錄活動
     await activity_service.log_activity(
@@ -324,6 +411,86 @@ async def update_department(
     await db.refresh(department)
     
     return department
+
+
+@router.get(
+    "/me/login-methods",
+    response_model=DepartmentLoginMethodsResponse,
+    summary="取得當前處室登入方式",
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+)
+async def get_current_department_login_methods(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.department_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="目前帳號未綁定處室"
+        )
+
+    department = await db.scalar(
+        select(Department).where(Department.id == current_user.department_id)
+    )
+    if not department:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="處室不存在"
+        )
+
+    return DepartmentLoginMethodsResponse(
+        department_id=department.id,
+        department_name=department.name,
+        login_methods=department.login_methods or DEFAULT_LOGIN_METHODS,
+    )
+
+
+@router.put(
+    "/me/login-methods",
+    response_model=DepartmentLoginMethodsResponse,
+    summary="更新當前處室登入方式",
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+)
+async def update_current_department_login_methods(
+    request: DepartmentLoginMethodsUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.department_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="目前帳號未綁定處室"
+        )
+
+    department = await db.scalar(
+        select(Department).where(Department.id == current_user.department_id)
+    )
+    if not department:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="處室不存在"
+        )
+
+    login_methods = _normalize_login_methods(request.login_methods)
+    department.login_methods = login_methods
+    await _sync_default_login_groups(db, department.id, login_methods)
+
+    await activity_service.log_activity(
+        db=db,
+        user_id=current_user.id,
+        activity_type=ActivityType.UPDATE_DEPARTMENT,
+        description=f"更新處室登入方式: {department.name}",
+        department_id=department.id,
+    )
+
+    await db.commit()
+    await db.refresh(department)
+
+    return DepartmentLoginMethodsResponse(
+        department_id=department.id,
+        department_name=department.name,
+        login_methods=department.login_methods or DEFAULT_LOGIN_METHODS,
+    )
 
 
 @router.delete(

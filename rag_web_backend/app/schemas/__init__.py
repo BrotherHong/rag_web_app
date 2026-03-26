@@ -116,6 +116,10 @@ class DepartmentCreate(BaseModel):
     description: Optional[str] = Field(None, description="處室描述")
     color: str = Field(default="#3B82F6", description="處室主題顏色 (hex格式)")
     external_api_key: Optional[str] = Field(None, max_length=500, description="外部 LLM API Key（選填）")
+    login_methods: list[str] = Field(
+        default_factory=lambda: ["normal", "success_portal"],
+        description="登入方式（normal, success_portal, google）"
+    )
 
 
 class DepartmentUpdate(BaseModel):
@@ -124,12 +128,14 @@ class DepartmentUpdate(BaseModel):
     description: Optional[str] = Field(None, description="處室描述")
     color: Optional[str] = Field(None, description="處室主題顏色")
     external_api_key: Optional[str] = Field(None, max_length=500, description="外部 LLM API Key（選填，傳 null 可清除）")
+    login_methods: Optional[list[str]] = Field(None, description="登入方式（normal, success_portal, google）")
 
 
 class DepartmentResponse(DepartmentBase):
     """處室響應"""
     id: int
     has_external_api_key: bool = Field(default=False, description="是否已設定外部 API Key")
+    login_methods: list[str] = Field(default_factory=lambda: ["normal", "success_portal"], description="啟用的登入方式")
     user_count: int = Field(default=0, description="使用者數量")
     file_count: int = Field(default=0, description="檔案數量")
     created_at: datetime
@@ -156,6 +162,18 @@ class DepartmentStatsResponse(BaseModel):
     total_file_size: int = Field(..., description="檔案總大小（bytes）")
     activity_count: int = Field(..., description="活動記錄數量")
     recent_activities: list[dict] = Field(..., description="最近活動")
+
+
+class DepartmentLoginMethodsUpdate(BaseModel):
+    """更新當前處室登入方式"""
+    login_methods: list[str] = Field(..., min_length=1, description="登入方式（normal, success_portal, google）")
+
+
+class DepartmentLoginMethodsResponse(BaseModel):
+    """當前處室登入方式"""
+    department_id: int = Field(..., description="處室 ID")
+    department_name: str = Field(..., description="處室名稱")
+    login_methods: list[str] = Field(..., description="啟用的登入方式")
 
 
 # ===== 通用 Schemas =====
@@ -194,6 +212,8 @@ __all__ = [
     "DepartmentResponse",
     "DepartmentListResponse",
     "DepartmentStatsResponse",
+    "DepartmentLoginMethodsUpdate",
+    "DepartmentLoginMethodsResponse",
     # 通用
     "MessageResponse",
     "PaginationParams",

@@ -11,7 +11,9 @@ import {
   addFaq,
   updateFaq,
   deleteFaq,
-  toggleFaqStatus
+  toggleFaqStatus,
+  getCurrentDepartmentLoginMethods,
+  updateCurrentDepartmentLoginMethods,
 } from '../services/api';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useToast } from '../contexts/ToastContext';
@@ -248,6 +250,22 @@ function Dashboard() {
             </button>
 
             <button
+              onClick={() => setCurrentPage('login-methods')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'login-methods'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'login-methods' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 11c0-1.657 1.79-3 4-3s4 1.343 4 3m-8 0c0-1.657-1.79-3-4-3S4 9.343 4 11m8 0v7m0-7h8v7h-8m0 0H4v-7h8" />
+              </svg>
+              <span className="font-medium">登入方式設定</span>
+            </button>
+
+            <button
               onClick={() => setCurrentPage('user-groups')}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
                 currentPage === 'user-groups'
@@ -317,6 +335,7 @@ function Dashboard() {
           )}
           {currentPage === 'dashboard' && <DashboardHome />}
           {currentPage === 'categories' && <CategoryManagement />}
+          {currentPage === 'login-methods' && <LoginMethodSettings />}
           {currentPage === 'user-groups' && <UserGroupManagement />}
           {currentPage === 'query-users' && <QueryUserManagement />}
           {currentPage === 'faqs' && <FaqManagement />}
@@ -1878,6 +1897,134 @@ function UserGroupManagement() {
         confirmText="刪除"
         cancelText="取消"
       />
+    </div>
+  );
+}
+
+function LoginMethodSettings() {
+  const toast = useToast();
+  const [selectedMethods, setSelectedMethods] = useState(['normal', 'success_portal']);
+  const [departmentName, setDepartmentName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const options = [
+    { key: 'normal', label: '一般登入', hint: '帳號密碼登入' },
+    { key: 'success_portal', label: '成功入口登入', hint: '校內成功入口驗證' },
+    { key: 'google', label: 'Google 登入', hint: 'Google OAuth 登入' },
+  ];
+
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getCurrentDepartmentLoginMethods();
+        if (response.success) {
+          setSelectedMethods(response.data.loginMethods || ['normal', 'success_portal']);
+          setDepartmentName(response.data.departmentName || '');
+        } else {
+          toast.error(response.message || '載入登入方式失敗');
+        }
+      } catch (error) {
+        console.error('載入登入方式錯誤:', error);
+        toast.error('載入登入方式失敗');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    load();
+  }, [toast]);
+
+  const toggle = (key) => {
+    setSelectedMethods((prev) => (
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+    ));
+  };
+
+  const handleSave = async () => {
+    if (selectedMethods.length === 0) {
+      toast.warning('請至少保留一種登入方式');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await updateCurrentDepartmentLoginMethods(selectedMethods);
+      if (response.success) {
+        setSelectedMethods(response.data.loginMethods || selectedMethods);
+        toast.success('登入方式已更新，預設身分組已同步');
+      } else {
+        toast.error(response.message || '更新登入方式失敗');
+      }
+    } catch (error) {
+      console.error('更新登入方式錯誤:', error);
+      toast.error('更新登入方式失敗');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-solid border-current border-r-transparent"
+               style={{ color: 'var(--ncku-red)' }}>
+          </div>
+          <p className="mt-4 text-gray-600">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold">登入方式設定</h3>
+        <p className="text-sm text-gray-600 mt-1">
+          {departmentName ? `${departmentName}：` : ''}調整查詢站可用的登入方式，系統會同步增減預設身分組。
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {options.map((option) => {
+          const checked = selectedMethods.includes(option.key);
+          return (
+            <label
+              key={option.key}
+              className={`border rounded-xl p-4 cursor-pointer transition-all ${
+                checked ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">{option.label}</p>
+                  <p className="text-sm text-gray-500 mt-1">{option.hint}</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(option.key)}
+                  className="w-4 h-4 mt-1 cursor-pointer"
+                />
+              </div>
+            </label>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+        <p className="text-sm text-gray-600">至少需保留一種登入方式</p>
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          style={{ backgroundColor: 'var(--ncku-red)' }}
+        >
+          {isSaving ? '儲存中...' : '儲存設定'}
+        </button>
+      </div>
     </div>
   );
 }

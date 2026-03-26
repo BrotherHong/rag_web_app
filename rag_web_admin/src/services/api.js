@@ -26,7 +26,16 @@ export { getUsers, addUser, updateUser, deleteUser, getUsersByDepartment } from 
 export { getSystemInfo } from './api/settings.js';
 
 // 導入處室管理模組
-export { getDepartments, getDepartmentById, addDepartment, updateDepartment, deleteDepartment, getDepartmentStats } from './api/departments.js';
+export {
+  getDepartments,
+  getDepartmentById,
+  addDepartment,
+  updateDepartment,
+  deleteDepartment,
+  getDepartmentStats,
+  getCurrentDepartmentLoginMethods,
+  updateCurrentDepartmentLoginMethods,
+} from './api/departments.js';
 
 // 導入 FAQ 管理模組
 export { getFaqs, addFaq, updateFaq, deleteFaq, toggleFaqStatus, updateFaqOrder } from './api/faqs.js';

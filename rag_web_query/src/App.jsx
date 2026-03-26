@@ -3,6 +3,9 @@ import './App.css'
 import HomePage from './pages/HomePage'
 import ChatPage from './pages/ChatPage'
 import LoginPage from './pages/LoginPage'
+import LoginMethodSelectPage from './pages/LoginMethodSelectPage'
+import GoogleLoginPage from './pages/GoogleLoginPage'
+import SuccessPortalLoginPage from './pages/SuccessPortalLoginPage'
 import RegisterPage from './pages/RegisterPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -13,7 +16,10 @@ function App() {
     <Router basename={import.meta.env.BASE_URL}>
       <Routes>
         {/* 認證路由（獨立於處室系統） */}
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<LoginMethodSelectPage />} />
+        <Route path="/login/normal" element={<LoginPage />} />
+        <Route path="/login/google" element={<GoogleLoginPage />} />
+        <Route path="/login/success-portal" element={<SuccessPortalLoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         

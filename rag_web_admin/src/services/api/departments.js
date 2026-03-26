@@ -48,7 +48,8 @@ export const getDepartments = async () => {
         ...dept,
         userCount: dept.user_count || 0,
         fileCount: dept.file_count || 0,
-        createdAt: dept.created_at
+        createdAt: dept.created_at,
+        loginMethods: dept.login_methods || ['normal', 'success_portal']
       }));
       return {
         success: true,
@@ -138,6 +139,7 @@ export const addDepartment = async (departmentData) => {
           name: data.name,
           description: data.description,
           color: data.color,
+          loginMethods: data.login_methods || ['normal', 'success_portal'],
           userCount: 0,
           fileCount: 0,
           createdAt: data.createdAt
@@ -204,6 +206,85 @@ export const updateDepartment = async (departmentId, departmentData) => {
     return {
       success: false,
       message: '更新處室失敗，請檢查網路連線'
+    };
+  }
+};
+
+/**
+ * 取得當前處室登入方式（處室管理員使用）
+ * @returns {Promise} 登入方式資訊
+ */
+export const getCurrentDepartmentLoginMethods = async () => {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/departments/me/login-methods`, {
+      method: 'GET',
+      headers: getAuthHeader()
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        success: true,
+        data: {
+          departmentId: data.department_id,
+          departmentName: data.department_name,
+          loginMethods: data.login_methods || ['normal', 'success_portal']
+        }
+      };
+    }
+
+    const error = await response.json();
+    return {
+      success: false,
+      message: error.detail || '取得登入方式失敗'
+    };
+  } catch (error) {
+    console.error('Get current department login methods error:', error);
+    return {
+      success: false,
+      message: '取得登入方式失敗，請檢查網路連線'
+    };
+  }
+};
+
+/**
+ * 更新當前處室登入方式（處室管理員使用）
+ * @param {string[]} loginMethods - 登入方式陣列
+ * @returns {Promise} 更新結果
+ */
+export const updateCurrentDepartmentLoginMethods = async (loginMethods) => {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/departments/me/login-methods`, {
+      method: 'PUT',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ login_methods: loginMethods })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        success: true,
+        data: {
+          departmentId: data.department_id,
+          departmentName: data.department_name,
+          loginMethods: data.login_methods || ['normal', 'success_portal']
+        }
+      };
+    }
+
+    const error = await response.json();
+    return {
+      success: false,
+      message: error.detail || '更新登入方式失敗'
+    };
+  } catch (error) {
+    console.error('Update current department login methods error:', error);
+    return {
+      success: false,
+      message: '更新登入方式失敗，請檢查網路連線'
     };
   }
 };
