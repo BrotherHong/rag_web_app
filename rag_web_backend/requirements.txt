@@ -77,6 +77,9 @@ requests>=2.31.0
 # HTTPX - 異步 HTTP 客戶端（用於 Ollama API）
 httpx>=0.27.0
 
+# LiteLLM - 統一 LLM API 介面與負載均衡
+litellm==1.81.16
+
 # NumPy - 數值計算
 numpy>=2.4.0,<3.0.0
 

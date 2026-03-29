@@ -5,8 +5,8 @@
 import json
 import re
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple
-from app.services.llm.ollama_client import OllamaClient
+from typing import Optional, List, Tuple
+from app.services.llm.litellm_client import LiteLLMClient
 from app.services.llm.prompts import (
     RAG_DOCUMENT_SUMMARY,
     DOCUMENT_CLASSIFICATION,
@@ -19,14 +19,14 @@ class SummaryProcessor:
     處理文檔以生成摘要 - 與main版本保持一致
     """
     
-    def __init__(self, ollama_client: Optional[OllamaClient] = None):
+    def __init__(self, litellm_client: Optional[LiteLLMClient] = None):
         """
         初始化摘要處理器
         
         參數:
-            ollama_client: OllamaClient 實例
+            litellm_client: LiteLLMClient 實例
         """
-        self.client = ollama_client or OllamaClient()
+        self.client = litellm_client or LiteLLMClient()
     
     async def process_markdown_file(
         self,
@@ -53,11 +53,10 @@ class SummaryProcessor:
                 return False
             
             filename = md_file_path.name
-            file_path = str(md_file_path)
             
             # 生成摘要 (使用與main一致的邏輯)
             summary, doc_type, chunk_content = await self._generate_summary(
-                content, filename, file_path, output_json_path.parent
+                content, filename, output_dir=output_json_path.parent
             )
             
             if not summary or summary.startswith('錯誤:'):
@@ -89,7 +88,6 @@ class SummaryProcessor:
         self, 
         content: str, 
         filename: str = "", 
-        file_path: str = "",
         output_dir: Path = None
     ) -> Tuple[str, str, str]:
         """
@@ -98,7 +96,6 @@ class SummaryProcessor:
         參數:
             content: 文檔內容
             filename: 文檔文件名
-            file_path: 文檔完整路徑
             output_dir: 輸出目錄（用於保存分塊摘要）
             
         返回:
@@ -117,7 +114,7 @@ class SummaryProcessor:
             if len(content) > 1500:
                 # 長表單：使用分塊處理
                 return await self._generate_chunked_summary(
-                    content, filename, file_path, output_dir, doc_type="Form Mode"
+                    content, filename, output_dir, doc_type="Form Mode"
                 )
             else:
                 # 短表單：直接生成簡化摘要
@@ -135,7 +132,7 @@ class SummaryProcessor:
             if len(content) > 1500:
                 # 返回 (摘要, 類型, 第一塊內容)
                 return await self._generate_chunked_summary(
-                    content, filename, file_path, output_dir, doc_type="Info Mode"
+                    content, filename, output_dir, doc_type="Info Mode"
                 )
             else:
                 prompt = RAG_DOCUMENT_SUMMARY.format(filename=filename, text=content)
@@ -176,7 +173,6 @@ class SummaryProcessor:
         self, 
         content: str, 
         filename: str, 
-        file_path: str, 
         output_dir: Path,
         doc_type: str = "Info Mode"
     ) -> Tuple[str, str, str]:
@@ -186,7 +182,6 @@ class SummaryProcessor:
         參數:
             content: 文檔內容
             filename: 文檔文件名
-            file_path: 文檔完整路徑
             output_dir: 輸出目錄
             doc_type: 文檔類型（"Info Mode" 或 "Form Mode"）
             

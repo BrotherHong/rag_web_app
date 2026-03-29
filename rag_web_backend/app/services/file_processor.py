@@ -16,7 +16,7 @@ from app.services.document_processing import (
     SummaryProcessor,
     EmbeddingProcessor
 )
-from app.services.llm.ollama_client import OllamaClient
+from app.services.llm.litellm_client import LiteLLMClient
 
 
 class FileProcessingService:
@@ -24,9 +24,9 @@ class FileProcessingService:
     
     def __init__(self):
         self.converter = DocumentConverter()
-        self.ollama_client = OllamaClient()
-        self.summarizer = SummaryProcessor(self.ollama_client)
-        self.embedder = EmbeddingProcessor(self.ollama_client)
+        self.litellm_client = LiteLLMClient()
+        self.summarizer = SummaryProcessor(self.litellm_client)
+        self.embedder = EmbeddingProcessor(self.litellm_client)
         self.last_temp_dir = None  # 保存最近一次的暫存目錄路徑
     
     async def process_files_batch(

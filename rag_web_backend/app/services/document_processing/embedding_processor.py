@@ -7,8 +7,7 @@ import json
 import numpy as np
 from pathlib import Path
 from typing import Optional, List
-from app.services.llm.ollama_client import OllamaClient
-from app.config import settings
+from app.services.llm.litellm_client import LiteLLMClient
 
 
 class EmbeddingProcessor:
@@ -18,37 +17,28 @@ class EmbeddingProcessor:
     """
     
     def __init__(self, 
-                 ollama_client: Optional[OllamaClient] = None,
-                 base_url: str = None,
-                 embedding_model: str = None):
+                 litellm_client: Optional[LiteLLMClient] = None):
         """
         初始化Embedding處理器
         
         參數:
-            ollama_client: OllamaClient 實例（優先使用，如未提供則自動創建）
-            base_url: Ollama伺服器地址
-            embedding_model: 使用的embedding模型
+            litellm_client: LiteLLMClient 實例（可選，如未提供則自動創建）
         """
-        self.client = ollama_client or OllamaClient(base_url=base_url or settings.OLLAMA_BASE_URL)
-        self.embedding_model = embedding_model or settings.OLLAMA_EMBEDDING_MODEL
+        self.client = litellm_client or LiteLLMClient()
     
-    async def generate_embedding(self, text: str, model: str = None) -> Optional[List[float]]:
+    async def generate_embedding(self, text: str) -> Optional[List[float]]:
         """
         異步生成文本的embedding向量
         
         參數:
             text: 要向量化的文本
-            model: 使用的模型（可選，預設使用初始化時的模型）
             
         返回:
             embedding向量或None(如果失敗)
         """
         try:
-            # 使用Ollama的embedding API（異步）
-            embedding = await self.client.generate_embedding(
-                text, 
-                model=model or self.embedding_model
-            )
+            # 使用 LiteLLM 的 embedding API（異步，支援負載均衡）
+            embedding = await self.client.generate_embedding(text)
             return embedding
             
         except Exception as e:

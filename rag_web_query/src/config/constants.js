@@ -10,8 +10,8 @@ export const API_CONFIG = {
     FAQ_LIST: '/faq/list',
   },
   
-  // 請求超時設定（毫秒）
-  TIMEOUT: 30000,
+  // 請求超時設定（毫秒）- 60秒以平衡等待時間與使用者體驗
+  TIMEOUT: 60000,
 }
 
 // 應用程式常數

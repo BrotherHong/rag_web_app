@@ -3,6 +3,7 @@
 import json
 import re
 import time
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy import select
@@ -25,6 +26,7 @@ from app.services.rag.rag_engine import RAGEngine
 from app.services.activity import activity_service
 
 router = APIRouter(prefix="/rag", tags=["RAG查詢"])
+logger = logging.getLogger(__name__)
 
 # 快取各處室的 RAGEngine，避免每次 request 重新載入 reranker 模型
 _dept_rag_engines: dict = {}
@@ -240,6 +242,9 @@ async def query_documents(
         )
         
         processing_time = time.time() - start_time
+        logger.info(
+            f"✅ RAG查詢完成 | 問題: {request.query[:50]}... | 處理時間: {processing_time:.2f}秒 | 檢索文檔數: {result.get('retrieved_docs', 0)}"
+        )
         
         # 解析 answer 中實際被引用的文檔編號
         answer_text = result['answer']

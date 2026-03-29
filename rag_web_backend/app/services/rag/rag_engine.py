@@ -3,10 +3,9 @@
 RAG引擎 - 整合檢索和生成（Web Backend版本）
 """
 
-import os
 import logging
-from typing import List, Dict, Optional
-from app.services.llm.ollama_client import OllamaClient
+from typing import List, Dict
+from app.services.llm.litellm_client import LiteLLMClient
 from app.services.llm.prompts.rag import RAG_ANSWER_PROMPT, RAG_NO_RESULTS_PROMPT
 from app.config import settings
 from .vector_store import VectorStore
@@ -22,8 +21,6 @@ class RAGEngine:
     
     def __init__(self, 
                  base_path="uploads/1/processed",
-                 base_url: str = None,
-                 model: str = None,
                  similarity_threshold=0.1,
                  rerank_threshold=0.01,
                  max_context_docs=3,
@@ -33,18 +30,13 @@ class RAGEngine:
         
         參數:
             base_path: 處理後文件的基礎路徑
-            base_url: Ollama伺服器地址
-            model: 用於生成回答的模型
             similarity_threshold: 相似度閾值
             rerank_threshold: Rerank 分數閾值
             max_context_docs: 用於上下文的最大文檔數
             debug_mode: 是否輸出 debug log
         """
-        # 使用 config 的預設值
-        base_url = base_url or settings.OLLAMA_BASE_URL
-        model = model or settings.OLLAMA_RAG_MODEL
-        
-        self.client = OllamaClient(base_url=base_url, model=model)
+        # 使用 LiteLLM Client（支持多主機負載均衡）
+        self.client = LiteLLMClient()
         self.vector_store = VectorStore(base_path=base_path)
         self.similarity_threshold = similarity_threshold
         self.rerank_threshold = rerank_threshold
@@ -236,8 +228,9 @@ class RAGEngine:
         vector_stats = self.vector_store.get_stats()
         
         return {
-            'model': self.client.model,
+            'model': settings.OLLAMA_RAG_MODEL,
             'similarity_threshold': self.similarity_threshold,
             'max_context_docs': self.max_context_docs,
-            'vector_store_stats': vector_stats
+            'vector_store_stats': vector_stats,
+            'load_balancing': self.client.get_load_balancing_stats()
         }

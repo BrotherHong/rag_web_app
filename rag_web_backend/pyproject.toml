@@ -12,6 +12,7 @@ dependencies = [
     "email-validator>=2.2.0,<3.0.0",
     "google-auth>=2.36.0,<3.0.0",
     "fastapi>=0.115.0,<0.116.0",
+    "litellm==1.81.16",
     "markitdown[all]>=0.0.1a2",
     "opencv-python-headless>=4.11.0.86",
     "mineru[core]>=2.1.11",
