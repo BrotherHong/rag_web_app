@@ -61,6 +61,11 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
       return;
     }
 
+    if (userFormData.password.trim().length < 6) {
+      toast.warning('密碼至少需要 6 個字元');
+      return;
+    }
+
     try {
       const response = await addUser(userFormData);
       if (response.success) {
@@ -81,6 +86,11 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
   const handleEditUser = async () => {
     if (!userFormData.name.trim() || !userFormData.email.trim() || !userFormData.departmentId) {
       toast.warning('請填寫所有必填欄位');
+      return;
+    }
+
+    if (userFormData.password.trim() && userFormData.password.trim().length < 6) {
+      toast.warning('新密碼至少需要 6 個字元');
       return;
     }
 
@@ -282,11 +292,13 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">密碼 *</label>
                 <input
                   type="password"
+                  minLength={6}
                   value={userFormData.password}
                   onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
                   placeholder="請輸入密碼"
                 />
+                <p className="text-xs text-gray-500 mt-1">密碼至少 6 個字元</p>
               </div>
 
               <div>
@@ -374,12 +386,13 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">新密碼</label>
                 <input
                   type="password"
+                  minLength={6}
                   value={userFormData.password}
                   onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
                   placeholder="留空則不修改密碼"
                 />
-                <p className="text-xs text-gray-500 mt-1">留空則保持原密碼不變</p>
+                <p className="text-xs text-gray-500 mt-1">留空則保持原密碼不變；若要修改，至少 6 個字元</p>
               </div>
 
               <div>

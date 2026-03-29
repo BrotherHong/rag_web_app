@@ -170,6 +170,11 @@ function QueryUserManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!editingUser && formData.password.trim().length < 6) {
+      toast.warning('密碼至少需要 6 個字元');
+      return;
+    }
     
     try {
       if (editingUser) {
@@ -485,11 +490,13 @@ function QueryUserManagement() {
                       name="password"
                       type="password"
                       autoComplete="new-password"
+                      minLength={6}
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                    <p className="text-xs text-gray-500 mt-1">密碼至少 6 個字元</p>
                   </div>
 
                   <div>
