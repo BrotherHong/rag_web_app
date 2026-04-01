@@ -4,6 +4,7 @@ import asyncio
 import sys
 from logging.config import fileConfig
 
+import sqlalchemy as sa
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -67,8 +68,47 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode with async support."""
+
+    def ensure_alembic_version_storage(connection: Connection) -> None:
+        """Ensure alembic_version.version_num can store long revision IDs.
+
+        Alembic's default version table uses VARCHAR(32). This project uses
+        descriptive revision IDs (e.g. 20260326_add_department_login_methods)
+        that may exceed 32 characters, causing Postgres to raise
+        StringDataRightTruncationError when writing alembic_version.
+        """
+
+        if connection.dialect.name != "postgresql":
+            return
+
+        inspector = sa.inspect(connection)
+
+        with connection.begin():
+            if not inspector.has_table("alembic_version"):
+                meta = sa.MetaData()
+                sa.Table(
+                    "alembic_version",
+                    meta,
+                    sa.Column("version_num", sa.String(length=255), primary_key=True),
+                ).create(connection)
+                return
+
+            columns = inspector.get_columns("alembic_version")
+            version_col = next((c for c in columns if c.get("name") == "version_num"), None)
+            if not version_col:
+                return
+
+            col_type = version_col.get("type")
+            col_len = getattr(col_type, "length", None)
+            if col_len is not None and col_len < 255:
+                connection.execute(
+                    sa.text(
+                        "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(255)"
+                    )
+                )
     
     def do_run_migrations(connection: Connection) -> None:
+        ensure_alembic_version_storage(connection)
         context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
