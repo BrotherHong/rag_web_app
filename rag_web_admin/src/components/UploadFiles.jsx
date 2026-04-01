@@ -5,6 +5,7 @@ import { useModalAnimation } from '../hooks/useModalAnimation';
 import ConfirmDialog from './common/ConfirmDialog';
 
 const TERMINAL_STATUS = new Set(['completed', 'partial', 'failed', 'canceled']);
+const CANCEL_ALLOWED_STEPS = new Set(['', 'classify', 'prepare', 'convert', 'summarize', 'queued', 'pending']);
 const ACTIVE_UPLOAD_TASK_STORAGE_KEY = 'admin.activeUploadTaskId';
 const STEP_LABELS = {
   classify: '分類檢查',
@@ -54,6 +55,23 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
   const stableOrderRef = useRef(new Map());
   const stableOrderCounterRef = useRef(0);
   const cancelConfirmModal = useModalAnimation(cancelConfirm !== null, () => setCancelConfirm(null));
+
+  const isCancelBlocked = useCallback((file) => {
+    if (!file) return false;
+    if (file.status === 'pending') return false;
+    if (file.status !== 'processing') return true;
+    const step = (file.step || '').toLowerCase();
+    return !CANCEL_ALLOWED_STEPS.has(step);
+  }, []);
+
+  const hasCancelableFiles = useMemo(() => {
+    if (!uploadProgress?.files?.length) return false;
+    return uploadProgress.files.some((file) => {
+      if (!file?.fileId) return false;
+      if (!(file.status === 'processing' || file.status === 'pending')) return false;
+      return !isCancelBlocked(file);
+    });
+  }, [uploadProgress, isCancelBlocked]);
   
   // 載入分類列表和身分組列表
   useEffect(() => {
@@ -464,6 +482,12 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     if (!uploadTaskId || !uploading) {
       return;
     }
+
+    if (!hasCancelableFiles) {
+      toast.warning('目前檔案已進入模型回應或後處理階段，無可取消項目。');
+      return;
+    }
+
     setCancelConfirm({ type: 'batch' });
   };
 
@@ -471,6 +495,12 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     if (!uploadTaskId || !uploading || !file?.fileId) {
       return;
     }
+
+    if (isCancelBlocked(file)) {
+      toast.warning('此檔案已進入模型回應或後處理階段，無法取消。');
+      return;
+    }
+
     setCancelConfirm({ type: 'file', file });
   };
 
@@ -487,11 +517,19 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
       }
 
       setUploadProgress(response.data);
-      setUploading(false);
-      setShowSummary(true);
-      setCurrentStep(4);
-      localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
-      toast.success(response.message || '批次任務已取消');
+
+      if (TERMINAL_STATUS.has(response.data.status)) {
+        setUploading(false);
+        setShowSummary(true);
+        setCurrentStep(4);
+        localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+      }
+
+      if (response.message?.includes('無法取消') || response.message?.includes('終態')) {
+        toast.warning(response.message);
+      } else {
+        toast.success(response.message || '批次任務已取消');
+      }
       return;
     }
 
@@ -503,7 +541,12 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     }
 
     setUploadProgress(response.data);
-    toast.success(response.message || `已取消 ${file.name}`);
+
+    if (response.message?.includes('無法取消') || response.message?.includes('終態')) {
+      toast.warning(response.message);
+    } else {
+      toast.success(response.message || `已取消 ${file.name}`);
+    }
 
     if (TERMINAL_STATUS.has(response.data.status)) {
       setUploading(false);
@@ -1064,10 +1107,16 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
               <div className="mb-4">
                 <button
                   onClick={handleCancelProcessing}
-                  className="px-4 py-2 border border-red-300 rounded-md text-red-700 hover:bg-red-50 cursor-pointer font-medium"
+                  disabled={!hasCancelableFiles}
+                  className={`px-4 py-2 border rounded-md font-medium ${hasCancelableFiles
+                    ? 'border-red-300 text-red-700 hover:bg-red-50 cursor-pointer'
+                    : 'border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed'}`}
                 >
                   取消處理
                 </button>
+                {!hasCancelableFiles && (
+                  <p className="text-xs text-gray-500 mt-2">目前檔案已進入模型回應或後處理階段，取消已停用。</p>
+                )}
               </div>
             )}
             
@@ -1139,7 +1188,11 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                       {uploading && (file.status === 'processing' || file.status === 'pending') && file.fileId && (
                         <button
                           onClick={() => handleCancelSingleFile(file)}
-                          className="px-2 py-1 border border-orange-300 rounded text-xs text-orange-700 hover:bg-orange-50 cursor-pointer"
+                          disabled={isCancelBlocked(file)}
+                          className={`px-2 py-1 border rounded text-xs ${isCancelBlocked(file)
+                            ? 'border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed'
+                            : 'border-orange-300 text-orange-700 hover:bg-orange-50 cursor-pointer'}`}
+                          title={isCancelBlocked(file) ? '已進入模型回應或後處理階段，無法取消' : ''}
                         >
                           取消此檔
                         </button>

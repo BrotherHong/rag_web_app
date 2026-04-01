@@ -20,6 +20,18 @@ from app.services.progress_pubsub import publish_batch_event, subscribe_batch_ev
 
 router = APIRouter(prefix="/batches", tags=["批次任務"])
 
+# 只允許在「等待模型回應前」取消
+CANCEL_ALLOWED_STEPS = {"", "classify", "prepare", "convert", "summarize", "queued", "pending"}
+
+
+def _is_cancelable_item(item: UploadBatchItem) -> bool:
+    """僅允許在模型回應前（分類/準備/轉檔）取消。"""
+    if item.status == UploadBatchItemStatus.QUEUED:
+        return True
+
+    step = (item.processing_step or "").lower()
+    return step in CANCEL_ALLOWED_STEPS
+
 
 def _cleanup_file_outputs_for_canceled(file_record: File) -> None:
     """清理取消任務的中間產物，保留 unprocessed 原始檔供重試。"""
@@ -265,11 +277,16 @@ async def cancel_batch(
         file_map = {file.id: file for file in file_records}
 
     canceled_count = 0
+    blocked_count = 0
     revoked_task_ids: list[str] = []
     now = datetime.now(timezone.utc)
 
     for item in items:
         if item.status in {UploadBatchItemStatus.COMPLETED, UploadBatchItemStatus.FAILED, UploadBatchItemStatus.CANCELED}:
+            continue
+
+        if not _is_cancelable_item(item):
+            blocked_count += 1
             continue
 
         item.status = UploadBatchItemStatus.CANCELED
@@ -334,9 +351,22 @@ async def cancel_batch(
     )
 
     snapshot = await _load_snapshot(batch_id, db)
+
+    if canceled_count == 0 and blocked_count > 0:
+        return {
+            "success": True,
+            "message": f"有 {blocked_count} 個檔案已進入模型回應或後處理階段，無法取消",
+            "data": snapshot,
+        }
+
+    if blocked_count > 0:
+        message = f"已取消 {canceled_count} 個檔案；另有 {blocked_count} 個已進入模型回應或後處理階段，無法取消"
+    else:
+        message = f"已取消 {canceled_count} 個處理中的檔案"
+
     return {
         "success": True,
-        "message": f"已取消 {canceled_count} 個處理中的檔案",
+        "message": message,
         "data": snapshot,
     }
 
@@ -372,6 +402,14 @@ async def cancel_batch_file(
         return {
             "success": True,
             "message": f"檔案任務已是終態：{item.status.value}",
+            "data": snapshot,
+        }
+
+    if not _is_cancelable_item(item):
+        snapshot = await _load_snapshot(batch_id, db)
+        return {
+            "success": True,
+            "message": "檔案已進入模型回應或後處理階段，無法取消",
             "data": snapshot,
         }
 
