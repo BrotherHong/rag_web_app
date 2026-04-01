@@ -5,6 +5,19 @@
 
 services:
   # ============================================================================
+  # Redis - Celery Broker / Result Backend
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: rag_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - rag_network
+
+  # ============================================================================
   # PostgreSQL 資料庫
   # ============================================================================
   postgres:
@@ -42,6 +55,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     # GPU 支援（使用主機 NVIDIA GPU 加速 reranker）
     runtime: nvidia
     environment:
@@ -61,7 +76,7 @@ services:
       API_V1_PREFIX: ${API_V1_PREFIX:-/api}
       
       # Uvicorn 服務器設定
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
       
       # 安全設定
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
@@ -110,6 +125,10 @@ services:
       OPENAI_DIRECT_MODEL: ${OPENAI_DIRECT_MODEL:-gpt-5.2}
       OPENAI_ENABLE_WEB_SEARCH: ${OPENAI_ENABLE_WEB_SEARCH:-false}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+
+      # Celery 設定
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
     
     volumes:
       # 上傳檔案持久化（Bind Mount）
@@ -147,6 +166,105 @@ services:
       start_period: 60s
 
   # ============================================================================
+  # Celery Worker - 檔案處理任務
+  # ============================================================================
+  celery_worker:
+    build:
+      context: ./rag_web_backend
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: rag_celery_worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    runtime: nvidia
+    environment:
+      TZ: Asia/Taipei
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HOME: /root/.cache/huggingface
+
+      APP_NAME: ${APP_NAME:-RAG Knowledge Base}
+      DEBUG: ${DEBUG:-False}
+      API_V1_PREFIX: ${API_V1_PREFIX:-/api}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: ${POSTGRES_DB:-rag_db}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-40}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-52428800}
+      ALLOWED_EXTENSIONS: ${ALLOWED_EXTENSIONS:-.txt,.pdf,.doc,.docx,.xls,.xlsx}
+      UPLOAD_DIR: /app/uploads
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_SUMMARY_MODEL: ${OLLAMA_SUMMARY_MODEL:-qwen2.5:14b}
+      OLLAMA_RAG_MODEL: ${OLLAMA_RAG_MODEL:-qwen2.5:32b}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-2}
+
+    entrypoint:
+      - sh
+      - -c
+      - celery -A app.celery_app.celery_app worker --loglevel=info --concurrency=$${CELERY_WORKER_CONCURRENCY}
+
+    volumes:
+      - ./rag_web_backend/uploads:/app/uploads
+      - ./rag_web_backend/logs:/app/logs
+      - /home/brick2/.cache/huggingface:/root/.cache/huggingface
+      - ./rag_web_backend/app:/app/app
+      - ./rag_web_backend/alembic:/app/alembic
+      - ./rag_web_backend/scripts:/app/scripts
+      - ./rag_web_backend/alembic.ini:/app/alembic.ini
+
+    networks:
+      - rag_network
+
+  # ============================================================================
+  # Flower - Celery 監控
+  # ============================================================================
+  flower:
+    build:
+      context: ./rag_web_backend
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: rag_flower
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_started
+      celery_worker:
+        condition: service_started
+    entrypoint:
+      - celery
+      - -A
+      - app.celery_app.celery_app
+      - flower
+      - --port=5555
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    volumes:
+      - ./rag_web_backend/app:/app/app
+    networks:
+      - rag_network
+
+  # ============================================================================
   # Nginx - 反向代理與靜態檔案服務（包含前端建置）
   # ============================================================================
   nginx:
@@ -182,6 +300,8 @@ services:
 volumes:
   # PostgreSQL 資料（Named Volume）
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
 
 # ==============================================================================

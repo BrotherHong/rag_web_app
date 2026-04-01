@@ -28,13 +28,23 @@ class FileProcessingService:
         self.summarizer = SummaryProcessor(self.litellm_client)
         self.embedder = EmbeddingProcessor(self.litellm_client)
         self.last_temp_dir = None  # 保存最近一次的暫存目錄路徑
+
+    async def _report_progress(self, progress_callback, file_id: int, step: str, progress: int, message: str = None):
+        """統一進度回報入口，避免 callback 異常中斷主流程"""
+        if not progress_callback:
+            return
+        try:
+            await progress_callback(file_id, step, progress, message)
+        except Exception as e:
+            print(f"⚠️ 進度回報失敗: {e}")
     
     async def process_files_batch(
         self,
         file_ids: List[int],
         task_id: str,
         db: AsyncSession,
-        progress_callback = None
+        progress_callback = None,
+        delete_record_on_failure: bool = True,
     ) -> Dict:
         """
         批次處理檔案
@@ -82,9 +92,15 @@ class FileProcessingService:
                 file_record.processing_step = "classify"
                 file_record.processing_progress = 0
                 await db.commit()
+                await self._report_progress(progress_callback, file_record.id, "classify", 0)
                 
                 # 執行四階段處理
-                success = await self._process_single_file(file_record, db, progress_callback)
+                success = await self._process_single_file(
+                    file_record,
+                    db,
+                    progress_callback,
+                    delete_record_on_failure=delete_record_on_failure,
+                )
                 
                 if success:
                     file_record.status = FileStatus.COMPLETED
@@ -94,7 +110,12 @@ class FileProcessingService:
                     file_result['success'] = True
                     await db.commit()
                 else:
-                    # 處理失敗，_process_single_file 已經清理了檔案和資料庫記錄
+                    if not delete_record_on_failure:
+                        file_record.status = FileStatus.FAILED
+                        file_record.processing_step = "failed"
+                        await db.commit()
+
+                    # delete_record_on_failure=True 時，_process_single_file 會清理檔案和資料庫記錄
                     results['failed'] += 1
                     error_msg = f"檔案處理失敗已被清除"
                     results['errors'].append(error_msg)
@@ -138,7 +159,8 @@ class FileProcessingService:
         self,
         file_record: File,
         db: AsyncSession,
-        progress_callback = None
+        progress_callback = None,
+        delete_record_on_failure: bool = True,
     ) -> bool:
         """
         處理單一檔案的四階段流程
@@ -153,26 +175,18 @@ class FileProcessingService:
         try:
             file_path = Path(file_record.file_path)
             department_id = file_record.department_id
-            
-            # 清理上一次的暫存目錄（如果存在）
-            if self.last_temp_dir and Path(self.last_temp_dir).exists():
-                try:
-                    shutil.rmtree(self.last_temp_dir)
-                    print(f"🗑️ 已清理上次暫存目錄: {self.last_temp_dir}")
-                except Exception as e:
-                    print(f"⚠️ 清理上次暫存目錄失敗: {e}")
-            
+
             # 創建新的暫存目錄
             temp_dir = Path(tempfile.mkdtemp(prefix="rag_process_"))
-            self.last_temp_dir = str(temp_dir)  # 保存路徑
             print(f"\n🗂️ 使用暫存目錄: {temp_dir}")
-            print(f"💡 此暫存目錄將保留到下次處理時才清理")
+            print(f"💡 任務完成後會清理此暫存目錄")
             
             # 階段 1: 準備處理 (0-25%)
             print(f"\n📂 階段 1: 準備處理 - {file_record.original_filename}")
             file_record.processing_step = "classify"
             file_record.processing_progress = 10
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "classify", 10)
             
             # 複製檔案到暫存目錄（不移動原檔案）
             temp_data_file = temp_dir / "data" / file_path.name
@@ -181,12 +195,14 @@ class FileProcessingService:
             
             file_record.processing_progress = 25
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "prepare", 25)
             
             # 階段 2: 轉換為 Markdown (25-50%)
             print(f"\n📝 階段 2: 轉換為 Markdown")
             file_record.processing_step = "convert"
             file_record.processing_progress = 30
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "convert", 30)
             
             # 生成 Markdown 檔名：使用資料庫中的 filename（已清理特殊字元）
             # 例如：QA.pdf → QA.md
@@ -207,12 +223,14 @@ class FileProcessingService:
             
             file_record.processing_progress = 50
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "convert", 50)
             
             # 階段 3: 生成摘要 (50-75%)
             print(f"\n💡 階段 3: 生成摘要")
             file_record.processing_step = "summarize"
             file_record.processing_progress = 55
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "summarize", 55)
             
             temp_summary_path = temp_dir / "summaries" / f"{file_path.stem}_summary.json"
             temp_summary_path.parent.mkdir(parents=True, exist_ok=True)
@@ -229,12 +247,14 @@ class FileProcessingService:
             
             file_record.processing_progress = 75
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "summarize", 75)
             
             # 階段 4: 生成嵌入 (75-100%)
             print(f"\n🔢 階段 4: 生成向量嵌入")
             file_record.processing_step = "embed"
             file_record.processing_progress = 80
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "embed", 80)
             
             # 處理主摘要的嵌入
             temp_embedding_path = temp_dir / "embeddings" / f"{file_path.stem}_embedding.json"
@@ -281,6 +301,7 @@ class FileProcessingService:
             
             file_record.processing_progress = 90
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "embed", 90)
             
             # 所有階段成功，移動檔案到正確位置
             print(f"\n📦 移動檔案到正確位置...")
@@ -341,6 +362,7 @@ class FileProcessingService:
             file_record.vector_count = total_vectors
             file_record.processing_progress = 100
             await db.commit()
+            await self._report_progress(progress_callback, file_record.id, "finalize", 100)
             
             print(f"✅ 檔案處理完成: {file_record.original_filename}")
             if total_chunks > 1:
@@ -364,9 +386,14 @@ class FileProcessingService:
                 except Exception as e:
                     print(f"⚠️ 刪除原始檔案失敗: {e}")
             
-            # 保留暫存目錄供檢查（下次處理時才清理）
-            print(f"📁 暫存目錄已保留: {temp_dir}")
-            print(f"   可使用以下命令查看: ls -la {temp_dir}")
+            # 任務成功後清理自己的暫存目錄
+            if temp_dir.exists():
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception as cleanup_error:
+                    print(f"⚠️ 清理暫存目錄失敗: {cleanup_error}")
+
+            await self._report_progress(progress_callback, file_record.id, "completed", 100)
             
             return True
             
@@ -382,28 +409,41 @@ class FileProcessingService:
                 try:
                     shutil.rmtree(temp_dir)
                     print(f"   ✅ 已清理暫存目錄")
-                    self.last_temp_dir = None
                 except Exception as cleanup_error:
                     print(f"   ⚠️ 清理暫存目錄失敗: {cleanup_error}")
             
-            # 2. 刪除 unprocessed 中的原始檔案
-            if file_path.exists():
+            # 2. 依策略處理 unprocessed 原始檔案
+            if delete_record_on_failure:
+                if file_path.exists():
+                    try:
+                        file_path.unlink()
+                        print(f"   ✅ 已刪除 unprocessed 檔案: {file_path}")
+                    except Exception as del_error:
+                        print(f"   ⚠️ 刪除 unprocessed 檔案失敗: {del_error}")
+            else:
+                print(f"   ℹ️ 保留 unprocessed 原始檔案供重試: {file_path}")
+
+            # 3. 視策略刪除或保留資料庫記錄
+            if delete_record_on_failure:
                 try:
-                    file_path.unlink()
-                    print(f"   ✅ 已刪除 unprocessed 檔案: {file_path}")
-                except Exception as del_error:
-                    print(f"   ⚠️ 刪除 unprocessed 檔案失敗: {del_error}")
-            
-            # 3. 刪除資料庫記錄
-            try:
-                await db.delete(file_record)
-                await db.commit()
-                print(f"   ✅ 已刪除資料庫記錄 ID: {file_record.id}")
-            except Exception as db_error:
-                print(f"   ⚠️ 刪除資料庫記錄失敗: {db_error}")
-                await db.rollback()
+                    await db.delete(file_record)
+                    await db.commit()
+                    print(f"   ✅ 已刪除資料庫記錄 ID: {file_record.id}")
+                except Exception as db_error:
+                    print(f"   ⚠️ 刪除資料庫記錄失敗: {db_error}")
+                    await db.rollback()
+            else:
+                try:
+                    file_record.status = FileStatus.FAILED
+                    file_record.processing_step = "failed"
+                    await db.commit()
+                    print(f"   ✅ 已保留資料庫記錄並標記失敗 ID: {file_record.id}")
+                except Exception as db_error:
+                    print(f"   ⚠️ 更新失敗狀態失敗: {db_error}")
+                    await db.rollback()
             
             print(f"🗑️ 失敗檔案清理完成")
+            await self._report_progress(progress_callback, file_record.id, "failed", 0, str(e))
             return False
 
 

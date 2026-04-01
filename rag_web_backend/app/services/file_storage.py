@@ -11,6 +11,7 @@ from fastapi import UploadFile, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models.file import FileStatus
 
 
 class FileStorageService:
@@ -91,10 +92,12 @@ class FileStorageService:
             base_name = original_filename.rsplit('.', 1)[0]
             check_query = select(FileModel).where(
                 FileModel.department_id == department_id,
-                FileModel.original_filename.like(f"{base_name}.%")
+                FileModel.original_filename.like(f"{base_name}.%"),
+                FileModel.status == FileStatus.COMPLETED,
+                FileModel.is_vectorized.is_(True),
             )
             result = await db.execute(check_query)
-            existing_file = result.scalar_one_or_none()
+            existing_file = result.scalars().first()
             
             if existing_file:
                 raise ValueError(f"檔案「{existing_file.original_filename}」已存在，請先刪除舊檔或更改檔名後再上傳")
@@ -105,6 +108,43 @@ class FileStorageService:
         # 取得 unprocessed 儲存路徑
         dept_path = self._get_department_path(department_id, "unprocessed")
         file_path = dept_path / unique_filename
+
+        # 若資料庫已有相同 file_path 的舊失敗/取消紀錄，先清除避免唯一鍵衝突
+        if db is not None:
+            existing_path_query = select(FileModel).where(
+                FileModel.file_path == str(file_path)
+            )
+            existing_path_result = await db.execute(existing_path_query)
+            existing_path_record = existing_path_result.scalars().first()
+
+            if existing_path_record:
+                is_usable_existing = (
+                    existing_path_record.status == FileStatus.COMPLETED
+                    and existing_path_record.is_vectorized
+                )
+                if is_usable_existing:
+                    raise ValueError(
+                        f"檔案「{existing_path_record.original_filename}」已存在，請先刪除舊檔或更改檔名後再上傳"
+                    )
+
+                cleanup_paths = [
+                    existing_path_record.file_path,
+                    existing_path_record.markdown_path,
+                    existing_path_record.summary_path,
+                    existing_path_record.embedding_path,
+                ]
+                for stale_path in cleanup_paths:
+                    if not stale_path:
+                        continue
+                    try:
+                        path_obj = Path(stale_path)
+                        if path_obj.exists() and path_obj.is_file():
+                            path_obj.unlink()
+                    except Exception:
+                        pass
+
+                await db.delete(existing_path_record)
+                await db.flush()
         
         # 如果實體檔案已存在（不應該發生，但保留檢查）
         if file_path.exists():

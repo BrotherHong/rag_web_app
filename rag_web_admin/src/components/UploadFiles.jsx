@@ -1,6 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
-import { checkDuplicates, batchUpload, getUploadProgress, getCategories, getUserGroups } from '../services/api';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { checkDuplicates, batchUpload, getTaskProgress, cancelBatchTask, cancelSingleFileTask, subscribeBatchEvents, getCategories, getUserGroups } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useModalAnimation } from '../hooks/useModalAnimation';
+import ConfirmDialog from './common/ConfirmDialog';
+
+const TERMINAL_STATUS = new Set(['completed', 'partial', 'failed', 'canceled']);
+const ACTIVE_UPLOAD_TASK_STORAGE_KEY = 'admin.activeUploadTaskId';
+const STEP_LABELS = {
+  classify: '分類檢查',
+  prepare: '準備中',
+  convert: '轉檔中',
+  summarize: '摘要中',
+  embed: '嵌入中',
+  finalize: '整理輸出中',
+  completed: '完成',
+  failed: '失敗',
+  canceled: '已取消',
+  pending: '等待中',
+};
 
 const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
   const toast = useToast();
@@ -25,40 +42,213 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
   // UI 狀態
   const [currentStep, setCurrentStep] = useState(1); // 1: 選擇檔案, 2: 檢查重複, 3: 上傳中, 4: 結果摘要
   const [showSummary, setShowSummary] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(null);
   const [isDragging, setIsDragging] = useState(false); // 拖曳狀態
   const dragCounterRef = useRef(0); // 用於追蹤拖曳進入/離開的次數
   const fileInputRef = useRef(null);
-  
-  // 獲取當前使用者權限
-  const getUserInfo = () => {
-    try {
-      const userStr = localStorage.getItem('user');
-      return userStr ? JSON.parse(userStr) : { name: '管理員', username: 'Admin', role: 'ADMIN' };
-    } catch {
-      return { name: '管理員', username: 'Admin', role: 'ADMIN' };
-    }
-  };
-  
-  const user = getUserInfo();
+  const pollingTimerRef = useRef(null);
+  const snapshotGuardTimerRef = useRef(null);
+  const sseAbortControllerRef = useRef(null);
+  const taskTerminatedByErrorRef = useRef(false);
+  const lastSnapshotFetchRef = useRef(0);
+  const stableOrderRef = useRef(new Map());
+  const stableOrderCounterRef = useRef(0);
+  const cancelConfirmModal = useModalAnimation(cancelConfirm !== null, () => setCancelConfirm(null));
   
   // 載入分類列表和身分組列表
   useEffect(() => {
     loadCategories();
     loadUserGroups();
   }, []);
-  
-  // 輪詢上傳進度
+
+  // 進入頁面時恢復進行中的上傳任務（支援切頁/重整）
   useEffect(() => {
-    let interval;
-    if (uploadTaskId && uploading) {
-      interval = setInterval(() => {
-        fetchUploadProgress();
-      }, 500); // 每 0.5 秒更新一次，讓進度更流暢
-    }
-    return () => {
-      if (interval) clearInterval(interval);
+    let cancelled = false;
+
+    const restoreActiveTask = async () => {
+      const storedTaskId = localStorage.getItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+      if (!storedTaskId) return;
+
+      setUploadTaskId(storedTaskId);
+      setCurrentStep(3);
+
+      const response = await getTaskProgress(storedTaskId);
+      if (cancelled) return;
+
+      if (!response.success) {
+        localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+        return;
+      }
+
+      setUploadProgress(response.data);
+
+      if (TERMINAL_STATUS.has(response.data.status)) {
+        localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+        setUploading(false);
+        setShowSummary(true);
+        setCurrentStep(4);
+      } else {
+        setUploading(true);
+        setShowSummary(false);
+      }
     };
-  }, [uploadTaskId, uploading]);
+
+    restoreActiveTask();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 獲取上傳進度
+  const fetchUploadProgress = useCallback(async (taskIdOverride = null) => {
+    const taskId = taskIdOverride || uploadTaskId;
+    if (!taskId) return;
+
+    const response = await getTaskProgress(taskId);
+
+    if (response.success) {
+      taskTerminatedByErrorRef.current = false;
+      setUploadProgress(response.data);
+
+      // 檢查是否完成
+      if (TERMINAL_STATUS.has(response.data.status)) {
+        localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+        setUploading(false);
+        setShowSummary(true);
+        setCurrentStep(4); // 進入結果摘要步驟
+      } else {
+        localStorage.setItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY, taskId);
+      }
+      return;
+    }
+
+    if (taskTerminatedByErrorRef.current) {
+      return;
+    }
+
+    taskTerminatedByErrorRef.current = true;
+    localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+
+    setUploadProgress((prev) => ({
+      taskId,
+      batchId: taskId,
+      status: 'failed',
+      totalFiles: prev?.totalFiles || 0,
+      processedFiles: prev?.processedFiles || 0,
+      successFiles: prev?.successFiles || 0,
+      failedFiles: Math.max(1, prev?.failedFiles || 0),
+      deletedFiles: prev?.deletedFiles || 0,
+      files: prev?.files || [],
+      updatedAt: new Date().toISOString(),
+      errorMessage: response.message || '任務狀態取得失敗，可能因後端重啟或任務已中斷。',
+    }));
+    setUploading(false);
+    setShowSummary(true);
+    setCurrentStep(4);
+    toast.warning(response.message || '任務狀態取得失敗，已停止即時追蹤。');
+  }, [uploadTaskId]);
+  
+  // 即時進度（SSE 優先，失敗時回退輪詢）
+  useEffect(() => {
+    if (!uploadTaskId || !uploading) {
+      return;
+    }
+
+    let unmounted = false;
+    let fallbackStarted = false;
+
+    const clearPolling = () => {
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+        pollingTimerRef.current = null;
+      }
+    };
+
+    const clearSnapshotGuard = () => {
+      if (snapshotGuardTimerRef.current) {
+        clearInterval(snapshotGuardTimerRef.current);
+        snapshotGuardTimerRef.current = null;
+      }
+    };
+
+    const startPollingFallback = () => {
+      if (fallbackStarted || unmounted || !uploading) {
+        return;
+      }
+
+      fallbackStarted = true;
+      clearPolling();
+
+      pollingTimerRef.current = setInterval(() => {
+        fetchUploadProgress(uploadTaskId);
+      }, 1000);
+    };
+
+    // 先抓一次快照，避免等待 SSE 第一包資料
+    fetchUploadProgress(uploadTaskId);
+
+    // 保底同步：即使 SSE 連線沒斷、但漏事件，也定期抓快照避免 UI 卡住
+    snapshotGuardTimerRef.current = setInterval(() => {
+      fetchUploadProgress(uploadTaskId);
+    }, 5000);
+
+    const abortController = new AbortController();
+    sseAbortControllerRef.current = abortController;
+
+    subscribeBatchEvents(uploadTaskId, {
+      signal: abortController.signal,
+      onSnapshot: (snapshot) => {
+        if (unmounted) return;
+        setUploadProgress(snapshot);
+
+        if (TERMINAL_STATUS.has(snapshot.status)) {
+          localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+          setUploading(false);
+          setShowSummary(true);
+          setCurrentStep(4);
+        }
+      },
+      onProgress: () => {
+        if (unmounted) return;
+        // 進度事件只提供增量，節流後抓快照同步完整狀態
+        const now = Date.now();
+        if (now - lastSnapshotFetchRef.current >= 400) {
+          lastSnapshotFetchRef.current = now;
+          fetchUploadProgress(uploadTaskId);
+        }
+      },
+      onError: () => {
+        if (unmounted) return;
+        startPollingFallback();
+      },
+    }).then((result) => {
+      if (unmounted || abortController.signal.aborted) {
+        return;
+      }
+
+      if (!result.success && !result.aborted) {
+        startPollingFallback();
+        return;
+      }
+
+      // SSE 有可能被 proxy/network 主動關閉且不會觸發 onError。
+      // 這時先補抓一次快照，再切到輪詢，避免畫面停在舊進度。
+      fetchUploadProgress(uploadTaskId);
+      startPollingFallback();
+    });
+
+    return () => {
+      unmounted = true;
+      clearPolling();
+      clearSnapshotGuard();
+
+      if (sseAbortControllerRef.current) {
+        sseAbortControllerRef.current.abort();
+        sseAbortControllerRef.current = null;
+      }
+    };
+  }, [uploadTaskId, uploading, fetchUploadProgress]);
   
   const loadCategories = async () => {
     const response = await getCategories();
@@ -226,34 +416,39 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     const response = await batchUpload(uploadData);
     
     if (response.success) {
-      setUploadTaskId(response.data.taskId);
+      const taskId = response.data.batchId || response.data.taskId;
+      taskTerminatedByErrorRef.current = false;
+      setUploadTaskId(taskId);
+      localStorage.setItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY, taskId);
       toast.success('上傳任務已建立');
+      fetchUploadProgress(taskId);
     } else {
+      localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
       toast.error('建立上傳任務失敗：' + response.message);
       setUploading(false);
     }
   };
   
-  // 獲取上傳進度
-  const fetchUploadProgress = async () => {
-    if (!uploadTaskId) return;
-    
-    const response = await getUploadProgress(uploadTaskId);
-    
-    if (response.success) {
-      setUploadProgress(response.data);
-      
-      // 檢查是否完成
-      if (response.data.status === 'completed' || response.data.status === 'partial') {
-        setUploading(false);
-        setShowSummary(true);
-        setCurrentStep(4); // 進入結果摘要步驟
-      }
-    }
-  };
-  
   // 繼續上傳其他檔案
   const handleContinueUpload = () => {
+    if (pollingTimerRef.current) {
+      clearInterval(pollingTimerRef.current);
+      pollingTimerRef.current = null;
+    }
+
+    if (snapshotGuardTimerRef.current) {
+      clearInterval(snapshotGuardTimerRef.current);
+      snapshotGuardTimerRef.current = null;
+    }
+
+    if (sseAbortControllerRef.current) {
+      sseAbortControllerRef.current.abort();
+      sseAbortControllerRef.current = null;
+    }
+
+    localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+    taskTerminatedByErrorRef.current = false;
+
     setSelectedFiles([]);
     setFileCategories({});
     setDuplicateCheckResults([]);
@@ -263,6 +458,59 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     setCurrentStep(1);
     setUploading(false);
     setShowSummary(false);
+  };
+
+  const handleCancelProcessing = async () => {
+    if (!uploadTaskId || !uploading) {
+      return;
+    }
+    setCancelConfirm({ type: 'batch' });
+  };
+
+  const handleCancelSingleFile = async (file) => {
+    if (!uploadTaskId || !uploading || !file?.fileId) {
+      return;
+    }
+    setCancelConfirm({ type: 'file', file });
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelConfirm || !uploadTaskId) {
+      return;
+    }
+
+    if (cancelConfirm.type === 'batch') {
+      const response = await cancelBatchTask(uploadTaskId);
+      if (!response.success) {
+        toast.error(`取消失敗：${response.message}`);
+        return;
+      }
+
+      setUploadProgress(response.data);
+      setUploading(false);
+      setShowSummary(true);
+      setCurrentStep(4);
+      localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+      toast.success(response.message || '批次任務已取消');
+      return;
+    }
+
+    const file = cancelConfirm.file;
+    const response = await cancelSingleFileTask(uploadTaskId, file.fileId);
+    if (!response.success) {
+      toast.error(`取消單檔失敗：${response.message}`);
+      return;
+    }
+
+    setUploadProgress(response.data);
+    toast.success(response.message || `已取消 ${file.name}`);
+
+    if (TERMINAL_STATUS.has(response.data.status)) {
+      setUploading(false);
+      setShowSummary(true);
+      setCurrentStep(4);
+      localStorage.removeItem(ACTIVE_UPLOAD_TASK_STORAGE_KEY);
+    }
   };
   
   // 格式化檔案大小
@@ -331,9 +579,52 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
   
   // 計算總體進度
   const calculateOverallProgress = () => {
-    if (!uploadProgress) return 0;
+    if (!uploadProgress || uploadProgress.totalFiles === 0) return 0;
     return Math.round((uploadProgress.processedFiles / uploadProgress.totalFiles) * 100);
   };
+
+  const getStepLabel = (file) => {
+    if (file.step && STEP_LABELS[file.step]) {
+      return STEP_LABELS[file.step];
+    }
+
+    if (file.status === 'completed') return STEP_LABELS.completed;
+    if (file.status === 'failed') return STEP_LABELS.failed;
+    if (file.status === 'processing') return '處理中';
+    return STEP_LABELS.pending;
+  };
+
+  const getStatusRank = (file) => {
+    if (file.status === 'completed') return 0;
+    if (file.status === 'processing') return 1;
+    if (file.status === 'failed' || file.status === 'canceled') return 2;
+    return 3;
+  };
+
+  const sortedProgressFiles = useMemo(() => {
+    const files = uploadProgress?.files || [];
+
+    files.forEach((file) => {
+      const key = file.name;
+      if (!stableOrderRef.current.has(key)) {
+        stableOrderRef.current.set(key, stableOrderCounterRef.current++);
+      }
+    });
+
+    return [...files].sort((a, b) => {
+      const rankDiff = getStatusRank(a) - getStatusRank(b);
+      if (rankDiff !== 0) return rankDiff;
+
+      // 以 10% 區間排序降低跳動，仍維持完成度較高靠前
+      const aBucket = Math.floor((a.progress || 0) / 10);
+      const bBucket = Math.floor((b.progress || 0) / 10);
+      if (aBucket !== bBucket) return bBucket - aBucket;
+
+      const aOrder = stableOrderRef.current.get(a.name) ?? 0;
+      const bOrder = stableOrderRef.current.get(b.name) ?? 0;
+      return aOrder - bOrder;
+    });
+  }, [uploadProgress]);
   
   return (
     <div className="space-y-6">
@@ -757,15 +1048,28 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                 uploadProgress.status === 'completed' ? 'bg-green-100 text-green-800' :
                 uploadProgress.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                uploadProgress.status === 'canceled' ? 'bg-orange-100 text-orange-800' :
                 uploadProgress.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
                 'bg-gray-100 text-gray-800'
               }`}>
                 {uploadProgress.status === 'completed' ? '✓ 全部完成' :
                  uploadProgress.status === 'processing' ? '⟳ 處理中...' :
+                 uploadProgress.status === 'canceled' ? '⏹ 已取消' :
                  uploadProgress.status === 'partial' ? '⚠ 部分失敗' :
                  '等待中'}
               </span>
             </div>
+
+            {uploading && uploadProgress.status === 'processing' && (
+              <div className="mb-4">
+                <button
+                  onClick={handleCancelProcessing}
+                  className="px-4 py-2 border border-red-300 rounded-md text-red-700 hover:bg-red-50 cursor-pointer font-medium"
+                >
+                  取消處理
+                </button>
+              </div>
+            )}
             
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-gray-600">
@@ -788,6 +1092,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
               <div className="flex justify-between text-xs text-gray-500 mt-2">
                 <span>成功: {uploadProgress.successFiles}</span>
                 <span>失敗: {uploadProgress.failedFiles}</span>
+                <span>取消: {uploadProgress.canceledFiles || 0}</span>
               </div>
             </div>
           </div>
@@ -799,7 +1104,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
             </div>
             
             <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-              {uploadProgress.files.map((file, index) => (
+              {sortedProgressFiles.map((file, index) => (
                 <div key={index} className="px-6 py-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center flex-1 min-w-0">
@@ -809,7 +1114,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                         </svg>
                       )}
                       {file.status === 'processing' && (
-                        <svg className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 mr-2 flex-shrink-0 animate-spin" style={{ color: 'var(--ncku-red)' }} fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -830,25 +1135,48 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                       </span>
                     </div>
                     
-                    <span className="text-xs text-gray-500 ml-4">
-                      {file.status === 'completed' ? '完成' :
-                       file.status === 'processing' ? `${file.progress}%` :
-                       file.status === 'failed' ? '失敗' :
-                       '等待中'}
-                    </span>
+                    <div className="flex items-center gap-2 ml-4">
+                      {uploading && (file.status === 'processing' || file.status === 'pending') && file.fileId && (
+                        <button
+                          onClick={() => handleCancelSingleFile(file)}
+                          className="px-2 py-1 border border-orange-300 rounded text-xs text-orange-700 hover:bg-orange-50 cursor-pointer"
+                        >
+                          取消此檔
+                        </button>
+                      )}
+
+                      <span className="text-xs text-gray-500">
+                        {file.status === 'completed' ? '完成' :
+                         file.status === 'processing' ? `${file.progress}%` :
+                         file.status === 'canceled' ? '已取消' :
+                         file.status === 'failed' ? '失敗' :
+                         '等待中'}
+                      </span>
+                    </div>
                   </div>
+
+                  <p className="text-xs text-gray-500 mb-2">
+                    目前步驟：{getStepLabel(file)}
+                  </p>
                   
                   {file.status === 'processing' && (
                     <div className="w-full bg-gray-200 rounded-full h-1.5">
                       <div
-                        className="bg-blue-500 h-full transition-all duration-300 rounded-full"
-                        style={{ width: `${file.progress}%` }}
+                        className="h-full transition-all duration-300 rounded-full"
+                        style={{
+                          width: `${file.progress}%`,
+                          backgroundColor: 'var(--ncku-red)'
+                        }}
                       ></div>
                     </div>
                   )}
                   
                   {file.status === 'failed' && file.error && (
                     <p className="text-xs text-red-600 mt-1">{file.error}</p>
+                  )}
+
+                  {file.status === 'canceled' && (
+                    <p className="text-xs text-orange-600 mt-1">已手動取消處理</p>
                   )}
                 </div>
               ))}
@@ -875,7 +1203,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
             </div>
             
             {/* 統計資訊 */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-4 gap-4 mb-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
                 <div className="text-3xl font-bold text-green-700">{uploadProgress.successFiles}</div>
                 <div className="text-sm text-green-600 mt-1">成功上傳</div>
@@ -883,6 +1211,10 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
                 <div className="text-3xl font-bold text-red-700">{uploadProgress.failedFiles}</div>
                 <div className="text-sm text-red-600 mt-1">上傳失敗</div>
+              </div>
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-orange-700">{uploadProgress.canceledFiles || 0}</div>
+                <div className="text-sm text-orange-600 mt-1">已取消</div>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                 <div className="text-3xl font-bold text-blue-700">{uploadProgress.deletedFiles || 0}</div>
@@ -911,6 +1243,32 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                             {file.error && (
                               <p className="text-xs text-red-600 mt-1">{file.error}</p>
                             )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {(uploadProgress.canceledFiles || 0) > 0 && (
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-orange-700 mb-3">取消檔案列表</h4>
+                <div className="bg-orange-50 border border-orange-200 rounded-lg divide-y divide-orange-200">
+                  {uploadProgress.files
+                    .filter(file => file.status === 'canceled')
+                    .map((file, index) => (
+                      <div key={index} className="px-4 py-3">
+                        <div className="flex items-start">
+                          <svg className="w-5 h-5 text-orange-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                          <div className="flex-shrink-0 mr-2 scale-50 -ml-2">
+                            {getFileIcon(file.name)}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                            <p className="text-xs text-orange-600 mt-1">已手動取消處理</p>
                           </div>
                         </div>
                       </div>
@@ -970,6 +1328,23 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={cancelConfirm !== null}
+        shouldRender={cancelConfirmModal.shouldRender}
+        isClosing={cancelConfirmModal.isClosing}
+        animationClass={cancelConfirmModal.animationClass}
+        contentAnimationClass={cancelConfirmModal.contentAnimationClass}
+        onClose={cancelConfirmModal.handleClose}
+        onConfirm={handleConfirmCancel}
+        title="確認取消"
+        message={cancelConfirm?.type === 'batch'
+          ? '確定要取消目前批次處理嗎？\n已完成的檔案會保留，處理中的檔案將停止。'
+          : `確定要取消「${cancelConfirm?.file?.name || ''}」嗎？\n此檔案會停止後續處理。`}
+        confirmText="確認取消"
+        cancelText="取消"
+        type="danger"
+      />
     </div>
   );
 };

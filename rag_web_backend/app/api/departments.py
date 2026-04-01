@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
 from app.models import Activity, ActivityType, Category, Department, File, User, UserRole
+from app.models.file import FileStatus
 from app.models.user_group import UserGroup
 from app.models.query_user import QueryUser
 from app.schemas import (
@@ -114,6 +115,14 @@ async def _sync_default_login_groups(
             await db.delete(group)
 
 
+def _usable_file_count_query(department_id: int):
+    return select(func.count()).where(
+        File.department_id == department_id,
+        File.status == FileStatus.COMPLETED,
+        File.is_vectorized.is_(True),
+    )
+
+
 @router.get("/", response_model=DepartmentListResponse, summary="取得處室列表")
 async def list_departments(
     page: int = Query(1, ge=1, description="頁碼"),
@@ -166,9 +175,7 @@ async def list_departments(
         user_count = admin_user_count + query_user_count
         
         # 計算檔案數量
-        file_count = await db.scalar(
-            select(func.count()).where(File.department_id == dept.id)
-        ) or 0
+        file_count = await db.scalar(_usable_file_count_query(dept.id)) or 0
         
         # 創建響應物件
         dept_dict = {
@@ -248,9 +255,7 @@ async def get_department_by_slug(
     user_count = admin_user_count + query_user_count
     
     # 計算檔案數量
-    file_count = await db.scalar(
-        select(func.count()).where(File.department_id == department.id)
-    ) or 0
+    file_count = await db.scalar(_usable_file_count_query(department.id)) or 0
     
     # 返回完整資訊
     return {
@@ -592,10 +597,14 @@ async def get_department_stats(
     active_user_count = await db.scalar(active_user_count_query) or 0
     
     # 2. 檔案統計
-    file_count_query = select(func.count()).where(File.department_id == department_id)
+    file_count_query = _usable_file_count_query(department_id)
     file_count = await db.scalar(file_count_query) or 0
     
-    file_size_query = select(func.sum(File.file_size)).where(File.department_id == department_id)
+    file_size_query = select(func.sum(File.file_size)).where(
+        File.department_id == department_id,
+        File.status == FileStatus.COMPLETED,
+        File.is_vectorized.is_(True),
+    )
     total_file_size = await db.scalar(file_size_query) or 0
     
     # 3. 活動記錄統計(使用 Activity.department_id 過濾)

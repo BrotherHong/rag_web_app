@@ -137,8 +137,8 @@ function KnowledgeBase() {
       const response = await deleteFile(id);
       
       if (response.success) {
-        // 重新載入檔案列表
-        await loadFiles();
+        // 重新載入檔案列表與分類統計（總檔案數來自分類 fileCount）
+        await Promise.all([loadFiles(), loadCategories()]);
         deleteModal.handleClose();
         toast.success('檔案刪除成功');
       } else {
@@ -319,7 +319,7 @@ function KnowledgeBase() {
   // 分類統計從 categories 的 fileCount 取得（後端提供）
   const getCategoryCount = (categoryName) => {
     const category = categories.find(c => c.name === categoryName);
-    return category?.fileCount || 0;
+    return category?.fileCount ?? category?.file_count ?? 0;
   };
 
   // 換頁時重置到第一頁
@@ -349,7 +349,7 @@ function KnowledgeBase() {
              style={{ borderColor: 'var(--ncku-red)' }}>
           <p className="text-gray-600 text-sm">總檔案數</p>
           <p className="text-2xl font-bold mt-1">
-            {categories.reduce((sum, cat) => sum + (cat.fileCount || 0), 0)}
+            {totalFiles}
           </p>
         </div>
         {categories.map(category => (

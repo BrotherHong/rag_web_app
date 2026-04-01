@@ -39,6 +39,13 @@ def get_dept_rag_engine(department_id: int) -> RAGEngine:
     return _dept_rag_engines[department_id]
 
 
+def invalidate_dept_rag_engine(department_id: int) -> None:
+    """清除指定處室的 RAG Engine 快取，讓新向量可立即生效"""
+    removed = _dept_rag_engines.pop(department_id, None)
+    if removed:
+        print(f"♻️ RAG Engine cache invalidated for dept {department_id}")
+
+
 @router.post("/query", response_model=QueryResponse)
 async def query_documents(
     request: QueryRequest,

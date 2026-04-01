@@ -17,7 +17,18 @@ export { getCategories, getCategoriesWithDetails, addCategory, deleteCategory, g
 export { getStatistics, getRecentActivities, getAllActivities } from './api/activities.js';
 
 // 導入批次上傳模組
-export { checkDuplicates, batchUpload, getUploadProgress, getUserUploadTasks, deleteUploadTask } from './api/upload.js';
+export {
+  checkDuplicates,
+  batchUpload,
+  getUploadProgress,
+  getBatchSnapshotProgress,
+  getTaskProgress,
+  cancelBatchTask,
+  cancelSingleFileTask,
+  subscribeBatchEvents,
+  getUserUploadTasks,
+  deleteUploadTask
+} from './api/upload.js';
 
 // 導入使用者管理模組
 export { getUsers, addUser, updateUser, deleteUser, getUsersByDepartment } from './api/users.js';

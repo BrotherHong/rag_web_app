@@ -5,6 +5,7 @@
 
 import subprocess
 import shutil
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -98,6 +99,7 @@ class DocumentConverter:
             # mineru 需要輸出目錄而不是具體檔案
             output_dir = output_file.parent
             output_dir.mkdir(parents=True, exist_ok=True)
+            existing_md_files = {str(path.resolve()) for path in output_dir.rglob("*.md")}
             
             # mineru 命令格式
             command = [
@@ -117,41 +119,45 @@ class DocumentConverter:
             )
             
             if result.returncode == 0:
-                # mineru 會在輸出目錄創建一個以 PDF 檔名為基礎的目錄結構
-                # 路徑格式: {pdf_stem}/auto/{pdf_stem}.md
-                pdf_stem = pdf_file.stem
-                expected_md_path = output_dir / pdf_stem / "auto" / f"{pdf_stem}.md"
-                
-                if expected_md_path.exists():
-                    # 移動到指定位置
-                    shutil.move(str(expected_md_path), str(output_file))
-                    # 清理臨時目錄結構
-                    try:
-                        shutil.rmtree(str(output_dir / pdf_stem))
-                    except:
-                        pass
-                    print(f"✅ mineru 轉換成功")
-                    return True
-                else:
-                    # 如果沒找到預期位置，搜尋所有可能的 .md 檔案
-                    found_md = None
-                    for md_file in output_dir.rglob("*.md"):
-                        if pdf_stem in md_file.stem:
-                            found_md = md_file
-                            break
-                    
+                found_md = None
+                # MinerU 在高併發時可能會晚一點才把 markdown 寫到磁碟。
+                for _ in range(15):
+                    found_md = self._find_mineru_output(pdf_file, output_dir, existing_md_files)
                     if found_md:
-                        shutil.move(str(found_md), str(output_file))
-                        # 清理臨時目錄
-                        try:
-                            shutil.rmtree(str(output_dir / pdf_stem))
-                        except:
-                            pass
-                        print(f"✅ mineru 轉換成功")
-                        return True
-                    else:
-                        print(f"❌ mineru 轉換完成但找不到輸出檔案")
-                        return False
+                        break
+                    time.sleep(1)
+
+                if not found_md:
+                    print("❌ mineru 轉換完成但找不到輸出檔案")
+                    print(f"   PDF: {pdf_file}")
+                    print(f"   output_dir: {output_dir}")
+                    if result.stdout:
+                        print("   stdout:")
+                        print(result.stdout[-2000:])
+                    if result.stderr:
+                        print("   stderr:")
+                        print(result.stderr[-2000:])
+
+                    all_md = list(output_dir.rglob("*.md"))
+                    if all_md:
+                        print("   output_dir 內已有 markdown:")
+                        for md in all_md[:20]:
+                            print(f"   - {md}")
+                    return False
+
+                if found_md.resolve() != output_file.resolve():
+                    if output_file.exists():
+                        output_file.unlink()
+                    shutil.move(str(found_md), str(output_file))
+
+                # 盡可能清理 mineru 可能建立的子目錄
+                try:
+                    shutil.rmtree(str(output_dir / pdf_file.stem), ignore_errors=True)
+                except Exception:
+                    pass
+
+                print("✅ mineru 轉換成功")
+                return True
             else:
                 print(f"❌ mineru 返回錯誤碼 {result.returncode}: {result.stderr}")
                 return False
@@ -164,7 +170,12 @@ class DocumentConverter:
             print(f"❌ mineru 處理超時（超過 10 分鐘）")
             return False
     
-    def _find_mineru_output(self, pdf_file: Path, output_dir: Path) -> Optional[Path]:
+    def _find_mineru_output(
+        self,
+        pdf_file: Path,
+        output_dir: Path,
+        existing_md_files: Optional[set[str]] = None,
+    ) -> Optional[Path]:
         """尋找 mineru 產生的 markdown 檔案"""
         # mineru 通常產生在子目錄中
         possible_paths = [
@@ -176,11 +187,25 @@ class DocumentConverter:
         for path in possible_paths:
             if path.exists():
                 return path
+
+        all_md_files = [path for path in output_dir.rglob("*.md") if path.is_file()]
+
+        # 優先挑選本次 mineru 執行後新出現的 markdown
+        if existing_md_files is not None:
+            new_md_files = [
+                path for path in all_md_files
+                if str(path.resolve()) not in existing_md_files
+            ]
+            if new_md_files:
+                return max(new_md_files, key=lambda p: p.stat().st_mtime)
+
+        # 退而求其次：挑選最近修改且名稱最接近原始 PDF 的 markdown
+        same_stem_files = [path for path in all_md_files if path.stem == pdf_file.stem]
+        if same_stem_files:
+            return max(same_stem_files, key=lambda p: p.stat().st_mtime)
         
-        # 搜尋所有 .md 檔案
-        md_files = list(output_dir.rglob("*.md"))
-        if md_files:
-            return md_files[0]
+        if all_md_files:
+            return max(all_md_files, key=lambda p: p.stat().st_mtime)
         
         return None
     

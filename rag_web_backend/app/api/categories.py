@@ -2,7 +2,7 @@
 
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, get_current_active_admin
 from app.models.user import User
 from app.models.category import Category
-from app.models.file import File
+from app.models.file import File, FileStatus
 from app.schemas.category import (
     CategoryListResponse,
     CategorySchema,
@@ -75,7 +75,11 @@ async def get_categories(
             # 查詢該分類的檔案數量
             file_count = await db.scalar(
                 select(func.count(File.id))
-                .where(File.category_id == category.id)
+                .where(
+                    File.category_id == category.id,
+                    File.status == FileStatus.COMPLETED,
+                    File.is_vectorized.is_(True),
+                )
             )
             
             # 建立 schema 並設定 file_count
@@ -110,7 +114,14 @@ async def get_category_stats(
             func.count(File.id).label('file_count'),
             func.coalesce(func.sum(File.file_size), 0).label('total_size')
         )
-        .outerjoin(File, File.category_id == Category.id)
+        .outerjoin(
+            File,
+            and_(
+                File.category_id == Category.id,
+                File.status == FileStatus.COMPLETED,
+                File.is_vectorized.is_(True),
+            ),
+        )
         .where(Category.department_id == current_user.department_id)
         .group_by(Category.id, Category.name, Category.color)
         .order_by(desc('file_count'))
@@ -210,7 +221,11 @@ async def delete_category(
     
     # 檢查是否有檔案使用此分類
     file_count = await db.scalar(
-        select(func.count(File.id)).where(File.category_id == category_id)
+        select(func.count(File.id)).where(
+            File.category_id == category_id,
+            File.status == FileStatus.COMPLETED,
+            File.is_vectorized.is_(True),
+        )
     )
     
     if file_count > 0:

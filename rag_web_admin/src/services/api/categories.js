@@ -90,6 +90,12 @@ export const getCategoriesWithDetails = async () => {
       // 後端可能回傳陣列或 { items: [...] } 格式
       // 根據實際回傳格式處理
       let categories = Array.isArray(data) ? data : (data.items || []);
+
+      // 統一欄位：兼容 fileCount / file_count
+      categories = categories.map((cat) => ({
+        ...cat,
+        fileCount: cat.fileCount ?? cat.file_count ?? 0,
+      }));
       
       // 將「其他」排在最後
       const sorted = categories.sort((a, b) => {

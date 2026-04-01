@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 
 from app.core.database import get_db
@@ -229,6 +230,9 @@ async def batch_upload(
                         user_group_id=group_id
                     )
                     db.add(permission)
+
+            # 每檔案獨立提交，避免單檔失敗污染整個 session
+            await db.commit()
             
             # 更新檔案狀態為完成
             task["files"][idx]["status"] = "completed"
@@ -236,7 +240,13 @@ async def batch_upload(
             task["successFiles"] += 1
             success_count += 1
             
+        except IntegrityError:
+            await db.rollback()
+            task["files"][idx]["status"] = "failed"
+            task["files"][idx]["error"] = "同名檔案已有舊紀錄，請重新上傳一次或更改檔名"
+            task["failedFiles"] += 1
         except Exception as e:
+            await db.rollback()
             task["files"][idx]["status"] = "failed"
             task["files"][idx]["error"] = str(e)
             task["failedFiles"] += 1
@@ -294,24 +304,58 @@ async def batch_upload(
                 file_record = result.scalar_one_or_none()
                 if file_record:
                     uploaded_file_ids.append(file_record.id)
-        
-        if uploaded_file_ids and background_tasks:
-            # 啟動背景處理任務
-            from app.services.file_processor import file_processing_service
-            
-            print(f"🚀 啟動背景處理任務，檔案 IDs: {uploaded_file_ids}")
-            
-            background_tasks.add_task(
-                process_files_in_background,
-                uploaded_file_ids,
-                task_id
+
+        if uploaded_file_ids:
+            from app.models.upload_batch import (
+                UploadBatch,
+                UploadBatchItem,
+                UploadBatchStatus,
+                UploadBatchItemStatus,
             )
+            from app.tasks.file_pipeline import process_single_file_task
+
+            print(f"🚀 使用 Celery 啟動檔案處理任務，檔案 IDs: {uploaded_file_ids}")
+
+            batch = UploadBatch(
+                id=task_id,
+                department_id=current_user.department_id,
+                created_by_user_id=current_user.id,
+                status=UploadBatchStatus.PROCESSING,
+                total_files=len(uploaded_file_ids),
+                processed_files=0,
+                success_files=0,
+                failed_files=0,
+            )
+            db.add(batch)
+            await db.flush()
+
+            batch_items = []
+            for file_id in uploaded_file_ids:
+                batch_item = UploadBatchItem(
+                    batch_id=task_id,
+                    file_id=file_id,
+                    status=UploadBatchItemStatus.QUEUED,
+                    processing_step="pending",
+                    processing_progress=0,
+                )
+                db.add(batch_item)
+                batch_items.append(batch_item)
+
+            await db.commit()
+
+            for batch_item in batch_items:
+                async_result = process_single_file_task.delay(batch_item.file_id, task_id)
+                batch_item.celery_task_id = async_result.id
+
+            await db.commit()
+
             task["status"] = "processing"
-            task["message"] = "檔案上傳完成，開始處理中..."
+            task["message"] = "檔案上傳完成，Celery 任務排程中..."
     
     return {
         "success": True,
         "taskId": task_id,
+        "batchId": task_id,
         "message": f"成功上傳 {success_count} 個檔案" + (" (處理中...)" if should_process and success_count > 0 else "")
     }
 
@@ -383,7 +427,8 @@ async def process_files_in_background(file_ids: List[int], task_id: str):
 @router.get("/progress/{task_id}", summary="查詢上傳進度")
 async def get_upload_progress(
     task_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     查詢批次上傳的進度
@@ -403,15 +448,66 @@ async def get_upload_progress(
     task = upload_tasks.get(task_id)
     
     if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": "上傳任務不存在",
-                "reason": "任務可能已完成並清理，或任務 ID 無效",
-                "suggestion": "停止輪詢此任務，刷新頁面查看檔案狀態",
-                "task_id": task_id
-            }
+        from app.models.upload_batch import UploadBatch, UploadBatchItem
+        from app.models.user import UserRole
+        from app.models import File as FileModel
+
+        batch = await db.get(UploadBatch, task_id)
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "上傳任務不存在",
+                    "reason": "任務可能已完成並清理，或任務 ID 無效",
+                    "suggestion": "停止輪詢此任務，刷新頁面查看檔案狀態",
+                    "task_id": task_id
+                }
+            )
+
+        if batch.created_by_user_id != current_user.id and current_user.role != UserRole.SUPER_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="無權限查看此任務"
+            )
+
+        items_result = await db.execute(
+            select(UploadBatchItem).where(UploadBatchItem.batch_id == task_id)
         )
+        items = items_result.scalars().all()
+
+        file_ids = [item.file_id for item in items]
+        file_names = {}
+        if file_ids:
+            file_result = await db.execute(select(FileModel).where(FileModel.id.in_(file_ids)))
+            file_records = file_result.scalars().all()
+            file_names = {file.id: file.original_filename for file in file_records}
+
+        canceled_files = sum(1 for item in items if item.status.value == "canceled")
+
+        return {
+            "success": True,
+            "data": {
+                "taskId": task_id,
+                "batchId": task_id,
+                "status": batch.status.value,
+                "totalFiles": batch.total_files,
+                "processedFiles": batch.processed_files,
+                "successFiles": batch.success_files,
+                "failedFiles": batch.failed_files,
+                "canceledFiles": canceled_files,
+                "deletedFiles": 0,
+                "files": [
+                    {
+                        "name": file_names.get(item.file_id, f"file-{item.file_id}"),
+                        "status": item.status.value,
+                        "progress": item.processing_progress,
+                        "error": item.error_message
+                    }
+                    for item in items
+                ],
+                "updatedAt": batch.updated_at.isoformat() if batch.updated_at else None
+            }
+        }
     
     # 權限檢查
     if task["user_id"] != current_user.id:
@@ -555,6 +651,7 @@ async def check_duplicates(
     }
     """
     from app.models import File as FileModel
+    from app.models.file import FileStatus
     from sqlalchemy.orm import joinedload
     
     results = []
@@ -568,10 +665,12 @@ async def check_duplicates(
             joinedload(FileModel.category)
         ).where(
             FileModel.department_id == current_user.department_id,
-            FileModel.original_filename.like(f"{base_name}.%")  # Q&A.pdf, Q&A.docx, Q&A.txt
+            FileModel.original_filename.like(f"{base_name}.%"),  # Q&A.pdf, Q&A.docx, Q&A.txt
+            FileModel.status == FileStatus.COMPLETED,
+            FileModel.is_vectorized.is_(True),
         )
         result = await db.execute(conflict_query)
-        conflict_file = result.scalar_one_or_none()
+        conflict_file = result.scalars().first()
         
         # 構建回應
         file_result = {

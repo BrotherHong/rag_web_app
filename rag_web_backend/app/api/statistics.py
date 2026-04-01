@@ -9,15 +9,27 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select, desc, text
+from sqlalchemy import func, select, desc, text, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
 from app.models import Activity, File, User, UserRole, Category, QueryHistory
+from app.models.file import FileStatus
 from app.config import settings
 
 router = APIRouter(tags=["統計與系統"])
+
+
+def _knowledge_base_file_condition(department_id: Optional[int]):
+    """與知識庫頁面一致：僅統計可用檔案（completed + vectorized）。"""
+    conditions = [
+        File.status == FileStatus.COMPLETED,
+        File.is_vectorized.is_(True),
+    ]
+    if department_id:
+        conditions.append(File.department_id == department_id)
+    return and_(*conditions)
 
 
 def _format_bytes(num: int) -> str:
@@ -63,9 +75,9 @@ async def get_statistics(
     # 全部都要帶有處室id才能正確顯示各處室的統計數據
 
     # 1. 總檔案數
-    file_query = select(func.count(File.id))
-    if department_filter:
-        file_query = file_query.where(File.department_id == department_filter)
+    file_query = select(func.count(File.id)).where(
+        _knowledge_base_file_condition(department_filter)
+    )
     total_files = await db.scalar(file_query) or 0
     
     # 2. 依分類統計檔案
@@ -74,10 +86,14 @@ async def get_statistics(
         Category.color,
         func.count(File.id).label('count')
     ).select_from(Category).outerjoin(
-        File, Category.id == File.category_id
+        File,
+        and_(
+            Category.id == File.category_id,
+            _knowledge_base_file_condition(department_filter)
+        )
+    ).where(
+        Category.department_id == department_filter
     )
-    if department_filter:
-        category_query = category_query.where(File.department_id == department_filter)
     category_query = category_query.group_by(Category.id, Category.name, Category.color)
     
     category_result = await db.execute(category_query)

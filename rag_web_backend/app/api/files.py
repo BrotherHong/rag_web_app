@@ -48,6 +48,7 @@ async def get_files(
     sort: str = Query("created_at", pattern="^(filename|created_at|file_size)$", description="排序欄位"),
     order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
     status: Optional[str] = Query(None, description="狀態篩選"),
+    include_inactive: bool = Query(False, description="是否包含未完成或未向量化檔案"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -65,6 +66,13 @@ async def get_files(
         joinedload(FileModel.category),
         joinedload(FileModel.uploader)
     )
+
+    # 預設僅顯示可用於知識庫查詢的檔案
+    if not include_inactive and not status:
+        query = query.where(
+            FileModel.status == ProcessingStatus.COMPLETED,
+            FileModel.is_vectorized.is_(True)
+        )
     
     # 分類篩選
     if category_id:
