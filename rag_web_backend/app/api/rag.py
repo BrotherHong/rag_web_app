@@ -23,6 +23,7 @@ from app.schemas.rag import (
     DirectQueryResponse
 )
 from app.services.rag.rag_engine import RAGEngine
+from app.services.rag.no_result_utils import is_no_result_answer
 from app.services.activity import activity_service
 
 router = APIRouter(prefix="/rag", tags=["RAG查詢"])
@@ -302,6 +303,8 @@ async def query_documents(
             sources.append(doc_source)
         
         # Log activity and save query history
+        is_no_result = is_no_result_answer(result['answer'])
+
         if current_user:
             # 查詢用戶（記錄到 query_history）
             try:
@@ -317,7 +320,8 @@ async def query_documents(
                     scope="query_user",
                     extra_data={
                         "category_ids": request.category_ids or [],
-                        "retrieved_docs": result.get('retrieved_docs', 0)
+                        "retrieved_docs": result.get('retrieved_docs', 0),
+                        "is_no_result": is_no_result,
                     }
                 )
                 db.add(query_history)
@@ -341,7 +345,8 @@ async def query_documents(
                     scope="anonymous",
                     extra_data={
                         "category_ids": request.category_ids or [],
-                        "retrieved_docs": result.get('retrieved_docs', 0)
+                        "retrieved_docs": result.get('retrieved_docs', 0),
+                        "is_no_result": is_no_result,
                     }
                 )
                 db.add(anonymous_history)

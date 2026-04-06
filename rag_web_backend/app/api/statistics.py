@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, desc, text, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,8 +18,19 @@ from app.core.security import get_current_user, require_role
 from app.models import Activity, File, User, UserRole, Category, QueryHistory
 from app.models.file import FileStatus
 from app.config import settings
+from app.services.query_insights import NoResultQuestionAnalyzer
 
 router = APIRouter(tags=["統計與系統"])
+
+
+class NoResultInsightRunRequest(BaseModel):
+    department_id: int | None = Field(default=None, ge=1)
+    days: int = Field(default=30, ge=1, le=365)
+    top_n: int = Field(default=10, ge=1, le=50)
+    similarity_threshold: float = Field(default=0.84, ge=0.5, le=0.99)
+    min_cluster_count: int = Field(default=1, ge=1, le=1000)
+    max_unique_questions: int = Field(default=500, ge=50, le=3000)
+    use_llm_refine: bool = Field(default=False)
 
 
 def _knowledge_base_file_condition(department_id: Optional[int]):
@@ -41,6 +53,38 @@ def _format_bytes(num: int) -> str:
     idx = min(len(units) - 1, int((num).bit_length() / 10))
     value = num / (1024 ** idx)
     return f"{value:.2f} {units[idx]}"
+
+
+@router.post("/statistics/no-results-insights/run", summary="手動執行無結果問題彙整")
+async def run_no_results_insights(
+    request: NoResultInsightRunRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """手動彙整指定期間內最常見的無結果問題。"""
+    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="權限不足")
+
+    if current_user.role == UserRole.SUPER_ADMIN and request.department_id:
+        target_department_id = request.department_id
+    else:
+        target_department_id = current_user.department_id
+
+    if not target_department_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前未指定處室")
+
+    analyzer = NoResultQuestionAnalyzer()
+    result = await analyzer.analyze(
+        db=db,
+        department_id=target_department_id,
+        days=request.days,
+        top_n=request.top_n,
+        similarity_threshold=request.similarity_threshold,
+        min_cluster_count=request.min_cluster_count,
+        max_unique_questions=request.max_unique_questions,
+        use_llm_refine=request.use_llm_refine,
+    )
+    return result
 
 
 @router.get("/statistics", summary="取得系統統計資料")

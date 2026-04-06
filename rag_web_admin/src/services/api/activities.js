@@ -63,6 +63,44 @@ export const getStatistics = async () => {
 };
 
 /**
+ * 手動執行「無結果問題 TopN」彙整
+ * @param {Object} params - 執行參數
+ * @returns {Promise}
+ */
+export const runNoResultInsights = async (params = {}) => {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/statistics/no-results-insights/run`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(params)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        success: true,
+        data
+      };
+    }
+
+    const error = await response.json();
+    return {
+      success: false,
+      message: error.detail || '執行無結果問題彙整失敗'
+    };
+  } catch (error) {
+    console.error('Run no-result insights error:', error);
+    return {
+      success: false,
+      message: '執行無結果問題彙整失敗，請檢查網路連線'
+    };
+  }
+};
+
+/**
  * 取得最近活動記錄
  * @param {number} limit - 限制數量
  * @returns {Promise} 活動記錄

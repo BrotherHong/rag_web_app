@@ -4,6 +4,7 @@ import {
   logout, 
   getStatistics, 
   getRecentActivities,
+  runNoResultInsights,
   getCategoriesWithDetails,
   addCategory,
   deleteCategory,
@@ -350,6 +351,10 @@ function DashboardHome() {
   const [stats, setStats] = useState(null);
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [insightDays, setInsightDays] = useState(30);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightError, setInsightError] = useState('');
+  const [noResultInsights, setNoResultInsights] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -397,6 +402,33 @@ function DashboardHome() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const runNoResultTopQuestions = async () => {
+    setInsightLoading(true);
+    setInsightError('');
+    try {
+      const response = await runNoResultInsights({
+        days: insightDays,
+        top_n: 10,
+        similarity_threshold: 0.84,
+        min_cluster_count: 1,
+        max_unique_questions: 500,
+        use_llm_refine: false
+      });
+
+      if (!response.success) {
+        setInsightError(response.message || '彙整失敗');
+        return;
+      }
+
+      setNoResultInsights(response.data || null);
+    } catch (error) {
+      console.error('Run no-result insight failed:', error);
+      setInsightError('彙整失敗，請稍後再試');
+    } finally {
+      setInsightLoading(false);
     }
   };
 
@@ -826,6 +858,86 @@ function DashboardHome() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-bold">無結果問題 Top 10</h3>
+            <p className="text-sm text-gray-500 mt-1">針對「沒有找到相關資訊」的查詢做語義彙整，供後續補文件優先處理。</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <select
+              value={insightDays}
+              onChange={(e) => setInsightDays(parseInt(e.target.value, 10))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              disabled={insightLoading}
+            >
+              <option value={7}>近 7 天</option>
+              <option value={14}>近 14 天</option>
+              <option value={30}>近 30 天</option>
+              <option value={90}>近 90 天</option>
+            </select>
+
+            <button
+              onClick={runNoResultTopQuestions}
+              disabled={insightLoading}
+              className="px-4 py-2 rounded-lg text-white hover:opacity-90 disabled:opacity-60 transition-opacity"
+              style={{ backgroundColor: 'var(--ncku-red)' }}
+            >
+              {insightLoading ? '彙整中...' : '手動彙整'}
+            </button>
+          </div>
+        </div>
+
+        {insightError && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+            {insightError}
+          </div>
+        )}
+
+        {noResultInsights?.meta && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="text-xs text-gray-500">無結果查詢總數</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">{noResultInsights.meta.total_no_result_queries || 0}</div>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="text-xs text-gray-500">無結果唯一問題數</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">{noResultInsights.meta.unique_no_result_questions || 0}</div>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="text-xs text-gray-500">語義群組數</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">{noResultInsights.meta.clustered_candidates || 0}</div>
+            </div>
+          </div>
+        )}
+
+        {noResultInsights?.items?.length > 0 ? (
+          <div className="space-y-3">
+            {noResultInsights.items.map((item, idx) => (
+              <div key={`${item.question}-${idx}`} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-semibold text-gray-900">#{idx + 1} {item.question}</div>
+                  <div className="text-sm font-bold text-red-700 whitespace-nowrap">{item.count} 次</div>
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  最後詢問時間：{item.last_asked_at ? new Date(item.last_asked_at).toLocaleString() : '-'}
+                </div>
+                {item.sample_questions?.length > 1 && (
+                  <div className="mt-2 text-sm text-gray-700">
+                    相似問法：{item.sample_questions.slice(0, 3).join(' ｜ ')}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500 py-2">
+            尚未執行彙整，或指定期間內沒有「無相關資訊」查詢。
+          </div>
+        )}
       </div>
     </div>
   );

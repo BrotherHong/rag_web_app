@@ -14,7 +14,7 @@ export { getFiles, uploadFile, deleteFile, downloadFile, updateFile } from './ap
 export { getCategories, getCategoriesWithDetails, addCategory, deleteCategory, getCategoryStats } from './api/categories.js';
 
 // 導入活動與統計模組
-export { getStatistics, getRecentActivities, getAllActivities } from './api/activities.js';
+export { getStatistics, getRecentActivities, getAllActivities, runNoResultInsights } from './api/activities.js';
 
 // 導入批次上傳模組
 export {
