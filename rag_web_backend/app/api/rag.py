@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt, JWTError
 
 from app.core.database import get_db
-from app.core.security import get_current_query_user_optional
+from app.core.security import get_current_query_user
 from app.config import settings
 from app.models.query_user import QueryUser
 from app.models.query_history import QueryHistory
@@ -51,103 +51,83 @@ def invalidate_dept_rag_engine(department_id: int) -> None:
 async def query_documents(
     request: QueryRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[QueryUser] = Depends(get_current_query_user_optional)
+    current_user: QueryUser = Depends(get_current_query_user)
 ):
-    """RAG 查詢（公開端點，支援訪客和查詢用戶）
-    
-    此端點專用於前端查詢系統（rag_web_query），支援：
-    - 訪客：只能訪問公開文件
-    - 查詢用戶：可以訪問公開文件 + 被授權的文件
-    
-    後台管理員使用獨立的後台系統，不使用此端點
+    """RAG 查詢（需登入）
+
+    此端點專用於前端查詢系統（rag_web_query），僅提供已登入查詢用戶使用。
     """
-    
-    # 調試：檢查當前用戶狀態
-    if current_user:
-        print(f"🔐 [RAG Query] 已登入用戶: {current_user.username} (ID: {current_user.id})")
-    else:
-        print(f"👤 [RAG Query] 訪客查詢")
+    print(f"🔐 [RAG Query] 已登入用戶: {current_user.username} (ID: {current_user.id})")
     
     try:
         # 決定處室 ID
         department_id = None
         if request.scope_ids and len(request.scope_ids) > 0:
             department_id = request.scope_ids[0]
-        elif current_user and current_user.default_department_id:
+        elif current_user.default_department_id:
             # 查詢用戶使用預設處室
             department_id = current_user.default_department_id
         else:
             raise HTTPException(
                 status_code=400,
-                detail="未登入用戶必須指定 scope_ids"
+                detail="登入用戶必須指定 scope_ids 或設定預設處室"
             )
         
         # 處理分類過濾：如果有指定 category_ids，查詢符合條件的檔案清單
         allowed_filenames = None  # None 表示不過濾（查詢所有檔案）
         
-        # 訪客權限過濾：只能訪問公開文件
-        if current_user is None:
-            from app.models.file import File as FileModel
-            
-            # 獲取公開文件列表
-            public_query = select(FileModel.original_filename).where(
-                FileModel.department_id == department_id,
-                FileModel.is_public == True,
-                FileModel.is_vectorized == True
-            )
-            
-            public_result = await db.execute(public_query)
-            allowed_filenames = {row[0] for row in public_result.all()}
-        
         # 查詢用戶權限過濾：公開文件 + 被授權的文件 + 身分組授權的文件
-        elif isinstance(current_user, QueryUser):
-            # 查詢用戶可以訪問：公開文件 + 被授權的文件 + 身分組授權的文件
-            from app.models.file import File as FileModel
-            from app.models.query_user import FilePermission
-            from app.models.user_group import FileUserGroupPermission
-            
-            # 1. 獲取公開文件
-            public_query = select(FileModel.original_filename).where(
-                FileModel.department_id == department_id,
-                FileModel.is_public == True,
-                FileModel.is_vectorized == True
+        from app.models.file import File as FileModel
+        from app.models.query_user import FilePermission
+        from app.models.user_group import FileUserGroupPermission, query_user_groups
+
+        # 1. 獲取公開文件
+        public_query = select(FileModel.original_filename).where(
+            FileModel.department_id == department_id,
+            FileModel.is_public == True,
+            FileModel.is_vectorized == True
+        )
+        public_result = await db.execute(public_query)
+        public_filenames = {row[0] for row in public_result.all()}
+
+        # 2. 獲取用戶被授權的文件（個人權限）
+        permission_query = select(FileModel.original_filename).join(
+            FilePermission,
+            FileModel.id == FilePermission.file_id
+        ).where(
+            FilePermission.query_user_id == current_user.id,
+            FileModel.department_id == department_id,
+            FileModel.is_vectorized == True
+        )
+
+        permission_result = await db.execute(permission_query)
+        authorized_filenames = {row[0] for row in permission_result.all()}
+
+        # 3. 獲取用戶通過身分組授權的文件
+        # 避免在 async context 觸發 ORM lazy load（會導致 MissingGreenlet）
+        user_group_ids_result = await db.execute(
+            select(query_user_groups.c.user_group_id).where(
+                query_user_groups.c.query_user_id == current_user.id
             )
-            public_result = await db.execute(public_query)
-            public_filenames = {row[0] for row in public_result.all()}
-            
-            # 2. 獲取用戶被授權的文件（個人權限）
-            permission_query = select(FileModel.original_filename).join(
-                FilePermission,
-                FileModel.id == FilePermission.file_id
+        )
+        user_group_ids = list(user_group_ids_result.scalars().all())
+
+        group_permission_filenames = set()
+        if user_group_ids:
+            group_permission_query = select(FileModel.original_filename).join(
+                FileUserGroupPermission,
+                FileModel.id == FileUserGroupPermission.file_id
             ).where(
-                FilePermission.query_user_id == current_user.id,
+                FileUserGroupPermission.user_group_id.in_(user_group_ids),
                 FileModel.department_id == department_id,
                 FileModel.is_vectorized == True
             )
-            
-            permission_result = await db.execute(permission_query)
-            authorized_filenames = {row[0] for row in permission_result.all()}
-            
-            # 3. 獲取用戶通過身分組授權的文件
-            # 首先獲取用戶所屬的所有身分組 ID
-            user_group_ids = [group.id for group in current_user.user_groups]
-            
-            group_permission_filenames = set()
-            if user_group_ids:
-                group_permission_query = select(FileModel.original_filename).join(
-                    FileUserGroupPermission,
-                    FileModel.id == FileUserGroupPermission.file_id
-                ).where(
-                    FileUserGroupPermission.user_group_id.in_(user_group_ids),
-                    FileModel.department_id == department_id,
-                    FileModel.is_vectorized == True
-                )
-                
-                group_permission_result = await db.execute(group_permission_query)
-                group_permission_filenames = {row[0] for row in group_permission_result.all()}
-            
-            # 4. 合併：公開文件 + 個人授權文件 + 身分組授權文件
-            allowed_filenames = public_filenames | authorized_filenames | group_permission_filenames
+
+            group_permission_result = await db.execute(group_permission_query)
+            group_permission_filenames = {row[0] for row in group_permission_result.all()}
+
+        # 4. 合併：公開文件 + 個人授權文件 + 身分組授權文件
+        allowed_filenames = public_filenames | authorized_filenames | group_permission_filenames
         
         # 「其他」分類的檔案對所有人開放，不受公開/身分組權限限制
         if allowed_filenames is not None:
@@ -174,10 +154,7 @@ async def query_documents(
         
         # 若沒有任何可訪問的文件，提早返回
         if allowed_filenames is not None and not allowed_filenames:
-            if current_user is None:
-                msg = "抱歉，目前沒有可供查詢的公開資料。請登入以訪問更多內容。"
-            else:
-                msg = "抱歉，您目前沒有權限訪問任何文件。請聯繫管理員獲取訪問權限。"
+            msg = "抱歉，您目前沒有權限訪問任何文件。請聯繫管理員獲取訪問權限。"
             return QueryResponse(
                 query=request.query,
                 answer=msg,
@@ -219,10 +196,7 @@ async def query_documents(
             if not allowed_filenames:
                 # 沒有符合條件的檔案
                 msg = "抱歉，在選定的分類中找不到"
-                if current_user is None:
-                    msg += "公開的"
-                else:
-                    msg += "您有權限訪問的"
+                msg += "您有權限訪問的"
                 msg += "相關資訊。"
                 return QueryResponse(
                     query=request.query,
@@ -380,7 +354,7 @@ async def query_documents(
 async def direct_query(
     request: DirectQueryRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[QueryUser] = Depends(get_current_query_user_optional)
+    current_user: QueryUser = Depends(get_current_query_user)
 ):
     """直接用 LLM 回覆（不依賴 RAG 知識庫）
     
@@ -391,10 +365,10 @@ async def direct_query(
     department_id = None
     if request.scope_ids and len(request.scope_ids) > 0:
         department_id = request.scope_ids[0]
-    elif current_user and current_user.default_department_id:
+    elif current_user.default_department_id:
         department_id = current_user.default_department_id
     else:
-        raise HTTPException(status_code=400, detail="未登入用戶必須指定 scope_ids")
+        raise HTTPException(status_code=400, detail="登入用戶必須指定 scope_ids 或設定預設處室")
 
     # 取得處室的 external_api_key
     from app.models.department import Department

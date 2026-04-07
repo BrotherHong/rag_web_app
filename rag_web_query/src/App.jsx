@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import './App.css'
 import HomePage from './pages/HomePage'
 import ChatPage from './pages/ChatPage'
@@ -10,6 +10,31 @@ import RegisterPage from './pages/RegisterPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import NotFoundPage from './pages/NotFoundPage'
 import DepartmentLayout from './components/DepartmentLayout'
+import { useQueryAuth } from './contexts/QueryAuthContext'
+
+function RequireQueryAuth({ children }) {
+  const { isAuthenticated, loading } = useQueryAuth()
+  const location = useLocation()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-solid border-current border-r-transparent"
+               style={{ color: 'var(--ncku-red)' }}>
+          </div>
+          <p className="mt-4 text-gray-600">載入中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  }
+
+  return children
+}
 
 function App() {
   return (
@@ -32,7 +57,14 @@ function App() {
         {/* 處室動態路由 */}
         <Route path="/:deptSlug" element={<DepartmentLayout />}>
           <Route index element={<HomePage />} />
-          <Route path="chat" element={<ChatPage />} />
+          <Route
+            path="chat"
+            element={
+              <RequireQueryAuth>
+                <ChatPage />
+              </RequireQueryAuth>
+            }
+          />
         </Route>
         
         {/* 其他未匹配路徑重定向到首頁（入口） */}

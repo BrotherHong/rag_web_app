@@ -9,7 +9,7 @@ from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user, get_password_hash, verify_password, require_role
+from app.core.security import get_current_user, get_current_active_admin, get_password_hash, verify_password, require_role
 from app.models import User, UserRole, Department, Activity, ActivityType
 from app.schemas import (
     UserCreate,
@@ -30,12 +30,11 @@ router = APIRouter(prefix="/users", tags=["使用者管理"])
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="建立使用者",
-    dependencies=[Depends(require_role(UserRole.SUPER_ADMIN))]
 )
 async def create_user(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     建立新使用者
@@ -74,12 +73,12 @@ async def create_user(
     
     # 系統管理員在代理模式下只能建立代理處室的使用者
     # 系統管理員非代理模式可以建立任何處室的使用者
-    if current_user.department_id is not None:
-        # 系統管理員代理模式：只能建立代理處室
+    if current_user.role == UserRole.ADMIN or current_user.department_id is not None:
+        # 處室管理員或系統管理員代理模式：只能建立目前處室的使用者
         if user_data.department_id != current_user.department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="代理模式下只能建立代理處室的使用者"
+                detail="只能建立自己處室的使用者"
             )
     # 系統管理員非代理模式：無限制，可建立任何處室的使用者
     
@@ -120,7 +119,7 @@ async def list_users(
     role: Optional[str] = Query(None, description="篩選角色"),
     search: Optional[str] = Query(None, description="搜尋使用者名稱或全名"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     取得使用者列表（分頁）
@@ -193,7 +192,7 @@ async def list_users(
 async def get_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     取得特定使用者的詳細資訊

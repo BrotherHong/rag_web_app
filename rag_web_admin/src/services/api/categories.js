@@ -223,6 +223,54 @@ export const deleteCategory = async (categoryId) => {
 };
 
 /**
+ * 更新分類
+ * @param {number} categoryId - 分類 ID
+ * @param {Object} data - 更新資料 { name, color }
+ * @returns {Promise} 更新結果
+ */
+export const updateCategory = async (categoryId, data) => {
+  try {
+    const permission = checkPermission(ROLES.ADMIN);
+    if (!permission.hasPermission) {
+      return {
+        success: false,
+        message: permission.message
+      };
+    }
+
+    const response = await apiFetch(`${API_BASE_URL}/categories/${categoryId}`, {
+      method: 'PUT',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return {
+        success: true,
+        data: result,
+        message: '分類更新成功'
+      };
+    } else {
+      const error = await response.json();
+      return {
+        success: false,
+        message: error.detail || '分類更新失敗'
+      };
+    }
+  } catch (error) {
+    console.error('Update category error:', error);
+    return {
+      success: false,
+      message: '分類更新失敗，請檢查網路連線'
+    };
+  }
+};
+
+/**
  * 取得分類統計資訊
  * @returns {Promise} 統計資料
  */

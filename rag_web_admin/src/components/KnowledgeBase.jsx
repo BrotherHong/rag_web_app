@@ -18,6 +18,8 @@ function KnowledgeBase() {
   const [showFileDetail, setShowFileDetail] = useState(false);
   const [showEditPermissions, setShowEditPermissions] = useState(false);
   const [editingFilePermissions, setEditingFilePermissions] = useState([]);
+  const [showEditCategory, setShowEditCategory] = useState(false);
+  const [editingFileCategory, setEditingFileCategory] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalFiles, setTotalFiles] = useState(0);
@@ -29,6 +31,7 @@ function KnowledgeBase() {
   const permissionsModal = useModalAnimation(showEditPermissions, () => {
     setShowEditPermissions(false);
   });
+  const categoryModal = useModalAnimation(showEditCategory, () => setShowEditCategory(false));
 
   // 當權限 modal 完全關閉後重置狀態
   useEffect(() => {
@@ -37,6 +40,13 @@ function KnowledgeBase() {
       setSelectedFile(null);
     }
   }, [showEditPermissions, permissionsModal.shouldRender]);
+
+  useEffect(() => {
+    if (!showEditCategory && !categoryModal.shouldRender) {
+      setEditingFileCategory('');
+      setSelectedFile(null);
+    }
+  }, [showEditCategory, categoryModal.shouldRender]);
   
   // 獲取當前使用者權限
   const getUserInfo = () => {
@@ -45,6 +55,36 @@ function KnowledgeBase() {
       return userStr ? JSON.parse(userStr) : { name: '管理員', username: 'Admin', role: 'ADMIN' };
     } catch {
       return { name: '管理員', username: 'Admin', role: 'ADMIN' };
+    }
+  };
+
+  // 處理編輯檔案分類
+  const handleEditCategory = (file) => {
+    setSelectedFile(file);
+    setEditingFileCategory(file.categoryId ? String(file.categoryId) : '');
+    setShowEditCategory(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!selectedFile) return;
+
+    try {
+      const response = await updateFile(selectedFile.id, {
+        category_id: editingFileCategory ? parseInt(editingFileCategory, 10) : null
+      });
+
+      if (response.success) {
+        toast.success('檔案分類已更新');
+        categoryModal.handleClose();
+        setEditingFileCategory('');
+        setSelectedFile(null);
+        await Promise.all([loadFiles(), loadCategories()]);
+      } else {
+        toast.error(response.message || '更新分類失敗');
+      }
+    } catch (error) {
+      console.error('更新分類錯誤:', error);
+      toast.error('更新分類失敗');
     }
   };
   
@@ -495,6 +535,16 @@ function KnowledgeBase() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <button
+                        onClick={() => handleEditCategory(file)}
+                        className="text-amber-600 hover:text-amber-900 transition-colors cursor-pointer"
+                        title="變更分類"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
                         onClick={() => handleEditPermissions(file)}
                         className="text-purple-600 hover:text-purple-900 transition-colors cursor-pointer"
                         title="設定身分組權限"
@@ -756,6 +806,49 @@ function KnowledgeBase() {
         </div>
       )}
 
+      {/* 變更分類模態框 */}
+      {categoryModal.shouldRender && selectedFile && (
+        <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 px-4 ${categoryModal.animationClass}`}>
+          <div className={`bg-white rounded-xl p-6 w-full max-w-md ${categoryModal.contentAnimationClass}`}>
+            <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--ncku-red)' }}>變更檔案分類</h3>
+            <p className="text-sm text-gray-600 mb-4">{selectedFile.name}</p>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">分類</label>
+              <select
+                value={editingFileCategory}
+                onChange={(e) => setEditingFileCategory(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
+              >
+                <option value="">未設定分類</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-2">變更後會立即更新，不需要重新上傳檔案。</p>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => categoryModal.handleClose()}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveCategory}
+                className="px-4 py-2 text-white rounded-lg cursor-pointer"
+                style={{ backgroundColor: 'var(--ncku-red)' }}
+              >
+                更新分類
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 編輯身分組權限模態框 */}
       {permissionsModal.shouldRender && (
         <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 ${permissionsModal.animationClass}`}>
@@ -774,9 +867,6 @@ function KnowledgeBase() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   可訪問的身分組
                 </label>
-                <p className="text-xs text-gray-500 mb-3">
-                  不選擇任何組別代表只有標記為公開時所有人才能訪問
-                </p>
                 <div className="border border-gray-300 rounded-lg p-4 max-h-96 overflow-y-auto bg-gray-50">
                   {userGroups.length > 0 ? (
                     <div className="space-y-2">

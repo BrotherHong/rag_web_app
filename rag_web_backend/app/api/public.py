@@ -8,7 +8,9 @@ from sqlalchemy import select
 from typing import List, Dict, Any, Optional
 
 from app.core.database import get_db
+from app.core.security import get_current_query_user
 from app.models.faq import FAQ
+from app.models.query_user import QueryUser
 
 router = APIRouter(prefix="", tags=["公開 API"])
 
@@ -18,10 +20,11 @@ async def get_faq_list(
     department_id: int = Query(..., description="處室 ID（必須）"),
     limit: Optional[int] = Query(None, description="限制返回的問題數量"),
     category: Optional[str] = Query(None, description="按分類過濾問題"),
+    current_user: QueryUser = Depends(get_current_query_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    獲取常見問題列表（公開端點）
+    獲取常見問題列表（需登入）
     
     參數:
         - department_id: 處室 ID（必須）
@@ -142,9 +145,9 @@ async def download_file_public(
 
 
 @router.get("/public/welcome")
-async def get_welcome_message():
+async def get_welcome_message(current_user: QueryUser = Depends(get_current_query_user)):
     """
-    獲取歡迎訊息（公開端點，無需認證）
+    獲取歡迎訊息（需登入）
     """
     return {
         "success": True,

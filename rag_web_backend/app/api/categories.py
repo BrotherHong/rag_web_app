@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.database import get_db
-from app.core.security import get_current_user, get_current_active_admin
+from app.core.security import get_current_user, get_current_active_admin, get_current_query_user
 from app.models.user import User
+from app.models.query_user import QueryUser
 from app.models.category import Category
 from app.models.file import File, FileStatus
 from app.schemas.category import (
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/categories", tags=["categories"])
 @router.get("/query", response_model=CategoryListResponse)
 async def get_categories_for_query(
     department_id: int = Query(..., description="處室 ID"),
+    current_user: QueryUser = Depends(get_current_query_user),
     db: AsyncSession = Depends(get_db)
 ):
     """取得指定處室的分類列表（供查詢頁面使用）
@@ -252,4 +254,53 @@ async def delete_category(
     await db.commit()
     
     return {"message": "分類已刪除"}
+
+
+@router.put("/{category_id}", response_model=CategorySchema)
+async def update_category(
+    category_id: int,
+    category_data: CategoryUpdate,
+    current_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新分類"""
+    category = await db.get(Category, category_id)
+
+    if not category:
+        raise HTTPException(status_code=404, detail="分類不存在")
+
+    if category.department_id != current_user.department_id:
+        raise HTTPException(status_code=403, detail="無權限修改此分類")
+
+    update_data = category_data.model_dump(exclude_unset=True)
+
+    if "name" in update_data and update_data["name"]:
+        existing = await db.execute(
+            select(Category).where(
+                Category.name == update_data["name"],
+                Category.department_id == current_user.department_id,
+                Category.id != category_id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="分類名稱已存在")
+
+    for field, value in update_data.items():
+        setattr(category, field, value)
+
+    await db.commit()
+    await db.refresh(category)
+
+    file_count = await db.scalar(
+        select(func.count(File.id)).where(
+            File.category_id == category.id,
+            File.status == FileStatus.COMPLETED,
+            File.is_vectorized.is_(True),
+        )
+    ) or 0
+
+    category_schema = CategorySchema.model_validate(category)
+    category_schema.file_count = file_count
+
+    return category_schema
 

@@ -11,7 +11,7 @@ export { login, logout, verifyToken } from './api/auth.js';
 export { getFiles, uploadFile, deleteFile, downloadFile, updateFile } from './api/files.js';
 
 // 導入分類管理模組
-export { getCategories, getCategoriesWithDetails, addCategory, deleteCategory, getCategoryStats } from './api/categories.js';
+export { getCategories, getCategoriesWithDetails, addCategory, updateCategory, deleteCategory, getCategoryStats } from './api/categories.js';
 
 // 導入活動與統計模組
 export { getStatistics, getRecentActivities, getAllActivities, runNoResultInsights } from './api/activities.js';

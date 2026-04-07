@@ -60,6 +60,7 @@ export const getFiles = async (params = {}) => {
         id: file.id,
         name: file.original_filename,
         category: file.category?.name || '其他',
+        categoryId: file.category?.id || null,
         size: `${(file.file_size / (1024 * 1024)).toFixed(2)} MB`,
         uploadDate: new Date(file.created_at).toLocaleDateString('zh-TW'),
         status: file.status,

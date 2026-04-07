@@ -42,6 +42,9 @@ function QueryUserManagement() {
   };
   
   const user = getUserInfo();
+  const visibleDepartments = user?.departmentId
+    ? departments.filter((dept) => String(dept.id) === String(user.departmentId))
+    : departments;
   
   // 表單狀態
   const [formData, setFormData] = useState({
@@ -483,7 +486,7 @@ function QueryUserManagement() {
 
                   <div>
                     <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                      密碼 *
+                      密碼 *（至少 6 個字元）
                     </label>
                     <input
                       id="password"
@@ -544,8 +547,8 @@ function QueryUserManagement() {
                 </label>
                 <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
                   {editingUser
-                    ? (editingUser.default_department?.name || departments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室')
-                    : (departments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室')
+                    ? (editingUser.default_department?.name || visibleDepartments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室')
+                    : (visibleDepartments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室')
                   }
                 </div>
               </div>

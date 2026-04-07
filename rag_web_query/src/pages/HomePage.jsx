@@ -1,38 +1,10 @@
-import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getFaqList } from '../services/api'
 import { useDepartment } from '../contexts/DepartmentContext'
 import { APP_CONSTANTS } from '../config/constants'
 
 function HomePage() {
   const navigate = useNavigate()
-  const { department, deptSlug, loading: deptLoading } = useDepartment()
-  const [faqList, setFaqList] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  // 從後端獲取常見問題列表（首頁只顯示前 4 個）
-  useEffect(() => {
-    const fetchFaqList = async () => {
-      try {
-        setIsLoading(true)
-        const response = await getFaqList(4) // 只獲取前 4 個問題
-        if (response.success) {
-          setFaqList(response.data)
-        } else {
-          console.error('Failed to fetch FAQ list:', response.error)
-          // 如果獲取失敗，使用空陣列
-          setFaqList([])
-        }
-      } catch (error) {
-        console.error('Error fetching FAQ list:', error)
-        setFaqList([])
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchFaqList()
-  }, [])
+  const { department, deptSlug } = useDepartment()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-red-50 to-white relative overflow-hidden">
@@ -87,62 +59,13 @@ function HomePage() {
             </p>
           </div>
 
-          {/* 常見問題快速按鈕區域 */}
-          <div className="w-full max-w-4xl mb-12">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">常見問題</h2>
-            
-            {isLoading ? (
-              // 載入中狀態
-              <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-              </div>
-            ) : faqList.length === 0 ? (
-              // 無 FAQ 時顯示提示
-              <div className="text-center py-12 text-gray-500">
-                <p>目前暫無常見問題</p>
-              </div>
-            ) : (
-              <div className={`grid gap-4 ${
-                faqList.length === 1 ? 'grid-cols-1 max-w-md mx-auto' :
-                faqList.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-                faqList.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
-                'grid-cols-1 md:grid-cols-2 lg:grid-cols-2'
-              }`}>
-                {faqList.map((faq) => (
-                  <button 
-                    key={faq.id}
-                    onClick={() => navigate(`/${deptSlug}/chat`, { state: { question: faq.question } })}
-                    className="group bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-4 hover:bg-red-50 hover:shadow-lg transition-all duration-300 hover:border-red-300 text-center cursor-pointer"
-                  >
-                    <div className="flex flex-col items-center gap-2">
-                      {/* 使用 emoji icon 或預設問號圖示 */}
-                      {faq.icon ? (
-                        <span className="text-3xl">{faq.icon}</span>
-                      ) : (
-                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      )}
-                      <div>
-                        <h3 className="text-gray-800 font-medium mb-1 group-hover:text-red-700 transition-colors">{faq.question}</h3>
-                        {faq.description && (
-                          <p className="text-sm text-gray-600">{faq.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 開始按鈕 */}
+          {/* 登入按鈕 */}
           <div className="mt-12">
             <button 
-              onClick={() => navigate(`/${deptSlug}/chat`)}
+              onClick={() => navigate('/login', { state: { from: `/${deptSlug}/chat` } })}
               className="group relative px-8 py-4 bg-gradient-to-r from-red-600 to-red-700 rounded-full text-white font-semibold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all hover:from-red-700 hover:to-red-800 cursor-pointer"
             >
-              <span className="relative z-10">開始使用</span>
+              <span className="relative z-10">登入</span>
             </button>
           </div>
         </div>

@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from math import ceil
 
 from app.core.database import get_db
-from app.core.security import get_current_super_admin, get_password_hash
+from app.core.security import get_current_active_admin, get_password_hash
 from app.models.user import User
 from app.models.query_user import QueryUser, QueryUserStatus
 from app.models.user_group import query_user_groups
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/query-users", tags=["查詢用戶管理"])
 @router.get("/stats", response_model=QueryUserStats)
 async def get_query_user_stats(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     獲取查詢用戶統計資訊
@@ -103,7 +103,7 @@ async def get_query_user_stats(
 async def create_query_user(
     user_data: QueryUserCreateRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     管理員直接創建查詢用戶（無需審批）
@@ -185,7 +185,7 @@ async def list_query_users(
     is_active: Optional[bool] = Query(None, description="篩選是否啟用"),
     search: Optional[str] = Query(None, description="搜尋用戶名稱、郵箱或全名"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     獲取查詢用戶列表（分頁）
@@ -256,7 +256,7 @@ async def list_query_users(
 async def get_query_user_detail(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     獲取查詢用戶詳細資訊
@@ -288,7 +288,7 @@ async def update_query_user(
     user_id: int,
     request: QueryUserUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     更新查詢用戶資訊
@@ -359,7 +359,7 @@ async def update_query_user(
 async def suspend_query_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     停用查詢用戶
@@ -392,7 +392,7 @@ async def suspend_query_user(
 async def activate_query_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     啟用查詢用戶
@@ -427,7 +427,7 @@ async def activate_query_user(
 async def delete_query_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_admin)
 ):
     """
     刪除查詢用戶

@@ -289,7 +289,7 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">密碼 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">密碼 *（至少 6 個字元）</label>
                 <input
                   type="password"
                   minLength={6}
@@ -383,7 +383,7 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">新密碼</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">新密碼（至少 6 個字元）</label>
                 <input
                   type="password"
                   minLength={6}
