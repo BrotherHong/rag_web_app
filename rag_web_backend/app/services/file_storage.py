@@ -3,11 +3,9 @@
 import os
 import uuid
 import aiofiles
-import shutil
-from datetime import datetime
 from pathlib import Path
-from typing import BinaryIO, Optional
-from fastapi import UploadFile, HTTPException
+from typing import Optional
+from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -160,54 +158,7 @@ class FileStorageService:
                 file_size += len(chunk)
         
         return unique_filename, str(file_path), file_size
-    
-    def move_to_processed(
-        self,
-        source_path: str,
-        department_id: int,
-        process_type: str = "data"
-    ) -> str:
-        """將檔案從 unprocessed 移動到 processed 目錄
-        
-        Args:
-            source_path: 來源檔案路徑
-            department_id: 處室 ID
-            process_type: 處理類型 (data, output_md, summaries, embeddings)
-            
-        Returns:
-            str: 新的檔案路徑
-        """
-        source = Path(source_path)
-        if not source.exists():
-            raise FileNotFoundError(f"來源檔案不存在: {source_path}")
-        
-        # 取得目標路徑
-        target_dir = self._get_processed_path(department_id, process_type)
-        target_path = target_dir / source.name
-        
-        # 移動檔案
-        shutil.move(str(source), str(target_path))
-        
-        return str(target_path)
 
-    def delete_file(self, file_path: str) -> bool:
-        """刪除檔案
-        
-        Args:
-            file_path: 檔案完整路徑
-            
-        Returns:
-            bool: 是否刪除成功
-        """
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                return True
-            return False
-        except Exception as e:
-            print(f"刪除檔案失敗: {file_path}, 錯誤: {str(e)}")
-            return False
-    
     def delete_file_completely(self, file_record, department_id: int) -> dict:
         """完整刪除檔案及其所有相關檔案
         
@@ -350,12 +301,6 @@ class FileStorageService:
             print(f"❌ {error_msg}")
             return cleanup_stats
 
-    def get_file_size(self, file_path: str) -> int:
-        """取得檔案大小（bytes）"""
-        if os.path.exists(file_path):
-            return os.path.getsize(file_path)
-        return 0
-
     async def validate_file(
         self, 
         upload_file: UploadFile,
@@ -387,50 +332,6 @@ class FileStorageService:
             return False, f"不支援的檔案格式: {ext}，允許的格式: {', '.join(allowed_exts)}"
         
         return True, None
-
-    def get_file_info(self, file_path: str) -> dict:
-        """取得檔案資訊"""
-        if not os.path.exists(file_path):
-            return None
-        
-        stat = os.stat(file_path)
-        return {
-            "size": stat.st_size,
-            "created": datetime.fromtimestamp(stat.st_ctime),
-            "modified": datetime.fromtimestamp(stat.st_mtime),
-            "exists": True
-        }
-
-    def get_storage_stats(self, department_id: Optional[int] = None) -> dict:
-        """取得儲存空間統計
-        
-        Args:
-            department_id: 處室 ID（可選，None 表示所有處室）
-            
-        Returns:
-            dict: 儲存統計資訊
-        """
-        if department_id:
-            path = self._get_department_path(department_id)
-        else:
-            path = self.base_path
-        
-        total_size = 0
-        file_count = 0
-        
-        for root, dirs, files in os.walk(path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if os.path.exists(file_path):
-                    total_size += os.path.getsize(file_path)
-                    file_count += 1
-        
-        return {
-            "total_size": total_size,
-            "file_count": file_count,
-            "total_size_mb": round(total_size / (1024**2), 2),
-            "total_size_gb": round(total_size / (1024**3), 2)
-        }
 
 
 # 建立全域檔案儲存服務實例

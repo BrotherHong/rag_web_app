@@ -133,8 +133,6 @@ services:
     volumes:
       # 上傳檔案持久化（Bind Mount）
       - ./rag_web_backend/uploads:/app/uploads
-      # 日誌檔案持久化（Bind Mount）
-      - ./rag_web_backend/logs:/app/logs
       # HuggingFace 模型快取（掛載主機快取，避免重啟後重下載）
       - /home/brick2/.cache/huggingface:/root/.cache/huggingface
       
@@ -219,7 +217,6 @@ services:
 
     volumes:
       - ./rag_web_backend/uploads:/app/uploads
-      - ./rag_web_backend/logs:/app/logs
       - /home/brick2/.cache/huggingface:/root/.cache/huggingface
       - ./rag_web_backend/app:/app/app
       - ./rag_web_backend/alembic:/app/alembic

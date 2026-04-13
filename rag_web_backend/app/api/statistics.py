@@ -18,7 +18,7 @@ from app.core.security import get_current_user, require_role
 from app.models import Activity, File, User, UserRole, Category, QueryHistory
 from app.models.file import FileStatus
 from app.config import settings
-from app.services.query_insights import NoResultQuestionAnalyzer
+from app.services.rag import NoResultQuestionAnalyzer
 
 router = APIRouter(tags=["統計與系統"])
 

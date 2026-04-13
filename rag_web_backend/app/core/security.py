@@ -183,29 +183,6 @@ async def get_current_user(
     return user
 
 
-async def get_current_active_user(
-    current_user: User = Depends(get_current_user)
-) -> User:
-    """
-    取得當前啟用的使用者
-    
-    Args:
-        current_user: 當前使用者
-        
-    Returns:
-        User: 啟用的使用者物件
-        
-    Raises:
-        HTTPException: 使用者未啟用
-    """
-    if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="使用者帳號未啟用"
-        )
-    return current_user
-
-
 async def get_current_active_admin(
     current_user: User = Depends(get_current_user)
 ) -> User:
@@ -233,36 +210,6 @@ async def get_current_active_admin(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="需要管理員權限"
-        )
-    
-    return current_user
-
-
-async def get_current_super_admin(
-    current_user: User = Depends(get_current_user)
-) -> User:
-    """
-    取得當前超級管理員使用者
-    
-    Args:
-        current_user: 當前使用者
-        
-    Returns:
-        User: 超級管理員使用者物件
-        
-    Raises:
-        HTTPException: 使用者不是超級管理員
-    """
-    if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="使用者帳號未啟用"
-        )
-    
-    if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="需要超級管理員權限"
         )
     
     return current_user

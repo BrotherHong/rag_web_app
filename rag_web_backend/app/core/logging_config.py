@@ -3,14 +3,6 @@
 import logging
 import logging.config
 import sys
-from pathlib import Path
-
-# 日誌目錄
-LOG_DIR = Path("/app/logs")
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-
-# 日誌檔案路徑
-LOG_FILE = LOG_DIR / "app.log"
 
 # 日誌格式：包含時間戳（台灣時間）
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"

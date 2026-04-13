@@ -29,12 +29,6 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=6, max_length=128, description="新密碼（選填）")
 
 
-class PasswordChange(BaseModel):
-    """修改密碼請求"""
-    old_password: str = Field(..., min_length=6, description="舊密碼")
-    new_password: str = Field(..., min_length=6, max_length=128, description="新密碼")
-
-
 class UserResponse(UserBase):
     """使用者響應"""
     id: int
@@ -55,17 +49,13 @@ class UserListResponse(BaseModel):
     pages: int
 
 
-class UserStatsResponse(BaseModel):
-    """使用者統計響應"""
-    total_users: int = Field(..., description="總使用者數")
-    active_users: int = Field(..., description="啟用使用者數")
-    inactive_users: int = Field(..., description="停用使用者數")
-    users_by_role: dict[str, int] = Field(..., description="依角色統計")
-    users_by_department: list[dict] = Field(..., description="依處室統計")
-    recent_logins: list[dict] = Field(..., description="最近登入記錄")
-    updated_at: datetime
-    
-    model_config = ConfigDict(from_attributes=True)
+class UserListResponse(BaseModel):
+    """使用者列表響應"""
+    items: list[UserResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
 
 
 # ===== 認證 Schemas =====
@@ -74,11 +64,6 @@ class Token(BaseModel):
     """JWT Token 響應"""
     access_token: str = Field(..., description="JWT Access Token")
     token_type: str = Field(default="bearer", description="Token 類型")
-
-
-class TokenData(BaseModel):
-    """Token 中包含的資料"""
-    user_id: Optional[int] = None
 
 
 class LoginRequest(BaseModel):
@@ -184,24 +169,15 @@ class MessageResponse(BaseModel):
     detail: Optional[str] = Field(None, description="詳細資訊")
 
 
-class PaginationParams(BaseModel):
-    """分頁參數"""
-    skip: int = Field(default=0, ge=0, description="跳過筆數")
-    limit: int = Field(default=20, ge=1, le=100, description="每頁筆數")
-
-
 __all__ = [
     # 使用者
     "UserBase",
     "UserCreate",
     "UserUpdate",
-    "PasswordChange",
     "UserResponse",
     "UserListResponse",
-    "UserStatsResponse",
     # 認證
     "Token",
-    "TokenData",
     "LoginRequest",
     "ChangePasswordRequest",
     "LoginResponse",
@@ -216,7 +192,6 @@ __all__ = [
     "DepartmentLoginMethodsResponse",
     # 通用
     "MessageResponse",
-    "PaginationParams",
 ]
 
 # 註: 檔案和分類的 Schemas 在各自的模組中
