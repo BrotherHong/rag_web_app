@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getQuickQuestions, sendChatMessage, sendDirectQuery, getWelcomeMessage, getCategories } from '../services/api'
 import { useDepartment } from '../contexts/DepartmentContext'
-import { API_CONFIG, APP_CONSTANTS, PathUtils } from '../config/constants'
+import { API_CONFIG, APP_CONSTANTS } from '../config/constants'
 
 function ChatPage() {
   const navigate = useNavigate()
