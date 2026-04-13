@@ -105,18 +105,7 @@ async def get_statistics(
       storageTotal: string
     }
     """
-    # # 根據使用者權限過濾資料
-    # if current_user.role == UserRole.SUPER_ADMIN:
-    #     # 系統管理員可以看到所有資料
-    #     department_filter = None
-    # else:
-    #     # 處室管理員只能看自己處室
-    #     department_filter = current_user.department_id
-    # 上述註解是為了解決在super admin角色下進入各處室儀表板後顯示出資料加總數為全域不為各處室的問題
-    # 若要拿到加總資料則須再增加判斷邏輯讓department_filter = None即可拿到全域資料
-
     department_filter = current_user.department_id
-    # 全部都要帶有處室id才能正確顯示各處室的統計數據
 
     # 1. 總檔案數
     file_query = select(func.count(File.id)).where(

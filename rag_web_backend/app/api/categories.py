@@ -4,10 +4,8 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, func, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
-
-from app.core.database import get_db
 from app.core.security import get_current_user, get_current_active_admin, get_current_query_user
+from app.core.database import get_db
 from app.models.user import User
 from app.models.query_user import QueryUser
 from app.models.category import Category
@@ -52,7 +50,6 @@ async def get_categories_for_query(
 
 @router.get("/", response_model=CategoryListResponse)
 async def get_categories(
-    include_count: bool = Query(True, description="是否包含檔案數量"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -60,40 +57,30 @@ async def get_categories(
     
     - 自動過濾處室：只能看到自己處室的分類
     - 按名稱排序
-    - 可選包含檔案數量統計
+    - 包含各分類的已向量化檔案數量
     """
-    # 查詢分類（只查詢當前處室）
-    query = select(Category).where(
-        Category.department_id == current_user.department_id
-    ).order_by(Category.name)
-    
-    result = await db.execute(query)
-    categories = result.scalars().all()
-    
-    # 如果需要包含檔案數量
-    if include_count:
-        category_list = []
-        for category in categories:
-            # 查詢該分類的檔案數量
-            file_count = await db.scalar(
-                select(func.count(File.id))
-                .where(
-                    File.category_id == category.id,
-                    File.status == FileStatus.COMPLETED,
-                    File.is_vectorized.is_(True),
-                )
+    rows = (await db.execute(
+        select(Category, func.count(File.id).label("file_count"))
+        .outerjoin(
+            File,
+            and_(
+                File.category_id == Category.id,
+                File.status == FileStatus.COMPLETED,
+                File.is_vectorized.is_(True),
             )
-            
-            # 建立 schema 並設定 file_count
-            cat_schema = CategorySchema.model_validate(category)
-            cat_schema.file_count = file_count
-            category_list.append(cat_schema)
-        
-        return CategoryListResponse(items=category_list)
-    else:
-        return CategoryListResponse(
-            items=[CategorySchema.model_validate(c) for c in categories]
         )
+        .where(Category.department_id == current_user.department_id)
+        .group_by(Category.id)
+        .order_by(Category.name)
+    )).all()
+
+    category_list = []
+    for category, file_count in rows:
+        cat_schema = CategorySchema.model_validate(category)
+        cat_schema.file_count = file_count
+        category_list.append(cat_schema)
+
+    return CategoryListResponse(items=category_list)
 
 
 @router.get("/stats", response_model=CategoryStatsResponse)

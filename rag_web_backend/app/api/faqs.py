@@ -14,7 +14,11 @@ from app.schemas.faq import FaqCreate, FaqUpdate, FaqToggle, FaqReorder
 router = APIRouter(prefix="/faqs", tags=["FAQ 管理"])
 
 
-# ===== API 端點 =====
+def _assert_faq_access(current_user: User, faq: FAQ, action: str = "訪問") -> None:
+    """檢查當前使用者是否有權限操作此 FAQ（SUPER_ADMIN 不受限制）"""
+    if current_user.role != UserRole.SUPER_ADMIN:
+        if faq.department_id != current_user.department_id:
+            raise HTTPException(status_code=403, detail=f"無權{action}此 FAQ")
 
 @router.get("/")
 async def get_faqs(
@@ -107,12 +111,9 @@ async def get_faq(
     faq = await db.get(FAQ, faq_id)
     if not faq:
         raise HTTPException(status_code=404, detail="FAQ 不存在")
-    
-    # 權限檢查：只能訪問自己處室的 FAQ
-    if current_user.role != UserRole.SUPER_ADMIN:
-        if faq.department_id != current_user.department_id:
-            raise HTTPException(status_code=403, detail="無權訪問此 FAQ")
-    
+
+    _assert_faq_access(current_user, faq, "訪問")
+
     return {
         "success": True,
         "data": faq.to_dict()
@@ -130,12 +131,9 @@ async def update_faq(
     faq = await db.get(FAQ, faq_id)
     if not faq:
         raise HTTPException(status_code=404, detail="FAQ 不存在")
-    
-    # 權限檢查：只能修改自己處室的 FAQ
-    if current_user.role != UserRole.SUPER_ADMIN:
-        if faq.department_id != current_user.department_id:
-            raise HTTPException(status_code=403, detail="無權修改此 FAQ")
-    
+
+    _assert_faq_access(current_user, faq, "修改")
+
     # 更新欄位
     update_data = faq_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -161,12 +159,9 @@ async def delete_faq(
     faq = await db.get(FAQ, faq_id)
     if not faq:
         raise HTTPException(status_code=404, detail="FAQ 不存在")
-    
-    # 權限檢查：只能刪除自己處室的 FAQ
-    if current_user.role != UserRole.SUPER_ADMIN:
-        if faq.department_id != current_user.department_id:
-            raise HTTPException(status_code=403, detail="無權刪除此 FAQ")
-    
+
+    _assert_faq_access(current_user, faq, "刪除")
+
     await db.delete(faq)
     await db.commit()
     
@@ -187,12 +182,9 @@ async def toggle_faq_status(
     faq = await db.get(FAQ, faq_id)
     if not faq:
         raise HTTPException(status_code=404, detail="FAQ 不存在")
-    
-    # 權限檢查：只能修改自己處室的 FAQ
-    if current_user.role != UserRole.SUPER_ADMIN:
-        if faq.department_id != current_user.department_id:
-            raise HTTPException(status_code=403, detail="無權修改此 FAQ")
-    
+
+    _assert_faq_access(current_user, faq, "修改")
+
     faq.is_active = toggle_data.is_active
     await db.commit()
     await db.refresh(faq)

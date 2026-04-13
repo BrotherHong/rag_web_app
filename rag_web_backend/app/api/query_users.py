@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, func, and_, or_, delete
+from sqlalchemy import select, func, and_, or_, delete, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from math import ceil
@@ -39,63 +39,32 @@ async def get_query_user_stats(
     自動根據當前管理員的處室過濾
     """
     # 基礎查詢條件
-    base_conditions = []
-    if current_user.department_id:
-        base_conditions.append(QueryUser.default_department_id == current_user.department_id)
-    
-    # 總數
-    total_query = select(func.count(QueryUser.id))
-    if base_conditions:
-        total_query = total_query.where(and_(*base_conditions))
-    total_result = await db.execute(total_query)
-    total = total_result.scalar()
-    
-    # 各狀態數量
-    pending_query = select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.PENDING)
-    if base_conditions:
-        pending_query = pending_query.where(and_(*base_conditions))
-    pending_result = await db.execute(pending_query)
-    pending = pending_result.scalar()
-    
-    approved_query = select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.APPROVED)
-    if base_conditions:
-        approved_query = approved_query.where(and_(*base_conditions))
-    approved_result = await db.execute(approved_query)
-    approved = approved_result.scalar()
-    
-    rejected_query = select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.REJECTED)
-    if base_conditions:
-        rejected_query = rejected_query.where(and_(*base_conditions))
-    rejected_result = await db.execute(rejected_query)
-    rejected = rejected_result.scalar()
-    
-    suspended_query = select(func.count(QueryUser.id)).where(QueryUser.status == QueryUserStatus.SUSPENDED)
-    if base_conditions:
-        suspended_query = suspended_query.where(and_(*base_conditions))
-    suspended_result = await db.execute(suspended_query)
-    suspended = suspended_result.scalar()
-    
-    # 啟用/停用數量
-    active_query = select(func.count(QueryUser.id)).where(QueryUser.is_active == True)
-    if base_conditions:
-        active_query = active_query.where(and_(*base_conditions))
-    active_result = await db.execute(active_query)
-    active = active_result.scalar()
-    
-    inactive_query = select(func.count(QueryUser.id)).where(QueryUser.is_active == False)
-    if base_conditions:
-        inactive_query = inactive_query.where(and_(*base_conditions))
-    inactive_result = await db.execute(inactive_query)
-    inactive = inactive_result.scalar()
-    
+    dept_filter = (
+        QueryUser.default_department_id == current_user.department_id
+        if current_user.department_id
+        else True
+    )
+
+    row = (await db.execute(
+        select(
+            func.count().label("total"),
+            func.count(case((QueryUser.status == QueryUserStatus.PENDING, 1))).label("pending"),
+            func.count(case((QueryUser.status == QueryUserStatus.APPROVED, 1))).label("approved"),
+            func.count(case((QueryUser.status == QueryUserStatus.REJECTED, 1))).label("rejected"),
+            func.count(case((QueryUser.status == QueryUserStatus.SUSPENDED, 1))).label("suspended"),
+            func.count(case((QueryUser.is_active == True, 1))).label("active"),
+            func.count(case((QueryUser.is_active == False, 1))).label("inactive"),
+        ).where(dept_filter)
+    )).one()
+
     return QueryUserStats(
-        total=total,
-        pending=pending,
-        approved=approved,
-        rejected=rejected,
-        suspended=suspended,
-        active=active,
-        inactive=inactive
+        total=row.total,
+        pending=row.pending,
+        approved=row.approved,
+        rejected=row.rejected,
+        suspended=row.suspended,
+        active=row.active,
+        inactive=row.inactive,
     )
 
 

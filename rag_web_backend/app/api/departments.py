@@ -1,7 +1,6 @@
 """處室管理 API 路由"""
 
 import math
-from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -139,46 +138,54 @@ async def list_departments(
     
     公開端點，不需要認證
     """
-    # 基礎查詢
-    query = select(Department)
-    
-    # 搜尋過濾
-    if search:
-        search_pattern = f"%{search}%"
-        query = query.where(
-            (Department.name.ilike(search_pattern)) |
-            (Department.description.ilike(search_pattern))
+    # Correlated scalar subqueries：一次 SQL 取出所有計數，避免 N+1
+    admin_count_sq = (
+        select(func.count(User.id))
+        .where(User.department_id == Department.id)
+        .correlate(Department)
+        .scalar_subquery()
+    )
+    query_user_count_sq = (
+        select(func.count(QueryUser.id))
+        .where(QueryUser.default_department_id == Department.id)
+        .correlate(Department)
+        .scalar_subquery()
+    )
+    file_count_sq = (
+        select(func.count(File.id))
+        .where(
+            File.department_id == Department.id,
+            File.status == FileStatus.COMPLETED,
+            File.is_vectorized.is_(True),
         )
-    
-    # 計算總數
-    total_query = select(func.count()).select_from(query.subquery())
-    total = await db.scalar(total_query) or 0
-    
-    # 分頁
-    offset = (page - 1) * limit
-    query = query.offset(offset).limit(limit)
-    
-    # 執行查詢
-    result = await db.execute(query)
-    departments = result.scalars().all()
-    
-    # 為每個處室添加統計資訊
-    dept_list = []
-    for dept in departments:
-        # 計算使用者數量（後台管理員 + 查詢用戶）
-        admin_user_count = await db.scalar(
-            select(func.count()).where(User.department_id == dept.id)
-        ) or 0
-        query_user_count = await db.scalar(
-            select(func.count()).where(QueryUser.default_department_id == dept.id)
-        ) or 0
-        user_count = admin_user_count + query_user_count
-        
-        # 計算檔案數量
-        file_count = await db.scalar(_usable_file_count_query(dept.id)) or 0
-        
-        # 創建響應物件
-        dept_dict = {
+        .correlate(Department)
+        .scalar_subquery()
+    )
+
+    search_filters = []
+    if search:
+        pattern = f"%{search}%"
+        search_filters.append(
+            Department.name.ilike(pattern) | Department.description.ilike(pattern)
+        )
+
+    total = await db.scalar(
+        select(func.count(Department.id)).where(*search_filters)
+    ) or 0
+
+    rows = (await db.execute(
+        select(
+            Department,
+            (admin_count_sq + query_user_count_sq).label("user_count"),
+            file_count_sq.label("file_count"),
+        )
+        .where(*search_filters)
+        .offset((page - 1) * limit)
+        .limit(limit)
+    )).all()
+
+    dept_list = [
+        {
             "id": dept.id,
             "name": dept.name,
             "slug": dept.slug,
@@ -189,18 +196,16 @@ async def list_departments(
             "user_count": user_count,
             "file_count": file_count,
             "created_at": dept.created_at,
-            "updated_at": dept.updated_at
+            "updated_at": dept.updated_at,
         }
-        dept_list.append(dept_dict)
-    
-    # 計算總頁數
-    pages = math.ceil(total / limit) if total > 0 else 1
-    
+        for dept, user_count, file_count in rows
+    ]
+
     return DepartmentListResponse(
         items=dept_list,
         total=total,
         page=page,
-        pages=pages
+        pages=math.ceil(total / limit) if total > 0 else 1,
     )
 
 

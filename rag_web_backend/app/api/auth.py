@@ -29,6 +29,27 @@ from app.services.activity import activity_service
 router = APIRouter(prefix="/auth", tags=["認證"])
 
 
+async def _verify_and_create_token(db: AsyncSession, username: str, password: str) -> tuple[User, str]:
+    """共用驗證邏輯：驗證帳密、檢查啟用狀態並建立 JWT Token"""
+    user = await authenticate_user(db, username, password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="帳號或密碼錯誤",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="使用者帳號已停用"
+        )
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    )
+    return user, access_token
+
+
 @router.post("/login", summary="使用者登入")
 async def login(
     login_data: LoginRequest,
@@ -42,28 +63,8 @@ async def login(
     
     返回 JWT Token 和使用者資訊（前端期望格式）
     """
-    user = await authenticate_user(db, login_data.username, login_data.password)
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="帳號或密碼錯誤",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="使用者帳號已停用"
-        )
-    
-    # 建立 JWT Token
-    access_token_expires = timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(user.id)},
-        expires_delta=access_token_expires
-    )
-    
+    user, access_token = await _verify_and_create_token(db, login_data.username, login_data.password)
+
     # 記錄登入活動
     await activity_service.log_activity(
         db=db,
@@ -73,7 +74,7 @@ async def login(
         department_id=user.department_id
     )
     await db.commit()
-    
+
     # 返回前端期望的格式: { token, user }
     return {
         "token": access_token,
@@ -108,27 +109,7 @@ async def login_for_access_token(
     
     返回 JWT Access Token
     """
-    user = await authenticate_user(db, form_data.username, form_data.password)
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="帳號或密碼錯誤",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="使用者帳號已停用"
-        )
-    
-    access_token_expires = timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(user.id)},
-        expires_delta=access_token_expires
-    )
-    
+    _, access_token = await _verify_and_create_token(db, form_data.username, form_data.password)
     return Token(access_token=access_token, token_type="bearer")
 
 

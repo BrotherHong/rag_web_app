@@ -54,7 +54,6 @@ async def get_activities(
     # 處室隔離：
     # 1. 非系統管理員只能看自己處室的活動
     # 2. 系統管理員在代理模式下（有 department_id）也只能看代理處室的活動
-    from app.models.user import UserRole
     if current_user.role != UserRole.SUPER_ADMIN or current_user.department_id is not None:
         # 使用 Activity.department_id 過濾
         query = query.where(
@@ -141,8 +140,6 @@ async def get_all_activities(
     - 可選擇性篩選特定處室
     - 支援分頁
     """
-    from app.models.user import UserRole
-    
     # 權限檢查：只有非代理模式的系統管理員可以使用此端點
     if current_user.role != UserRole.SUPER_ADMIN or current_user.department_id is not None:
         raise HTTPException(

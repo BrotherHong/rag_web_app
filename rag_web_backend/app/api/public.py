@@ -86,57 +86,22 @@ async def get_faq_list(
         }
 
 
-@router.get("/public/info")
-async def get_public_system_info():
-    """
-    獲取公開系統資訊（無需認證）
-    
-    返回系統基本資訊和歡迎訊息
-    """
-    return {
-        "success": True,
-        "data": {
-            "app_name": "RAG 知識庫查詢系統",
-            "version": "1.0.0",
-            "description": "基於 RAG 技術的智能問答系統",
-            "welcome_message": "歡迎使用 RAG 知識庫查詢系統！您可以在這裡查詢相關文檔和資訊。",
-            "features": [
-                "智能文檔搜尋",
-                "自然語言問答",
-                "多處室資料管理",
-                "查詢歷史記錄"
-            ],
-            "support_email": "support@ncku.edu.tw",
-            "support_phone": "(06) 275-7575"
-        }
-    }
-
-
 @router.get("/public/files/{file_id}/download")
 async def download_file_public(
     file_id: int,
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    公開下載端點（無需認證）
-    
-    用於 RAG 查詢結果的檔案下載
-    """
+    """公開下載端點（無需認證）— 供 RAG 查詢結果的來源文件下載使用"""
     from app.models.file import File as FileModel
-    
-    # 取得檔案記錄
+
     file = await db.get(FileModel, file_id)
     if not file:
         raise HTTPException(status_code=404, detail="檔案不存在")
-    
-    # 構建 processed/data 路徑
+
     file_path = f"uploads/{file.department_id}/processed/data/{file.filename}"
-    
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="檔案實體不存在")
-    
-    # 返回檔案（使用原始檔名）
-    # 注意：公開下載不記錄活動，因為 activities 表的 user_id 是必填
+
     return FileResponse(
         path=file_path,
         filename=file.original_filename,

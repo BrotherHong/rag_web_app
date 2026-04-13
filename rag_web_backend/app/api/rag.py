@@ -13,8 +13,12 @@ from jose import jwt, JWTError
 from app.core.database import get_db
 from app.core.security import get_current_query_user
 from app.config import settings
-from app.models.query_user import QueryUser
+from app.models.query_user import QueryUser, FilePermission
 from app.models.query_history import QueryHistory
+from app.models.file import File as FileModel
+from app.models.category import Category
+from app.models.department import Department
+from app.models.user_group import FileUserGroupPermission, query_user_groups
 from app.schemas.rag import (
     QueryRequest,
     QueryResponse,
@@ -25,6 +29,7 @@ from app.schemas.rag import (
 from app.services.rag.rag_engine import RAGEngine
 from app.services.rag.no_result_utils import is_no_result_answer
 from app.services.activity import activity_service
+from app.services.llm.litellm_client import LiteLLMClient
 
 router = APIRouter(prefix="/rag", tags=["RAG查詢"])
 logger = logging.getLogger(__name__)
@@ -77,9 +82,6 @@ async def query_documents(
         allowed_filenames = None  # None 表示不過濾（查詢所有檔案）
         
         # 查詢用戶權限過濾：公開文件 + 被授權的文件 + 身分組授權的文件
-        from app.models.file import File as FileModel
-        from app.models.query_user import FilePermission
-        from app.models.user_group import FileUserGroupPermission, query_user_groups
 
         # 1. 獲取公開文件
         public_query = select(FileModel.original_filename).where(
@@ -131,12 +133,9 @@ async def query_documents(
         
         # 「其他」分類的檔案對所有人開放，不受公開/身分組權限限制
         if allowed_filenames is not None:
-            from app.models.category import Category as CategoryModel
-            from app.models.file import File as FileModel
-            
-            other_cat_query = select(CategoryModel.id).where(
-                CategoryModel.department_id == department_id,
-                CategoryModel.name == "其他"
+            other_cat_query = select(Category.id).where(
+                Category.department_id == department_id,
+                Category.name == "其他"
             )
             other_cat_result = await db.execute(other_cat_query)
             other_cat_id = other_cat_result.scalar_one_or_none()
@@ -151,7 +150,7 @@ async def query_documents(
                 other_filenames = {row[0] for row in other_files_result.all()}
                 allowed_filenames = allowed_filenames | other_filenames
                 print(f"📂 [RAG] 加入「其他」分類公開檔案: {len(other_filenames)} 個")
-        
+
         # 若沒有任何可訪問的文件，提早返回
         if allowed_filenames is not None and not allowed_filenames:
             msg = "抱歉，您目前沒有權限訪問任何文件。請聯繫管理員獲取訪問權限。"
@@ -163,9 +162,6 @@ async def query_documents(
         
         # 分類過濾（對所有用戶類型生效）
         if request.category_ids:
-            from app.models.category import Category
-            from app.models.file import File as FileModel
-            
             # 1. 找出該處室的「其他」分類 ID
             other_category_query = select(Category.id).where(
                 Category.department_id == department_id,
@@ -253,9 +249,8 @@ async def query_documents(
                 continue
 
             original_filename = source['filename']
-            
+
             # Query database to find file_id
-            from app.models.file import File as FileModel
             file_query = select(FileModel).where(
                 FileModel.department_id == department_id,
                 FileModel.original_filename == original_filename
@@ -279,56 +274,29 @@ async def query_documents(
         # Log activity and save query history
         is_no_result = is_no_result_answer(result['answer'])
 
-        if current_user:
-            # 查詢用戶（記錄到 query_history）
-            try:
-                query_history = QueryHistory(
-                    user_id=None,
-                    query_user_id=current_user.id,
-                    department_id=department_id,
-                    query=request.query,
-                    answer=result['answer'],
-                    processing_time=processing_time,
-                    source_count=len(sources),
-                    query_type="semantic",
-                    scope="query_user",
-                    extra_data={
-                        "category_ids": request.category_ids or [],
-                        "retrieved_docs": result.get('retrieved_docs', 0),
-                        "is_no_result": is_no_result,
-                    }
-                )
-                db.add(query_history)
-                await db.commit()
-                print(f"✅ QueryHistory saved (query_user): query_id={query_history.id}, user={current_user.username}")
-            except Exception as e:
-                print(f"❌ Failed to save QueryHistory for query_user: {e}")
-                await db.rollback()
-        else:
-            # 訪客
-            try:
-                anonymous_history = QueryHistory(
-                    user_id=None,
-                    query_user_id=None,
-                    department_id=department_id,
-                    query=request.query,
-                    answer=result['answer'],
-                    processing_time=processing_time,
-                    source_count=len(sources),
-                    query_type="semantic",
-                    scope="anonymous",
-                    extra_data={
-                        "category_ids": request.category_ids or [],
-                        "retrieved_docs": result.get('retrieved_docs', 0),
-                        "is_no_result": is_no_result,
-                    }
-                )
-                db.add(anonymous_history)
-                await db.commit()
-                print(f"✅ QueryHistory saved (anonymous): query_id={anonymous_history.id}")
-            except Exception as e:
-                print(f"❌ Failed to save anonymous QueryHistory: {e}")
-                await db.rollback()
+        try:
+            query_history = QueryHistory(
+                user_id=None,
+                query_user_id=current_user.id,
+                department_id=department_id,
+                query=request.query,
+                answer=result['answer'],
+                processing_time=processing_time,
+                source_count=len(sources),
+                query_type="semantic",
+                scope="query_user",
+                extra_data={
+                    "category_ids": request.category_ids or [],
+                    "retrieved_docs": result.get('retrieved_docs', 0),
+                    "is_no_result": is_no_result,
+                }
+            )
+            db.add(query_history)
+            await db.commit()
+            print(f"✅ QueryHistory saved: query_id={query_history.id}, user={current_user.username}")
+        except Exception as e:
+            print(f"❌ Failed to save QueryHistory: {e}")
+            await db.rollback()
 
         return QueryResponse(
             query=request.query,
@@ -371,7 +339,6 @@ async def direct_query(
         raise HTTPException(status_code=400, detail="登入用戶必須指定 scope_ids 或設定預設處室")
 
     # 取得處室的 external_api_key
-    from app.models.department import Department
     dept_result = await db.execute(select(Department).where(Department.id == department_id))
     department = dept_result.scalar_one_or_none()
 
@@ -562,7 +529,6 @@ async def _call_llm_direct(question: str, api_key: str | None) -> str:
             return f"外部 API 呼叫失敗：{str(e)}"
 
     else:
-        # 使用本地 Ollama
-        from app.services.llm.ollama_client import OllamaClient
-        client = OllamaClient()
+        # 使用本地 Ollama（透過 LiteLLM 統一介面）
+        client = LiteLLMClient()
         return await client.generate(prompt)

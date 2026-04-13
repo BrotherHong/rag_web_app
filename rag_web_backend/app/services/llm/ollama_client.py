@@ -1,5 +1,8 @@
 """
 Ollama 客戶端 - 用於 LLM 生成和嵌入（異步版本）
+
+NOTE: 此客戶端目前已不在主要程式碼路徑中使用，系統已全面改用 LiteLLMClient。
+保留備用，若未來有需要直連單一 Ollama 節點的場景可重新啟用。
 """
 
 import httpx

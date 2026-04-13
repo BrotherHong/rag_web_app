@@ -321,48 +321,6 @@ async def get_current_query_user_info(
     raise credentials_exception
 
 
-@router.get("/check-username/{username}")
-async def check_username_available(
-    username: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    檢查使用者名稱是否可用
-    
-    用於註冊表單的即時驗證
-    """
-    result = await db.execute(
-        select(QueryUser).where(QueryUser.username == username)
-    )
-    exists = result.scalar_one_or_none() is not None
-    
-    return {
-        "available": not exists,
-        "message": "使用者名稱已被使用" if exists else "使用者名稱可用"
-    }
-
-
-@router.get("/check-email/{email}")
-async def check_email_available(
-    email: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    檢查電子郵件是否可用
-    
-    用於註冊表單的即時驗證
-    """
-    result = await db.execute(
-        select(QueryUser).where(QueryUser.email == email)
-    )
-    exists = result.scalar_one_or_none() is not None
-    
-    return {
-        "available": not exists,
-        "message": "電子郵件已被使用" if exists else "電子郵件可用"
-    }
-
-
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
 async def forgot_password(
     request: ForgotPasswordRequest,

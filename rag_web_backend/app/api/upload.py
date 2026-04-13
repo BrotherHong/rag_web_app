@@ -1,5 +1,7 @@
 """上傳管理 API 路由 - 處理批次上傳和進度追蹤"""
 
+import asyncio
+import threading
 from typing import List, Dict, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, BackgroundTasks
@@ -14,14 +16,9 @@ from app.models import User
 
 router = APIRouter(prefix="/upload", tags=["上傳管理"])
 
-# 模擬的上傳任務儲存（實際應用中應該使用 Redis 或資料庫）
+# 上傳任務暫存（完成任務保留30分鐘後清理）
 upload_tasks: Dict[str, dict] = {}
-
-# 任務保留時間（秒）- 完成的任務保留30分鐘
 TASK_RETENTION_SECONDS = 30 * 60
-
-import asyncio
-from datetime import datetime, timezone
 
 async def cleanup_old_tasks():
     """清理舊的已完成任務"""
@@ -38,8 +35,6 @@ async def cleanup_old_tasks():
         del upload_tasks[task_id]
         print(f"🗑️ 清理過期任務: {task_id}")
 
-# 啟動清理任務（每5分鐘執行一次）
-import threading
 def start_cleanup_timer():
     def run_cleanup():
         try:
@@ -360,70 +355,6 @@ async def batch_upload(
     }
 
 
-async def process_files_in_background(file_ids: List[int], task_id: str):
-    """背景任務：處理檔案"""
-    from app.services.file_processor import file_processing_service
-    from app.core.database import AsyncSessionLocal
-    
-    print(f"\n{'='*60}")
-    print(f"🔄 背景處理開始")
-    print(f"任務 ID: {task_id}")
-    print(f"檔案 IDs: {file_ids}")
-    print(f"{'='*60}\n")
-    
-    # 建立新的 DB session
-    async with AsyncSessionLocal() as session:
-        try:
-            results = await file_processing_service.process_files_batch(
-                file_ids=file_ids,
-                task_id=task_id,
-                db=session
-            )
-            
-            print(f"\n{'='*60}")
-            print(f"✅ 背景處理完成")
-            print(f"成功: {results['success']}, 失敗: {results['failed']}")
-            print(f"{'='*60}\n")
-            
-            # 更新任務狀態和每個檔案的狀態
-            if task_id in upload_tasks:
-                task = upload_tasks[task_id]
-                task["processing_results"] = results
-                task["status"] = "completed" if results["failed"] == 0 else "partial"
-                task["successFiles"] = results["success"]
-                task["failedFiles"] = results["failed"]
-                task["processedFiles"] = results["success"] + results["failed"]
-                
-                # 根據 file_results 更新每個檔案的狀態
-                if "file_results" in results:
-                    for i, file_result in enumerate(results["file_results"]):
-                        if i < len(task["files"]):
-                            if file_result["success"]:
-                                task["files"][i]["status"] = "completed"
-                                task["files"][i]["progress"] = 100
-                            else:
-                                task["files"][i]["status"] = "failed"
-                                task["files"][i]["error"] = file_result.get("error", "處理失敗")
-                                task["files"][i]["progress"] = 0
-                
-                task["completed_at"] = datetime.now(timezone.utc)
-                task["updated_at"] = datetime.now().isoformat()
-                
-        except Exception as e:
-            print(f"\n{'='*60}")
-            print(f"❌ 背景處理失敗: {e}")
-            print(f"{'='*60}\n")
-            
-            import traceback
-            traceback.print_exc()
-            
-            if task_id in upload_tasks:
-                task = upload_tasks[task_id]
-                task["status"] = "failed"
-                task["error"] = str(e)
-                task["updated_at"] = datetime.now().isoformat()
-
-
 @router.get("/progress/{task_id}", summary="查詢上傳進度")
 async def get_upload_progress(
     task_id: str,
@@ -557,9 +488,9 @@ async def get_user_upload_tasks(
     user_tasks = [
         {
             "task_id": task_id,
-            "total_files": task["total_files"],
-            "completed_files": task["completed_files"],
-            "failed_files": task["failed_files"],
+            "total_files": task["totalFiles"],
+            "completed_files": task["successFiles"],
+            "failed_files": task["failedFiles"],
             "status": task["status"],
             "created_at": task["created_at"],
             "updated_at": task["updated_at"]

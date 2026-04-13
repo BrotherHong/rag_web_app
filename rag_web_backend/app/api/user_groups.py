@@ -38,40 +38,44 @@ async def get_user_groups(
     - 按優先級（priority）排序，數字越小越前面
     - 可選包含成員數量和檔案數量統計
     """
-    # 查詢身分組（只查詢當前處室）
-    query = select(UserGroup).where(
-        UserGroup.department_id == current_user.department_id
-    ).order_by(UserGroup.priority, UserGroup.name)
-    
-    result = await db.execute(query)
-    user_groups = result.scalars().all()
-    
-    # 如果需要包含統計數據
+    # 如果需要包含統計數據，改用 scalar subquery 避免 N×2 次查詢
     if include_counts:
+        member_count_sq = (
+            select(func.count())
+            .select_from(query_user_groups)
+            .where(query_user_groups.c.user_group_id == UserGroup.id)
+            .correlate(UserGroup)
+            .scalar_subquery()
+        )
+        file_count_sq = (
+            select(func.count(FileUserGroupPermission.id))
+            .where(FileUserGroupPermission.user_group_id == UserGroup.id)
+            .correlate(UserGroup)
+            .scalar_subquery()
+        )
+
+        rows = (await db.execute(
+            select(UserGroup, member_count_sq.label("member_count"), file_count_sq.label("file_count"))
+            .where(UserGroup.department_id == current_user.department_id)
+            .order_by(UserGroup.priority, UserGroup.name)
+        )).all()
+
         group_list = []
-        for group in user_groups:
-            # 查詢該身分組的成員數量
-            member_count = await db.scalar(
-                select(func.count()).select_from(query_user_groups)
-                .where(query_user_groups.c.user_group_id == group.id)
-            )
-            
-            # 查詢該身分組可訪問的檔案數量
-            file_count = await db.scalar(
-                select(func.count(FileUserGroupPermission.id))
-                .where(FileUserGroupPermission.user_group_id == group.id)
-            )
-            
-            # 建立 schema 並設定統計數據
+        for group, member_count, file_count in rows:
             group_schema = UserGroupSchema.model_validate(group)
             group_schema.member_count = member_count or 0
             group_schema.file_count = file_count or 0
             group_list.append(group_schema)
-        
+
         return UserGroupListResponse(items=group_list)
     else:
+        result = await db.execute(
+            select(UserGroup)
+            .where(UserGroup.department_id == current_user.department_id)
+            .order_by(UserGroup.priority, UserGroup.name)
+        )
         return UserGroupListResponse(
-            items=[UserGroupSchema.model_validate(g) for g in user_groups]
+            items=[UserGroupSchema.model_validate(g) for g in result.scalars().all()]
         )
 
 
