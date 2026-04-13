@@ -507,7 +507,7 @@ function ChatPage() {
                     {message.timestamp.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
                   </p>
 
-                  {/* 所有 AI 回覆都顯示「詢問看看現在的模型怎麼回答」按鈕 */}
+                  {/* 所有 AI 回覆都顯示「改以 AI 通用知識回答（僅供參考）」按鈕 */}
                   {message.sender === 'ai' && !message.isDirectReply && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <button
@@ -529,7 +529,7 @@ function ChatPage() {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.347a3.75 3.75 0 01-5.303-5.303l-.347.347a5 5 0 010 7.072z" />
                             </svg>
-                            <span>詢問看看現在的模型怎麼回答</span>
+                            <span>改以 AI 通用知識回答（僅供參考）</span>
                           </>
                         )}
                       </button>

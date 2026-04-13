@@ -41,3 +41,26 @@ Password: postgres123
 - **Query**: React (Vite) - `rag_web_query/`
 - **Nginx**: 反向代理
 - **PostgreSQL**: 資料庫
+
+## 文件維護（`docs/`）
+
+修改程式碼後，若涉及以下情況則需同步更新 `docs/` 對應文件：
+
+**需要更新：**
+- 新增或移除功能
+- 重要流程邏輯異動（上傳 pipeline、RAG 查詢、身分驗證流程）
+- 資料模型欄位新增/變更（DB schema、API request/response 格式）
+- 架構異動（新增/移除服務、容器、目錄結構）
+- 環境變數新增
+
+**不需要更新：**
+- Bug fix（行為未變）
+- 純重構（介面與流程不變）
+- UI 樣式調整
+- 測試、腳本、CI 相關異動
+
+**對應關係：**
+- 後端 API / 流程 / 模型 → `docs/architecture.md` 或 `docs/admin.md`
+- RAG 查詢邏輯 → `docs/query.md` 及 `docs/architecture.md`（AI Pipeline 節）
+- 前台功能 / 頁面 → `docs/query.md`
+- 管理後台功能 → `docs/admin.md`
