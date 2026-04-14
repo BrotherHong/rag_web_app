@@ -3,10 +3,10 @@
 ## 執行方式
 
 ```bash
-# 一般測試（在 container 內執行）
+# 一般測試
 docker compose exec backend pytest tests/
 
-# E2E 測試（需要 Ollama 服務，約 1-5 分鐘）
+# E2E 測試（可選，需要 Ollama 服務，約 1-3 分鐘）
 docker compose exec backend pytest tests/test_rag_pipeline.py -v -s -m slow
 ```
 
@@ -25,5 +25,5 @@ docker compose exec backend pytest tests/test_rag_pipeline.py -v -s -m slow
 ## 注意事項
 
 - 測試使用獨立的 `rag_db_test` 資料庫，不影響正式資料
-- E2E 測試標記為 `@pytest.mark.slow`，預設不執行，需明確加 `-m slow`
-- E2E 測試需要 PrimeHub Ollama 服務可用
+- **每次執行時自動 drop_all + create_all**，確保 schema 永遠是最新版，無需手動重置
+- E2E 測試預設不執行，需明確加 `-m slow`，且需要 PrimeHub Ollama 服務可用

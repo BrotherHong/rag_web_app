@@ -4,7 +4,7 @@
 與後台管理員系統完全獨立
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Header
@@ -226,7 +226,7 @@ async def google_login(
     )
 
     iat = token_info.get("iat")
-    created_at = datetime.utcfromtimestamp(iat) if isinstance(iat, (int, float)) else datetime.utcnow()
+    created_at = datetime.fromtimestamp(iat, tz=timezone.utc) if isinstance(iat, (int, float)) else datetime.now(timezone.utc)
 
     session_user = QuerySessionUserInfo(
         id=f"google:{google_sub}",
@@ -302,7 +302,7 @@ async def get_current_query_user_info(
         if not google_sub or not email or not name:
             raise credentials_exception
 
-        created_at = datetime.utcfromtimestamp(issued_at) if isinstance(issued_at, (int, float)) else datetime.utcnow()
+        created_at = datetime.fromtimestamp(issued_at, tz=timezone.utc) if isinstance(issued_at, (int, float)) else datetime.now(timezone.utc)
 
         return QuerySessionUserInfo(
             id=f"google:{google_sub}",

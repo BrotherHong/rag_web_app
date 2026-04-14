@@ -1,4 +1,13 @@
-"""部門 CRUD 測試"""
+"""
+處室（Department）管理測試
+
+涵蓋範圍：
+- 處室列表（Admin 可存取）
+- 處室新增（Super Admin 才能建立，Admin 被拒）
+- 建立時可指定 login_methods，並自動產生對應 UserGroup
+- 處室刪除（Super Admin 才能刪除，Admin 被拒）
+- Admin 管理自己處室的 login_methods
+"""
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -12,6 +21,7 @@ class TestDepartmentList:
     async def test_list_as_admin(
         self, client: AsyncClient, test_admin: User, admin_headers: dict, test_department: Department
     ):
+        """Admin 取得處室列表，應包含第一個測試處室"""
         response = await client.get("/api/departments/", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
@@ -23,6 +33,7 @@ class TestDepartmentCreate:
     async def test_create_as_super_admin(
         self, client: AsyncClient, test_super_admin: User, super_admin_headers: dict
     ):
+        """Super Admin 建立新處室應成功（200 或 201）"""
         response = await client.post("/api/departments/", json={
             "name": "新部門", "slug": "new-dept", "color": "#EF4444"
         }, headers=super_admin_headers)
@@ -32,6 +43,7 @@ class TestDepartmentCreate:
     async def test_create_forbidden_for_admin(
         self, client: AsyncClient, test_admin: User, admin_headers: dict
     ):
+        """Admin 建立處室應被拒絕 403"""
         response = await client.post("/api/departments/", json={
             "name": "Forbidden", "slug": "forbidden", "color": "#000"
         }, headers=admin_headers)
@@ -44,6 +56,7 @@ class TestDepartmentCreate:
         super_admin_headers: dict,
         db_session: AsyncSession,
     ):
+        """建立處室時指定 login_methods，應自動產生對應的 UserGroup"""
         response = await client.post(
             "/api/departments/",
             json={
@@ -72,6 +85,7 @@ class TestDepartmentDelete:
         self, client: AsyncClient, test_super_admin: User, super_admin_headers: dict,
         db_session: AsyncSession
     ):
+        """Super Admin 刪除處室應成功（200 或 204）"""
         dept = Department(name="刪除測試", slug="delete-me", color="#000")
         db_session.add(dept)
         await db_session.commit()
@@ -83,6 +97,7 @@ class TestDepartmentDelete:
     async def test_delete_forbidden_for_admin(
         self, client: AsyncClient, test_admin: User, admin_headers: dict, test_department: Department
     ):
+        """Admin 刪除處室應被拒絕 403"""
         response = await client.delete(f"/api/departments/{test_department.id}", headers=admin_headers)
         assert response.status_code == 403
 
@@ -95,6 +110,7 @@ class TestDepartmentLoginMethods:
         admin_headers: dict,
         db_session: AsyncSession,
     ):
+        """Admin 更新自己處室 login_methods，應自動同步 UserGroup"""
         response = await client.put(
             "/api/departments/me/login-methods",
             json={"login_methods": ["normal", "google"]},

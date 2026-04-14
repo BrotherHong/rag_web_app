@@ -1,4 +1,11 @@
-"""Google 查詢端登入測試"""
+"""
+Google OAuth 查詢端登入測試
+
+涵蓋範圍：
+- Google ID Token 驗證流程（monkeypatch 掉真實 Google API）
+- Google 登入為 session-only 模式：不寫入 QueryUser DB（is_managed_user=False）
+- Google 登入後取得的 token 可正常呼叫 /api/query-auth/me
+"""
 
 import pytest
 from httpx import AsyncClient
@@ -16,6 +23,7 @@ class TestGoogleQueryAuth:
         db_session: AsyncSession,
         monkeypatch: pytest.MonkeyPatch,
     ):
+        """Google 登入為 session-only：不寫入 DB，回傳的 user is_managed_user=False"""
         settings.GOOGLE_CLIENT_ID = "test-google-client-id"
 
         def fake_verify_oauth2_token(_id_token, _request, _client_id):
@@ -55,6 +63,7 @@ class TestGoogleQueryAuth:
         client: AsyncClient,
         monkeypatch: pytest.MonkeyPatch,
     ):
+        """Google 登入取得的 token 可正常呼叫 /me，回傳正確者資訊"""
         settings.GOOGLE_CLIENT_ID = "test-google-client-id"
 
         def fake_verify_oauth2_token(_id_token, _request, _client_id):

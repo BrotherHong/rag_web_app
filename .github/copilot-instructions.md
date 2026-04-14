@@ -42,6 +42,18 @@ Password: postgres123
 - **Nginx**: 反向代理
 - **PostgreSQL**: 資料庫
 
+## 測試
+
+```bash
+docker compose exec backend pytest tests/        # 一般測試
+
+# E2E 測試（可選，需要 Ollama 服務，約 1-3 分鐘）
+docker compose exec backend pytest tests/test_rag_pipeline.py -v -s -m slow
+```
+
+- 新增或修改業務邏輯時，視情況補充對應測試（以有實際驗證意義為主，避免只測 401/200 等基礎行為）
+- 修改 API 行為後重跑一次全部測試確認無誤
+
 ## 文件維護（`docs/`）
 
 修改程式碼後，若涉及以下情況則需同步更新 `docs/` 對應文件：

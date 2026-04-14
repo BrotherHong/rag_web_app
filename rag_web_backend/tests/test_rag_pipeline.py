@@ -1,28 +1,47 @@
 """RAG 完整流程 E2E 測試
 
 測試流程：
+  0. 建立 Super Admin（直接寫入正式 DB）
   1. 建立處室
-  2. 建立 admin 使用者並登入
-  3. 上傳 DOCX 檔案並觸發處理
+  2. 建立 Admin 使用者並登入
+  3. 上傳 DOCX 並觸發 Celery 處理
   4. 輪詢等待處理完成
-  5. 標記檔案為公開
-  6. 以訪客身份執行 RAG 查詢
-  7. 驗證回答非空
+  5. 將檔案標記為公開（QueryUser 才能查到）
+  6. 建立 QueryUser 並登入
+  7. 以 QueryUser 身份執行 RAG 查詢
+  8. 驗證回答非空且非權限錯誤
+
+測試結束後自動清除：
+  - DB: departments、users、query_users（依固定 slug/username）
+  - 磁碟: /app/uploads/{dept_id}/ 整個目錄
 
 執行方式（需要 Ollama 服務可用，約 1-5 分鐘）：
-  docker compose exec backend pytest tests/test_rag_pipeline.py -v -s
+  docker compose exec backend pytest tests/test_rag_pipeline.py -v -s -m slow
 """
 
 import io
+import os
 import asyncio
 import pytest
 from docx import Document as DocxDocument
-from httpx import AsyncClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from httpx import AsyncClient, ASGITransport
+from sqlalchemy import text, select
+from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
+from app.main import app
+from app.core.database import Base, get_db
 from app.models import User, Department
 from app.models.file import File
+
+# E2E 測試必須使用正式 DB（與 Celery worker 相同），從 docker-compose 的環境變數重建 URL
+# conftest.py 在最頂部把 DATABASE_URL 覆蓋為 rag_db_test，所以這裡直接讀原始組件
+_pg_user = os.environ.get("POSTGRES_USER", "postgres")
+_pg_pass = os.environ.get("POSTGRES_PASSWORD", "postgres123")
+_pg_host = "postgres"
+_pg_db   = os.environ.get("POSTGRES_DB", "rag_db")
+PROD_DB_URL = f"postgresql+asyncpg://{_pg_user}:{_pg_pass}@{_pg_host}:5432/{_pg_db}"
+
 
 # ── 測試用文件內容 ──────────────────────────────────────────────────────────────
 
@@ -53,26 +72,116 @@ def _create_docx_bytes(text: str) -> bytes:
     return buf.read()
 
 
+# ── E2E 專用 fixtures（使用正式 DB，與 Celery worker 共用）──────────────────
+
+@pytest.fixture(scope="class")
+async def prod_engine():
+    """E2E 測試使用正式 DB engine"""
+    engine = create_async_engine(PROD_DB_URL, echo=False, poolclass=NullPool)
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture(scope="function")
+async def e2e_client(prod_engine):
+    """覆蓋 get_db 讓 FastAPI 使用正式 DB（與 Celery 同一個 DB）
+    function-scoped 確保在 conftest 的 override_get_db 之後執行，正確覆寫 prod DB。
+    """
+    factory = async_sessionmaker(prod_engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def _prod_get_db():
+        async with factory() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = _prod_get_db
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture(scope="class")
+async def e2e_db(prod_engine):
+    """直接操作正式 DB 的 session"""
+    factory = async_sessionmaker(prod_engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as session:
+        yield session
+
+
+@pytest.fixture(scope="class", autouse=True)
+async def cleanup_e2e_data(prod_engine):
+    """E2E 測試結束後清理 DB 資料與磁碟檔案"""
+    yield
+    import shutil
+    from pathlib import Path
+
+    cleanup_engine = create_async_engine(PROD_DB_URL, echo=False, poolclass=NullPool)
+    async with cleanup_engine.begin() as conn:
+        # 先查 dept_id（CASCADE 刪除前）
+        result = await conn.execute(text(
+            "SELECT id FROM departments WHERE slug = 'rag-e2e-test'"
+        ))
+        row = result.fetchone()
+        dept_id = row[0] if row else None
+
+        await conn.execute(text("DELETE FROM departments WHERE slug = 'rag-e2e-test'"))
+        await conn.execute(text(
+            "DELETE FROM users WHERE username IN ('rag_e2e_admin', 'e2e_superadmin')"
+        ))
+        await conn.execute(text("DELETE FROM query_users WHERE username = 'e2e_quser'"))
+    await cleanup_engine.dispose()
+
+    # 清除磁碟上的 uploads/{dept_id}/ 目錄
+    if dept_id:
+        dept_upload_dir = Path(f"/app/uploads/{dept_id}")
+        if dept_upload_dir.exists():
+            shutil.rmtree(dept_upload_dir)
+            print(f"\n🧹 已清除磁碟目錄: {dept_upload_dir}")
+
+
 # ── 測試類別 ──────────────────────────────────────────────────────────────────
 
 @pytest.mark.slow
 class TestRAGPipeline:
-    """完整 RAG 流程測試"""
+    """完整 RAG 流程測試（使用正式 DB 與 Celery worker 通訊）"""
 
     async def test_upload_process_and_query(
         self,
-        client: AsyncClient,
-        test_super_admin: User,
-        super_admin_headers: dict,
-        db_session: AsyncSession,
+        e2e_client: AsyncClient,
+        e2e_db: AsyncSession,
     ):
+        client = e2e_client
+        db_session = e2e_db
+
+        from app.core.security import get_password_hash
+        from app.models import UserRole
+
+        # ── Step 0: 建立 Super Admin（直接寫入正式 DB）───────────────────────
+        from app.models import User as UserModel
+        super_admin = UserModel(
+            username="e2e_superadmin",
+            email="e2e_superadmin@test.com",
+            hashed_password=get_password_hash("testpassword123"),
+            full_name="E2E Super Admin",
+            role=UserRole.SUPER_ADMIN,
+            is_active=True,
+        )
+        db_session.add(super_admin)
+        await db_session.commit()
+        await db_session.refresh(super_admin)
+
+        sa_login = await client.post("/api/auth/login", json={
+            "username": "e2e_superadmin", "password": "testpassword123"
+        })
+        assert sa_login.status_code == 200, f"Super Admin 登入失敗: {sa_login.text}"
+        sa_headers = {"Authorization": f"Bearer {sa_login.json()['token']}"}
+
         # ── Step 1: 建立處室 ──────────────────────────────────────────────────
         dept_resp = await client.post("/api/departments/", json={
             "name": "RAG測試處室",
             "slug": "rag-e2e-test",
             "description": "E2E pipeline test department",
             "color": "#3B82F6",
-        }, headers=super_admin_headers)
+        }, headers=sa_headers)
         assert dept_resp.status_code == 201, f"建立處室失敗: {dept_resp.text}"
         dept_id = dept_resp.json()["id"]
         print(f"\n✅ 建立處室 ID={dept_id}")
@@ -85,7 +194,7 @@ class TestRAGPipeline:
             "full_name": "RAG E2E Admin",
             "role": "admin",
             "department_id": dept_id,
-        }, headers=super_admin_headers)
+        }, headers=sa_headers)
         assert user_resp.status_code in [200, 201], f"建立使用者失敗: {user_resp.text}"
         print("✅ 建立 Admin 使用者")
 
@@ -150,7 +259,7 @@ class TestRAGPipeline:
         )
         print("✅ 檔案處理完成")
 
-        # ── Step 6: 標記檔案為公開 (訪客才能查詢) ──────────────────────────
+        # ── Step 6: 將檔案標記為公開（QueryUser 才能查到）────────────────────
         result = await db_session.execute(
             select(File).where(
                 File.department_id == dept_id,
@@ -163,11 +272,29 @@ class TestRAGPipeline:
         await db_session.commit()
         print(f"✅ 標記檔案 '{file_record.original_filename}' 為公開")
 
-        # ── Step 7: RAG 查詢（訪客身份，不帶 token）──────────────────────────
+        # ── Step 7: 建立 QueryUser 並登入 ──────────────────────────────────
+        quser_resp = await client.post("/api/query-users/create", json={
+            "username": "e2e_quser",
+            "email": "e2e_quser@test.com",
+            "password": "testpassword123",
+            "full_name": "E2E Query User",
+            "default_department_id": dept_id,
+        }, headers=sa_headers)
+        assert quser_resp.status_code in [200, 201], f"建立 QueryUser 失敗: {quser_resp.text}"
+
+        qlogin_resp = await client.post("/api/query-auth/login", json={
+            "username": "e2e_quser",
+            "password": "testpassword123",
+        })
+        assert qlogin_resp.status_code == 200, f"QueryUser 登入失敗: {qlogin_resp.text}"
+        query_headers = {"Authorization": f"Bearer {qlogin_resp.json()['access_token']}"}
+        print("✅ QueryUser 建立並登入")
+
+        # ── Step 8: RAG 查詢（QueryUser 身份）─────────────────────────────────────
         query_resp = await client.post("/api/rag/query", json={
             "query": TEST_QUERY,
             "scope_ids": [dept_id],
-        })
+        }, headers=query_headers)
         assert query_resp.status_code == 200, f"RAG 查詢失敗: {query_resp.text}"
 
         data = query_resp.json()
@@ -175,6 +302,7 @@ class TestRAGPipeline:
         sources = data.get("sources", [])
 
         assert answer, "RAG 回答為空"
+        assert "沒有權限" not in answer, f"RAG 回答為權限錯誤：{answer}"
         print(f"\n{'='*60}")
         print(f"Query : {TEST_QUERY}")
         print(f"Answer: {answer[:400]}")

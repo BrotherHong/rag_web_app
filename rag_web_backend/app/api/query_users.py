@@ -3,7 +3,7 @@
 供後台管理員使用，用於審批註冊申請、管理查詢用戶、分配文件權限等
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, func, and_, or_, delete, case
@@ -113,7 +113,7 @@ async def create_query_user(
         default_department_id=user_data.default_department_id,
         admin_notes=user_data.admin_notes,
         approved_by=current_user.id,
-        approved_at=datetime.utcnow()
+        approved_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     
     db.add(query_user)

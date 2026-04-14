@@ -377,7 +377,40 @@ async def get_upload_progress(
     """
     # 查找任務
     task = upload_tasks.get(task_id)
-    
+
+    # 若記憶體中仍是 processing，查 DB 取得 Celery 更新後的真實狀態
+    if task and task.get("status") == "processing":
+        from app.models.upload_batch import UploadBatch, UploadBatchItem
+        from app.models import File as FileModel
+        batch = await db.get(UploadBatch, task_id)
+        if batch and batch.status.value != "processing":
+            items_result = await db.execute(
+                select(UploadBatchItem).where(UploadBatchItem.batch_id == task_id)
+            )
+            items = items_result.scalars().all()
+            file_ids = [item.file_id for item in items]
+            file_names = {}
+            if file_ids:
+                file_result = await db.execute(select(FileModel).where(FileModel.id.in_(file_ids)))
+                file_names = {f.id: f.original_filename for f in file_result.scalars().all()}
+
+            task["status"] = batch.status.value
+            task["processedFiles"] = batch.processed_files
+            task["successFiles"] = batch.success_files
+            task["failedFiles"] = batch.failed_files
+            task["updated_at"] = batch.updated_at.isoformat() if batch.updated_at else task["updated_at"]
+            task["files"] = [
+                {
+                    "name": file_names.get(item.file_id, f"file-{item.file_id}"),
+                    "status": item.status.value,
+                    "progress": item.processing_progress,
+                    "error": item.error_message,
+                }
+                for item in items
+            ]
+            if batch.status.value in ("completed", "failed", "partial"):
+                task["completed_at"] = datetime.now(timezone.utc)
+
     if not task:
         from app.models.upload_batch import UploadBatch, UploadBatchItem
         from app.models.user import UserRole

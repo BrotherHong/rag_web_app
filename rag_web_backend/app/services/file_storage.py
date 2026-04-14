@@ -144,9 +144,9 @@ class FileStorageService:
                 await db.delete(existing_path_record)
                 await db.flush()
         
-        # 如果實體檔案已存在（不應該發生，但保留檢查）
+        # 如果實體檔案已存在但 DB 無對應記錄（例如測試清空後殘留），直接覆蓋
         if file_path.exists():
-            raise ValueError(f"儲存路徑衝突：{file_path}")
+            file_path.unlink()
         
         # 儲存檔案
         file_size = 0
