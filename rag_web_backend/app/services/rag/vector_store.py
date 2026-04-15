@@ -32,6 +32,7 @@ class VectorStore:
         # 緩存數據
         self._embeddings_cache = None
         self._documents_cache = None
+        self._cache_dir_mtime = None
     
     def load_embeddings(self) -> Tuple[List[List[float]], List[Dict]]:
         """
@@ -40,8 +41,18 @@ class VectorStore:
         返回:
             (embeddings列表, 文檔信息列表)
         """
-        # 檢查緩存
-        if self._embeddings_cache is not None and self._documents_cache is not None:
+        # 檢查目錄是否有新檔案（跨 process 的 Celery worker 新增向量時可自動失效）
+        try:
+            current_mtime = os.path.getmtime(self.embeddings_path) if os.path.exists(self.embeddings_path) else None
+        except OSError:
+            current_mtime = None
+
+        if (
+            self._embeddings_cache is not None
+            and self._documents_cache is not None
+            and self._cache_dir_mtime is not None
+            and current_mtime == self._cache_dir_mtime
+        ):
             return self._embeddings_cache, self._documents_cache
         
         logger.info(f"正在從 {self.embeddings_path} 加載embeddings...")
@@ -80,6 +91,7 @@ class VectorStore:
         # 緩存結果
         self._embeddings_cache = embeddings
         self._documents_cache = documents
+        self._cache_dir_mtime = current_mtime
         
         logger.info(f"成功加載 {len(embeddings)} 個embeddings")
         return embeddings, documents
@@ -205,6 +217,7 @@ class VectorStore:
         """
         self._embeddings_cache = None
         self._documents_cache = None
+        self._cache_dir_mtime = None
         logger.info("向量緩存已清除")
     
     def preload_all_caches(self):
