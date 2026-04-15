@@ -90,7 +90,8 @@ async def login(
             "departmentName": user.department.name if user.department else None,
             "department": {
                 "id": user.department.id if user.department else None,
-                "name": user.department.name if user.department else None
+                "name": user.department.name if user.department else None,
+                "slug": user.department.slug if user.department else None
             } if user.department else None
         }
     }

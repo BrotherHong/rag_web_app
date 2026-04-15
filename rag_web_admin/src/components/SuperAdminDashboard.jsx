@@ -275,6 +275,7 @@ function SuperAdminDashboard() {
       role: 'ADMIN',
       departmentId: dept.id,
       departmentName: dept.name,
+      departmentSlug: dept.slug,
       isSuperAdminProxy: true, // 標記為系統管理員代理
       _originalRole: 'SUPER_ADMIN' // 保存原始角色
     };

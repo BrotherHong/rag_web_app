@@ -50,13 +50,9 @@ function HomePage() {
             
             {department && (
               <p className="text-sm text-gray-600">
-                {department.fullName} | {department.contact.phone} 分機 {department.contact.extension}
+                {department.fullName} | {department.contact.phone}
               </p>
             )}
-            
-            <p className="text-xl md:text-2xl text-gray-700 mb-12 mt-4">
-              {APP_CONSTANTS.APP_SUBTITLE}
-            </p>
           </div>
 
           {/* 登入按鈕 */}

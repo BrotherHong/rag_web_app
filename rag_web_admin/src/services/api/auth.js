@@ -40,6 +40,7 @@ export const login = async (username, password) => {
             role: data.user.role,
             departmentId: data.user.department?.id || null,
             departmentName: data.user.department?.name || null,
+            departmentSlug: data.user.department?.slug || null,
             isSuperAdmin: data.user.isSuperAdmin || false
           },
           token: data.token
