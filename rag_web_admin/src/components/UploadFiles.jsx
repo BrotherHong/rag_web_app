@@ -293,22 +293,37 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     }
   };
   
+  const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.xls', '.xlsx'];
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
   // 通用的加入檔案邏輯
   const addFiles = (files) => {
-    // 過濾掉已存在的檔案
-    const newFiles = files.filter(file => 
-      !selectedFiles.some(f => f.name === file.name && f.size === file.size)
-    );
-    
-    if (newFiles.length > 0) {
-      setSelectedFiles(prev => [...prev, ...newFiles]);
-      
-      // 設定預設分類
+    const rejected = [];
+    const valid = [];
+
+    files.forEach(file => {
+      if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) return;
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        rejected.push(`${file.name}（不支援的格式）`);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        rejected.push(`${file.name}（超過 10MB 單檔限制）`);
+        return;
+      }
+      valid.push(file);
+    });
+
+    if (rejected.length > 0) {
+      toast.error(`以下檔案無法加入：\n${rejected.join('\n')}`);
+    }
+
+    if (valid.length > 0) {
+      setSelectedFiles(prev => [...prev, ...valid]);
       const newCategories = { ...fileCategories };
-      newFiles.forEach(file => {
-        if (!newCategories[file.name]) {
-          newCategories[file.name] = '其他';
-        }
+      valid.forEach(file => {
+        if (!newCategories[file.name]) newCategories[file.name] = '其他';
       });
       setFileCategories(newCategories);
     }
@@ -785,7 +800,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
               {isDragging ? '放開以加入檔案' : '點擊選擇檔案或拖曳檔案至此處'}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              支援 PDF, DOC, DOCX, TXT 等格式，可多次選擇
+              支援格式：PDF、DOC、DOCX、XLS、XLSX、TXT　｜　單檔最大 10MB
             </p>
             <input
               ref={fileInputRef}
@@ -793,7 +808,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
               multiple
               onChange={handleFileSelect}
               className="hidden"
-              accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.ppt,.pptx"
+              accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
             />
           </div>
           

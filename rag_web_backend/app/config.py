@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 40
     
     # 檔案上傳
-    MAX_FILE_SIZE: int = 52428800  # 50MB
-    ALLOWED_EXTENSIONS: str = ".pdf,.docx,.txt"
+    MAX_FILE_SIZE: int = 10485760  # 10MB
+    ALLOWED_EXTENSIONS: str = ".pdf,.doc,.docx,.txt,.xls,.xlsx"
     UPLOAD_DIR: str = "/app/uploads"
     
     # CORS

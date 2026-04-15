@@ -173,12 +173,24 @@ export const batchUpload = async (uploadData) => {
           message: data.message || '上傳任務已建立，開始處理檔案'
         }
       };
-    } else {
-      const error = await response.json();
+    } else if (response.status === 413) {
       return {
         success: false,
-        message: error.detail || '建立上傳任務失敗'
+        message: '檔案太大，超過伺服器上傳限制，請嘗試減少檔案數量或大小'
       };
+    } else {
+      try {
+        const error = await response.json();
+        return {
+          success: false,
+          message: error.detail || '建立上傳任務失敗'
+        };
+      } catch {
+        return {
+          success: false,
+          message: `建立上傳任務失敗（HTTP ${response.status}）`
+        };
+      }
     }
   } catch (error) {
     console.error('Batch upload error:', error);
