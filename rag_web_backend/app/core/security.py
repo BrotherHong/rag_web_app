@@ -3,8 +3,9 @@
 提供密碼加密、JWT Token 生成與驗證等功能
 """
 
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
@@ -273,10 +274,20 @@ def require_role(*allowed_roles):
 
 # ==================== 查詢用戶認證相關 ====================
 
+@dataclass
+class GoogleSessionUser:
+    """Google 登入的 session-only 用戶（不存在於 QueryUser 資料表）"""
+    id: None = field(default=None)
+    username: str = ""
+    email: str = ""
+    default_department_id: None = field(default=None)
+    is_active: bool = True
+
+
 async def get_current_query_user(
     token: str = Depends(query_oauth2_scheme),
     db: AsyncSession = Depends(get_db)
-):
+) -> Union["QueryUser", GoogleSessionUser]:
     """
     從 JWT Token 中取得當前查詢用戶
     
@@ -306,14 +317,28 @@ async def get_current_query_user(
         user_id: str = payload.get("sub")
         user_type: str = payload.get("type")  # 添加 type 欄位區分用戶類型
         
-        # 確認是查詢用戶的 token
-        if user_id is None or user_type != "query_user":
+        if user_type is None:
             raise credentials_exception
-            
+
     except JWTError:
         raise credentials_exception
-    
-    # 從資料庫取得查詢用戶
+
+    # Google session 用戶：不查 DB，直接由 JWT payload 建立
+    if user_type == "query_google":
+        email: str = payload.get("email", "")
+        name: str = payload.get("name", email.split("@")[0] if email else "")
+        return GoogleSessionUser(
+            id=None,
+            username=email.split("@")[0] if email else name,
+            email=email,
+        )
+
+    # 一般查詢用戶
+    if user_type != "query_user" or user_id is None:
+        raise credentials_exception
+
+    from app.models.query_user import QueryUser, QueryUserStatus
+
     result = await db.execute(
         select(QueryUser)
         .options(selectinload(QueryUser.default_department))
@@ -324,7 +349,6 @@ async def get_current_query_user(
     if query_user is None:
         raise credentials_exception
     
-    # 檢查用戶狀態
     if query_user.status != QueryUserStatus.APPROVED:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

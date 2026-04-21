@@ -18,7 +18,7 @@ from app.models.query_history import QueryHistory
 from app.models.file import File as FileModel
 from app.models.category import Category
 from app.models.department import Department
-from app.models.user_group import FileUserGroupPermission, query_user_groups
+from app.models.user_group import FileUserGroupPermission, UserGroup, query_user_groups
 from app.schemas.rag import (
     QueryRequest,
     QueryResponse,
@@ -92,41 +92,61 @@ async def query_documents(
         public_result = await db.execute(public_query)
         public_filenames = {row[0] for row in public_result.all()}
 
-        # 2. 獲取用戶被授權的文件（個人權限）
-        permission_query = select(FileModel.original_filename).join(
-            FilePermission,
-            FileModel.id == FilePermission.file_id
-        ).where(
-            FilePermission.query_user_id == current_user.id,
-            FileModel.department_id == department_id,
-            FileModel.is_vectorized == True
-        )
+        authorized_filenames: set = set()
+        group_permission_filenames: set = set()
 
-        permission_result = await db.execute(permission_query)
-        authorized_filenames = {row[0] for row in permission_result.all()}
-
-        # 3. 獲取用戶通過身分組授權的文件
-        # 避免在 async context 觸發 ORM lazy load（會導致 MissingGreenlet）
-        user_group_ids_result = await db.execute(
-            select(query_user_groups.c.user_group_id).where(
-                query_user_groups.c.query_user_id == current_user.id
-            )
-        )
-        user_group_ids = list(user_group_ids_result.scalars().all())
-
-        group_permission_filenames = set()
-        if user_group_ids:
-            group_permission_query = select(FileModel.original_filename).join(
-                FileUserGroupPermission,
-                FileModel.id == FileUserGroupPermission.file_id
+        if current_user.id is not None:
+            # 2. 獲取用戶被授權的文件（個人權限）
+            permission_query = select(FileModel.original_filename).join(
+                FilePermission,
+                FileModel.id == FilePermission.file_id
             ).where(
-                FileUserGroupPermission.user_group_id.in_(user_group_ids),
+                FilePermission.query_user_id == current_user.id,
                 FileModel.department_id == department_id,
                 FileModel.is_vectorized == True
             )
+            permission_result = await db.execute(permission_query)
+            authorized_filenames = {row[0] for row in permission_result.all()}
 
-            group_permission_result = await db.execute(group_permission_query)
-            group_permission_filenames = {row[0] for row in group_permission_result.all()}
+            # 3. 獲取用戶通過身分組授權的文件
+            user_group_ids_result = await db.execute(
+                select(query_user_groups.c.user_group_id).where(
+                    query_user_groups.c.query_user_id == current_user.id
+                )
+            )
+            user_group_ids = list(user_group_ids_result.scalars().all())
+
+            if user_group_ids:
+                group_permission_query = select(FileModel.original_filename).join(
+                    FileUserGroupPermission,
+                    FileModel.id == FileUserGroupPermission.file_id
+                ).where(
+                    FileUserGroupPermission.user_group_id.in_(user_group_ids),
+                    FileModel.department_id == department_id,
+                    FileModel.is_vectorized == True
+                )
+                group_permission_result = await db.execute(group_permission_query)
+                group_permission_filenames = {row[0] for row in group_permission_result.all()}
+        else:
+            # Google session 用戶：自動套用該處室的「Google登入」身分組權限
+            google_group_result = await db.execute(
+                select(UserGroup.id).where(
+                    UserGroup.department_id == department_id,
+                    UserGroup.name == "Google登入"
+                )
+            )
+            google_group_id = google_group_result.scalar_one_or_none()
+            if google_group_id:
+                google_group_files_query = select(FileModel.original_filename).join(
+                    FileUserGroupPermission,
+                    FileModel.id == FileUserGroupPermission.file_id
+                ).where(
+                    FileUserGroupPermission.user_group_id == google_group_id,
+                    FileModel.department_id == department_id,
+                    FileModel.is_vectorized == True
+                )
+                google_group_files_result = await db.execute(google_group_files_query)
+                group_permission_filenames = {row[0] for row in google_group_files_result.all()}
 
         # 4. 合併：公開文件 + 個人授權文件 + 身分組授權文件
         allowed_filenames = public_filenames | authorized_filenames | group_permission_filenames
