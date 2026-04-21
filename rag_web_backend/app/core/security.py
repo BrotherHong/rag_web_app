@@ -275,19 +275,24 @@ def require_role(*allowed_roles):
 # ==================== 查詢用戶認證相關 ====================
 
 @dataclass
-class GoogleSessionUser:
-    """Google 登入的 session-only 用戶（不存在於 QueryUser 資料表）"""
+class SessionUser:
+    """Session-only 用戶（不存在於 QueryUser 資料表，如 Google 或成功入口登入）"""
     id: None = field(default=None)
     username: str = ""
     email: str = ""
     default_department_id: None = field(default=None)
     is_active: bool = True
+    login_method: str = ""  # "google" or "success_portal"
+
+
+# 向後兼容別名
+GoogleSessionUser = SessionUser
 
 
 async def get_current_query_user(
     token: str = Depends(query_oauth2_scheme),
     db: AsyncSession = Depends(get_db)
-) -> Union["QueryUser", GoogleSessionUser]:
+) -> Union["QueryUser", SessionUser]:
     """
     從 JWT Token 中取得當前查詢用戶
     
@@ -323,14 +328,26 @@ async def get_current_query_user(
     except JWTError:
         raise credentials_exception
 
-    # Google session 用戶：不查 DB，直接由 JWT payload 建立
+    # Google session 用戶
     if user_type == "query_google":
         email: str = payload.get("email", "")
         name: str = payload.get("name", email.split("@")[0] if email else "")
-        return GoogleSessionUser(
+        return SessionUser(
             id=None,
             username=email.split("@")[0] if email else name,
             email=email,
+            login_method="google",
+        )
+
+    # 成功入口 session 用戶
+    if user_type == "query_portal":
+        commonname: str = payload.get("sub", "")
+        email_p: str = payload.get("email", "")
+        return SessionUser(
+            id=None,
+            username=commonname,
+            email=email_p,
+            login_method="success_portal",
         )
 
     # 一般查詢用戶
@@ -498,6 +515,32 @@ def create_google_query_token(
         "type": "query_google",
         "email": email,
         "name": name,
+    }
+
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+    return encoded_jwt
+
+
+def create_portal_query_token(
+    commonname: str,
+    email: str,
+    identity: str,
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """建立成功入口查詢 session token（不綁定 QueryUser 資料表）"""
+    to_encode = {
+        "sub": commonname,
+        "type": "query_portal",
+        "email": email,
+        "name": commonname,
+        "identity": identity,
     }
 
     if expires_delta:

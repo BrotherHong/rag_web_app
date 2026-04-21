@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # Google 登入
     GOOGLE_CLIENT_ID: str = ""
 
+    # 成功入口（NCKU ADFS SSO）登入
+    PORTAL_CLIENT_ID: str = ""
+    PORTAL_CLIENT_SECRET: str = ""
+    PORTAL_REDIRECT_URI: str = ""  # 例: http://aidemo.ncku.edu.tw:8888/api/query-auth/portal-callback
+
     # Celery 設定
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"

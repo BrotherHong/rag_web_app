@@ -5,14 +5,19 @@
 """
 
 from datetime import datetime, timedelta, timezone
+import base64
+import json
 import secrets
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from urllib.parse import urlparse, quote, unquote
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Header
+from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
+import httpx
 
 from app.config import settings
 from app.core.database import get_db
@@ -22,6 +27,7 @@ from app.core.security import (
     authenticate_query_user,
     create_query_user_token,
     create_google_query_token,
+    create_portal_query_token,
     get_current_query_user
 )
 from app.models.query_user import QueryUser, QueryUserStatus
@@ -420,3 +426,102 @@ async def change_password(
     await db.commit()
 
     return ResetPasswordResponse(message="密碼已成功修改。")
+
+
+# ==================== 成功入口（NCKU ADFS SSO）====================
+
+PORTAL_AUTH_ENDPOINT = "https://fs.ncku.edu.tw/adfs/oauth2/authorize"
+PORTAL_TOKEN_ENDPOINT = "https://fs.ncku.edu.tw/adfs/oauth2/token"
+
+
+@router.get("/portal-login")
+async def portal_login(from_path: str = "/"):
+    """發起成功入口 SSO 登入，重定向到 NCKU ADFS 授權頁"""
+    if not settings.PORTAL_CLIENT_ID or not settings.PORTAL_REDIRECT_URI:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="成功入口登入尚未啟用，請聯系管理員"
+        )
+
+    state = quote(from_path, safe="")
+    params = {
+        "response_type": "code",
+        "client_id": settings.PORTAL_CLIENT_ID,
+        "redirect_uri": settings.PORTAL_REDIRECT_URI,
+        "state": state,
+        "resource": settings.PORTAL_REDIRECT_URI,
+    }
+    query_string = "&".join(f"{k}={quote(str(v), safe='')}" for k, v in params.items())
+    auth_url = f"{PORTAL_AUTH_ENDPOINT}?{query_string}"
+    return RedirectResponse(url=auth_url, status_code=302)
+
+
+@router.get("/portal-callback")
+async def portal_callback(code: str, state: str = "/"):
+    """處理成功入口 SSO 回調，換取 token 後重定向到前端"""
+    if not settings.PORTAL_CLIENT_ID or not settings.PORTAL_REDIRECT_URI:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="成功入口登入尚未啟用"
+        )
+
+    # 向 ADFS 換取 access_token
+    async with httpx.AsyncClient(verify=False, timeout=15) as client:
+        resp = await client.post(
+            PORTAL_TOKEN_ENDPOINT,
+            data={
+                "grant_type": "authorization_code",
+                "client_id": settings.PORTAL_CLIENT_ID,
+                "client_secret": settings.PORTAL_CLIENT_SECRET,
+                "code": code,
+                "redirect_uri": settings.PORTAL_REDIRECT_URI,
+            },
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="無法從成功入口取得 token"
+        )
+
+    token_data = resp.json()
+    access_token = token_data.get("access_token")
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="成功入口未返回有效 token"
+        )
+
+    # 解碼 JWT payload（不驗證簽名，同原始 PHP 邏輯）
+    parts = access_token.split(".")
+    if len(parts) != 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="成功入口 token 格式錯誤"
+        )
+    padding = 4 - len(parts[1]) % 4
+    padded = parts[1] + ("=" * (padding % 4))
+    user_info = json.loads(base64.urlsafe_b64decode(padded))
+
+    commonname: str = user_info.get("commonname", "")
+    email: str = user_info.get("email", "")
+    dn: str = user_info.get("DN", "")
+    if "ou=students" in dn.lower():
+        identity = "student"
+    elif "ou=staff" in dn.lower():
+        identity = "staff"
+    else:
+        identity = user_info.get("identity", "none")
+
+    system_token = create_portal_query_token(
+        commonname=commonname,
+        email=email,
+        identity=identity,
+    )
+
+    # 重定向到前端 callback 頁
+    parsed = urlparse(settings.PORTAL_REDIRECT_URI)
+    frontend_base = f"{parsed.scheme}://{parsed.netloc}"
+    from_path = unquote(state)
+    redirect_url = f"{frontend_base}/login/portal-callback?token={quote(system_token, safe='')}&from={quote(from_path, safe='')}"
+    return RedirectResponse(url=redirect_url, status_code=302)

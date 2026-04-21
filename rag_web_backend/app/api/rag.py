@@ -128,25 +128,31 @@ async def query_documents(
                 group_permission_result = await db.execute(group_permission_query)
                 group_permission_filenames = {row[0] for row in group_permission_result.all()}
         else:
-            # Google session 用戶：自動套用該處室的「Google登入」身分組權限
-            google_group_result = await db.execute(
+            # Session 用戶（Google / 成功入口）：根據 login_method 套用對應身分組權限
+            login_method = getattr(current_user, "login_method", "google")
+            group_name_map = {
+                "google": "Google登入",
+                "success_portal": "成功入口登入",
+            }
+            group_name = group_name_map.get(login_method, "Google登入")
+            session_group_result = await db.execute(
                 select(UserGroup.id).where(
                     UserGroup.department_id == department_id,
-                    UserGroup.name == "Google登入"
+                    UserGroup.name == group_name
                 )
             )
-            google_group_id = google_group_result.scalar_one_or_none()
-            if google_group_id:
-                google_group_files_query = select(FileModel.original_filename).join(
+            session_group_id = session_group_result.scalar_one_or_none()
+            if session_group_id:
+                session_group_files_query = select(FileModel.original_filename).join(
                     FileUserGroupPermission,
                     FileModel.id == FileUserGroupPermission.file_id
                 ).where(
-                    FileUserGroupPermission.user_group_id == google_group_id,
+                    FileUserGroupPermission.user_group_id == session_group_id,
                     FileModel.department_id == department_id,
                     FileModel.is_vectorized == True
                 )
-                google_group_files_result = await db.execute(google_group_files_query)
-                group_permission_filenames = {row[0] for row in google_group_files_result.all()}
+                session_group_files_result = await db.execute(session_group_files_query)
+                group_permission_filenames = {row[0] for row in session_group_files_result.all()}
 
         # 4. 合併：公開文件 + 個人授權文件 + 身分組授權文件
         allowed_filenames = public_filenames | authorized_filenames | group_permission_filenames

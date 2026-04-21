@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import LoginMethodSelectPage from './pages/LoginMethodSelectPage'
 import GoogleLoginPage from './pages/GoogleLoginPage'
 import SuccessPortalLoginPage from './pages/SuccessPortalLoginPage'
+import PortalCallbackPage from './pages/PortalCallbackPage'
 import RegisterPage from './pages/RegisterPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -45,6 +46,7 @@ function App() {
         <Route path="/login/normal" element={<LoginPage />} />
         <Route path="/login/google" element={<GoogleLoginPage />} />
         <Route path="/login/success-portal" element={<SuccessPortalLoginPage />} />
+        <Route path="/login/portal-callback" element={<PortalCallbackPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         
