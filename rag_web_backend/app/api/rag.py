@@ -156,26 +156,6 @@ async def query_documents(
 
         # 4. 合併：公開文件 + 個人授權文件 + 身分組授權文件
         allowed_filenames = public_filenames | authorized_filenames | group_permission_filenames
-        
-        # 「其他」分類的檔案對所有人開放，不受公開/身分組權限限制
-        if allowed_filenames is not None:
-            other_cat_query = select(Category.id).where(
-                Category.department_id == department_id,
-                Category.name == "其他"
-            )
-            other_cat_result = await db.execute(other_cat_query)
-            other_cat_id = other_cat_result.scalar_one_or_none()
-            
-            if other_cat_id:
-                other_files_query = select(FileModel.original_filename).where(
-                    FileModel.department_id == department_id,
-                    FileModel.category_id == other_cat_id,
-                    FileModel.is_vectorized == True
-                )
-                other_files_result = await db.execute(other_files_query)
-                other_filenames = {row[0] for row in other_files_result.all()}
-                allowed_filenames = allowed_filenames | other_filenames
-                print(f"📂 [RAG] 加入「其他」分類公開檔案: {len(other_filenames)} 個")
 
         # 若沒有任何可訪問的文件，提早返回
         if allowed_filenames is not None and not allowed_filenames:
@@ -188,32 +168,15 @@ async def query_documents(
         
         # 分類過濾（對所有用戶類型生效）
         if request.category_ids:
-            # 1. 找出該處室的「其他」分類 ID
-            other_category_query = select(Category.id).where(
-                Category.department_id == department_id,
-                Category.name == "其他"
-            )
-            other_category_result = await db.execute(other_category_query)
-            other_category_id = other_category_result.scalar_one_or_none()
-            
-            # 2. 建立完整的分類 ID 清單（使用者選的 + 「其他」）
-            filter_category_ids = list(request.category_ids)
-            if other_category_id and other_category_id not in filter_category_ids:
-                filter_category_ids.append(other_category_id)
-            
-            # 3. 查詢符合分類條件的檔案
+            # 查詢符合分類條件的檔案
             file_query = select(FileModel.original_filename).where(
                 FileModel.department_id == department_id,
-                FileModel.category_id.in_(filter_category_ids),
+                FileModel.category_id.in_(request.category_ids),
                 FileModel.is_vectorized == True
             )
-            
-            # 所有用戶類型統一：已有權限列表（公開+授權+其他分類），與選定分類求交集
-            # 訪客的 allowed_filenames 已包含公開文件 + 「其他」分類文件
-            # 查詢用戶的 allowed_filenames 已包含公開+授權+「其他」分類文件
             file_result = await db.execute(file_query)
             category_filenames = {row[0] for row in file_result.all()}
-            allowed_filenames = allowed_filenames & category_filenames  # 交集
+            allowed_filenames = allowed_filenames & category_filenames  # 與已授權清單求交集
             
             if not allowed_filenames:
                 # 沒有符合條件的檔案
