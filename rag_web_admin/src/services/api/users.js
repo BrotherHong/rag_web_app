@@ -56,6 +56,7 @@ export const getUsers = async (departmentId = null) => {
         email: user.email,
         role: user.role,
         departmentId: user.department_id,
+        adminGroupId: user.admin_group_id,
         status: user.is_active ? 'active' : 'inactive'
       }));
       
@@ -172,8 +173,13 @@ export const updateUser = async (userId, userData) => {
     if (userData.password && userData.password.trim()) {
       requestData.password = userData.password;
     }
+
+    // 管理組織（null = 移除, 有值 = 設定）
+    if ('adminGroupId' in userData) {
+      requestData.admin_group_id = userData.adminGroupId ? parseInt(userData.adminGroupId) : null;
+    }
     
-    const response = await apiFetch(`${API_BASE_URL}/users/${userId}/`, {
+    const response = await apiFetch(`${API_BASE_URL}/users/${userId}`, {
       method: 'PUT',
       headers: {
         ...getAuthHeader(),
@@ -227,6 +233,7 @@ export const getUsersByDepartment = async (departmentId) => {
         email: user.email,
         role: user.role,
         departmentId: user.department_id,
+        adminGroupId: user.admin_group_id,
         status: user.is_active ? 'active' : 'inactive'
       }));
       

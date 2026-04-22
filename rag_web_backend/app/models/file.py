@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.activity import Activity
     from app.models.query_user import FilePermission
     from app.models.user_group import FileUserGroupPermission
+    from app.models.admin_group import AdminGroup
 
 
 class FileStatus(str, Enum):
@@ -196,7 +197,14 @@ class File(Base, TimestampMixin):
         index=True,
         comment="分類 ID"
     )
-    
+
+    admin_group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("admin_groups.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="所屬管理組織 ID（上傳時自動帶入）"
+    )
+
     # 關聯
     uploader: Mapped["User"] = relationship(
         "User",
@@ -231,6 +239,12 @@ class File(Base, TimestampMixin):
         back_populates="file",
         cascade="all, delete-orphan"
     )
-    
+
+    admin_group: Mapped["AdminGroup | None"] = relationship(
+        "AdminGroup",
+        back_populates="files",
+        foreign_keys="File.admin_group_id"
+    )
+
     def __repr__(self) -> str:
         return f"<File(id={self.id}, filename='{self.filename}', status='{self.status}')>"

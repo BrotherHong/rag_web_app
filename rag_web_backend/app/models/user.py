@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.file import File
     from app.models.activity import Activity
     from app.models.query_history import QueryHistory
+    from app.models.admin_group import AdminGroup
 
 
 class UserRole(str, Enum):
@@ -80,7 +81,14 @@ class User(Base, TimestampMixin):
         index=True,
         comment="所屬處室 ID（super_admin 可為 NULL）"
     )
-    
+
+    admin_group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("admin_groups.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="所屬管理組織 ID（選填）"
+    )
+
     # 關聯
     department: Mapped["Department"] = relationship(
         "Department",
@@ -104,6 +112,12 @@ class User(Base, TimestampMixin):
         back_populates="user",
         cascade="all, delete-orphan"
     )
-    
+
+    admin_group: Mapped["AdminGroup | None"] = relationship(
+        "AdminGroup",
+        back_populates="users",
+        foreign_keys="User.admin_group_id"
+    )
+
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"

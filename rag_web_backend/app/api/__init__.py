@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from app.api import (
     auth, users, departments, files, categories, rag, activities,
     statistics, upload, public, faqs, batches,
-    query_auth, query_users, user_groups
+    query_auth, query_users, user_groups, admin_groups
 )
 
 # 建立 API 路由器
@@ -35,5 +35,6 @@ api_router.include_router(statistics.router)
 api_router.include_router(upload.router)
 api_router.include_router(faqs.router)
 api_router.include_router(batches.router)
+api_router.include_router(admin_groups.router)  # 管理組織
 
 __all__ = ["api_router"]

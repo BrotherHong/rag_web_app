@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getFiles, deleteFile, downloadFile, updateFile, getCategoriesWithDetails } from '../services/api';
+import { getAdminGroups } from '../services/api/adminGroups';
 import { getUserGroups, getFileUserGroupPermissions, setFileUserGroupPermissions } from '../services/api/userGroups';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useToast } from '../contexts/ToastContext';
@@ -13,6 +14,8 @@ function KnowledgeBase() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all'); // 使用 'all' 或分類 ID
+  const [selectedAdminGroup, setSelectedAdminGroup] = useState('all'); // 'all' 或管理組織 ID
+  const [adminGroups, setAdminGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showFileDetail, setShowFileDetail] = useState(false);
@@ -95,19 +98,28 @@ function KnowledgeBase() {
     loadFiles();
     loadCategories();
     loadUserGroups();
-  }, [searchTerm, currentPage, selectedCategory]);
+  }, [searchTerm, currentPage, selectedCategory, selectedAdminGroup]);
+
+  // 載入管理組織列表
+  useEffect(() => {
+    loadAdminGroups();
+  }, []);
 
   // 載入檔案列表
   const loadFiles = async () => {
     setIsLoading(true);
     try {
       const categoryId = selectedCategory === 'all' ? null : selectedCategory;
-      const response = await getFiles({
+      const params = {
         search: searchTerm,
         category: categoryId,
         page: currentPage,
         limit: itemsPerPage
-      });
+      };
+      if (selectedAdminGroup !== 'all') {
+        params.admin_group_id = parseInt(selectedAdminGroup);
+      }
+      const response = await getFiles(params);
       
       if (response.success) {
         setFiles(response.data.files);
@@ -162,6 +174,19 @@ function KnowledgeBase() {
       }
     } catch (error) {
       console.error('[KnowledgeBase] 載入身分組錯誤:', error);
+    }
+  };
+
+  // 載入管理組織列表
+  const loadAdminGroups = async () => {
+    try {
+      if (!user.departmentId) return;
+      const response = await getAdminGroups(user.departmentId);
+      if (response.success) {
+        setAdminGroups(response.data || []);
+      }
+    } catch (error) {
+      console.error('載入管理組織錯誤:', error);
     }
   };
 
@@ -368,10 +393,24 @@ function KnowledgeBase() {
     setCurrentPage(1);
   };
 
+  const handleAdminGroupChange = (groupId) => {
+    setSelectedAdminGroup(groupId);
+    setCurrentPage(1);
+  };
+
   const handleSearchChange = (value) => {
     setSearchTerm(value);
     setCurrentPage(1);
   };
+
+  // 檢查當前使用者是否可操作此檔案
+  const canOperateFile = (file) => {
+    if (user.role === 'SUPER_ADMIN') return true;
+    if (!user.adminGroupId) return !file.adminGroupId;
+    return file.adminGroupId === user.adminGroupId;
+  };
+
+
 
   return (
     <div>
@@ -383,8 +422,8 @@ function KnowledgeBase() {
         <p className="text-gray-600">管理人事室 AI 客服的知識庫檔案</p>
       </div>
 
-      {/* 統計卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      {/* 統計卡片：最多顯示 8 張（1 總計 + 7 分類） */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-md p-4 border-l-4" 
              style={{ borderColor: 'var(--ncku-red)' }}>
           <p className="text-gray-600 text-sm">總檔案數</p>
@@ -392,7 +431,7 @@ function KnowledgeBase() {
             {totalFiles}
           </p>
         </div>
-        {categories.map(category => (
+        {categories.slice(0, 7).map(category => (
           <div 
             key={category.id} 
             className="bg-white rounded-lg shadow-md p-4 border-l-4"
@@ -407,64 +446,89 @@ function KnowledgeBase() {
       </div>
 
       {/* 操作欄 */}
-      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+      <div className="bg-white rounded-xl shadow-md p-6 mb-6 space-y-4">
+        {/* 第一排：搜尋框 + 組織篩選 */}
+        <div className="flex flex-col sm:flex-row gap-3">
           {/* 搜尋框 */}
-          <div className="flex-1 md:max-w-md">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="搜尋檔案..."
-                value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
-              />
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
             </div>
+            <input
+              type="text"
+              placeholder="搜尋檔案..."
+              value={searchTerm}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
+            />
           </div>
 
-          {/* 分類篩選 */}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => handleCategoryChange('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-all cursor-pointer ${
-                selectedCategory === 'all'
-                  ? 'text-white shadow-md'
-                  : 'text-gray-700 bg-gray-100 hover:bg-gray-200'
-              }`}
-              style={selectedCategory === 'all' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+          {/* 管理組織篩選 */}
+          <div className="relative sm:w-44">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <select
+              value={selectedAdminGroup}
+              onChange={(e) => handleAdminGroupChange(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:outline-none appearance-none bg-white cursor-pointer"
             >
-              全部
-            </button>
-            {categories.map(category => (
-              <button
-                key={category.id}
-                onClick={() => handleCategoryChange(category.id)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all cursor-pointer ${
-                  selectedCategory === category.id
-                    ? 'text-white shadow-md'
-                    : 'text-gray-700 bg-gray-100 hover:bg-gray-200'
-                }`}
-                style={
-                  selectedCategory === category.id
-                    ? { backgroundColor: category.color || 'var(--ncku-red)' }
-                    : {}
-                }
-              >
-                {category.name}
-              </button>
-            ))}
+              <option value="all">全部組織</option>
+              <option value="-1">未分配組織</option>
+              {adminGroups.map(group => (
+                <option key={group.id} value={group.id}>{group.name}</option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
+        </div>
+
+        {/* 第二排：分類篩選 pills */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => handleCategoryChange('all')}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
+              selectedCategory === 'all'
+                ? 'text-white shadow-sm'
+                : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+            }`}
+            style={selectedCategory === 'all' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+          >
+            全部
+          </button>
+          {categories.map(category => (
+            <button
+              key={category.id}
+              onClick={() => handleCategoryChange(category.id)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
+                selectedCategory === category.id
+                  ? 'text-white shadow-sm'
+                  : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+              }`}
+              style={
+                selectedCategory === category.id
+                  ? { backgroundColor: category.color || 'var(--ncku-red)' }
+                  : {}
+              }
+            >
+              {category.name}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* 檔案列表 */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+      <div className="bg-white rounded-xl shadow-md overflow-x-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -478,19 +542,22 @@ function KnowledgeBase() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead style={{ backgroundColor: 'var(--ncku-red)' }}>
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                   檔案名稱
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                   類別
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                  組織
+                </th>
+                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                   大小
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                   上傳日期
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider whitespace-nowrap">
                   操作
                 </th>
               </tr>
@@ -499,18 +566,18 @@ function KnowledgeBase() {
               {files.length > 0 ? (
                 files.map((file) => (
                   <tr key={file.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
+                  <td className="px-4 py-3 max-w-xs">
+                    <div className="flex items-center min-w-0">
                       {/* 檔案類型圖示 */}
                       <div className="flex-shrink-0">
                         {getFileIcon(file.name)}
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{file.name}</div>
+                      <div className="ml-3 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate" title={file.name}>{file.name}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span 
                       className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getCategoryColorClasses(file.category)}`}
                       style={
@@ -526,18 +593,35 @@ function KnowledgeBase() {
                       {file.category}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                    {file.adminGroup ? (
+                      <span
+                        className="px-2 py-1 inline-flex text-xs leading-5 font-medium rounded-full"
+                        style={{
+                          backgroundColor: hexToRgba(file.adminGroup.color, 0.15) || '#f3f4f6',
+                          color: file.adminGroup.color || '#6b7280',
+                          border: `1px solid ${file.adminGroup.color || '#d1d5db'}`
+                        }}
+                      >
+                        {file.adminGroup.name}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                     {file.size}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                     {file.uploadDate}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => handleEditCategory(file)}
-                        className="text-amber-600 hover:text-amber-900 transition-colors cursor-pointer"
-                        title="變更分類"
+                        onClick={() => canOperateFile(file) && handleEditCategory(file)}
+                        className={`transition-colors ${canOperateFile(file) ? 'text-amber-600 hover:text-amber-900 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`}
+                        title={canOperateFile(file) ? '變更分類' : '您無權操作此檔案'}
+                        disabled={!canOperateFile(file)}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -545,9 +629,10 @@ function KnowledgeBase() {
                         </svg>
                       </button>
                       <button
-                        onClick={() => handleEditPermissions(file)}
-                        className="text-purple-600 hover:text-purple-900 transition-colors cursor-pointer"
-                        title="設定身分組權限"
+                        onClick={() => canOperateFile(file) && handleEditPermissions(file)}
+                        className={`transition-colors ${canOperateFile(file) ? 'text-purple-600 hover:text-purple-900 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`}
+                        title={canOperateFile(file) ? '設定身分組權限' : '您無權操作此檔案'}
+                        disabled={!canOperateFile(file)}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -567,9 +652,10 @@ function KnowledgeBase() {
                         </svg>
                       </button>
                       <button 
-                        className="text-green-600 hover:text-green-900 transition-colors cursor-pointer"
-                        onClick={() => handleDownload(file.id, file.name)}
-                        title="下載檔案"
+                        className={`transition-colors ${canOperateFile(file) ? 'text-green-600 hover:text-green-900 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`}
+                        onClick={() => canOperateFile(file) && handleDownload(file.id, file.name)}
+                        title={canOperateFile(file) ? '下載檔案' : '您無權操作此檔案'}
+                        disabled={!canOperateFile(file)}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -577,10 +663,11 @@ function KnowledgeBase() {
                         </svg>
                       </button>
                       <button 
-                        onClick={() => setShowDeleteConfirm(file.id)}
-                        style={{ color: 'var(--ncku-red)' }}
-                        className="hover:opacity-70 transition-opacity cursor-pointer"
-                        title="刪除檔案"
+                        onClick={() => canOperateFile(file) && setShowDeleteConfirm(file.id)}
+                        className={`transition-opacity ${canOperateFile(file) ? 'hover:opacity-70 cursor-pointer' : 'opacity-30 cursor-not-allowed'}`}
+                        style={{ color: canOperateFile(file) ? 'var(--ncku-red)' : '#d1d5db' }}
+                        title={canOperateFile(file) ? '刪除檔案' : '您無權操作此檔案'}
+                        disabled={!canOperateFile(file)}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -593,7 +680,7 @@ function KnowledgeBase() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                     <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                             d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -703,6 +790,23 @@ function KnowledgeBase() {
                   <label className="text-sm font-medium text-gray-500">上傳日期</label>
                   <p className="mt-1 text-sm text-gray-900">{selectedFile.uploadDate}</p>
                 </div>
+                {selectedFile.adminGroup && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">管理組織</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      <span
+                        className="px-2 py-0.5 text-xs rounded-full"
+                        style={{
+                          backgroundColor: hexToRgba(selectedFile.adminGroup.color, 0.15) || '#f3f4f6',
+                          color: selectedFile.adminGroup.color || '#6b7280',
+                          border: `1px solid ${selectedFile.adminGroup.color || '#d1d5db'}`
+                        }}
+                      >
+                        {selectedFile.adminGroup.name}
+                      </span>
+                    </p>
+                  </div>
+                )}
                 {selectedFile.uploader && (
                   <div>
                     <label className="text-sm font-medium text-gray-500">上傳者</label>

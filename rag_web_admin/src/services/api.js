@@ -76,3 +76,11 @@ export {
   batchSetFileUserGroupPermissions,
   getFileUserGroupPermissions
 } from './api/userGroups.js';
+
+// 導入管理組織模組
+export {
+  getAdminGroups,
+  createAdminGroup,
+  updateAdminGroup,
+  deleteAdminGroup
+} from './api/adminGroups.js';

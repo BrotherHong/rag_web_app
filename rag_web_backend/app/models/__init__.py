@@ -11,6 +11,7 @@ from app.models.faq import FAQ
 from app.models.query_user import QueryUser, QueryUserStatus, FilePermission
 from app.models.user_group import UserGroup, FileUserGroupPermission, query_user_groups
 from app.models.upload_batch import UploadBatch, UploadBatchItem, UploadBatchStatus, UploadBatchItemStatus
+from app.models.admin_group import AdminGroup
 
 __all__ = [
     "Base",
@@ -34,4 +35,5 @@ __all__ = [
     "UploadBatchItem",
     "UploadBatchStatus",
     "UploadBatchItemStatus",
+    "AdminGroup",
 ]

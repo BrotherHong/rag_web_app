@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.category import Category
     from app.models.activity import Activity
     from app.models.user_group import UserGroup
+    from app.models.admin_group import AdminGroup
 
 
 class Department(Base, TimestampMixin):
@@ -102,7 +103,13 @@ class Department(Base, TimestampMixin):
         back_populates="department",
         cascade="all, delete-orphan"
     )
-    
+
+    admin_groups: Mapped[List["AdminGroup"]] = relationship(
+        "AdminGroup",
+        back_populates="department",
+        cascade="all, delete-orphan"
+    )
+
     def __repr__(self) -> str:
         return f"<Department(id={self.id}, name='{self.name}')>"
 

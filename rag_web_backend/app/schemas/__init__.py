@@ -27,6 +27,7 @@ class UserUpdate(BaseModel):
     department_id: Optional[int] = None
     is_active: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=6, max_length=128, description="新密碼（選填）")
+    admin_group_id: Optional[int] = Field(None, description="管理組織 ID（None 表示移除，0 表示不變更）")
 
 
 class UserResponse(UserBase):
@@ -34,7 +35,8 @@ class UserResponse(UserBase):
     id: int
     role: str
     is_active: bool
-    department_id: Optional[int]  # super_admin 可以沒有 department_id
+    department_id: Optional[int]
+    admin_group_id: Optional[int] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)

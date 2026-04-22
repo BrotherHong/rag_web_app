@@ -41,7 +41,8 @@ export const login = async (username, password) => {
             departmentId: data.user.department?.id || null,
             departmentName: data.user.department?.name || null,
             departmentSlug: data.user.department?.slug || null,
-            isSuperAdmin: data.user.isSuperAdmin || false
+            isSuperAdmin: data.user.isSuperAdmin || false,
+            adminGroupId: data.user.adminGroupId || null
           },
           token: data.token
         },

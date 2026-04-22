@@ -54,6 +54,16 @@ class CategoryInfo(BaseModel):
         from_attributes = True
 
 
+class AdminGroupInfo(BaseModel):
+    """管理組織簡要資訊"""
+    id: int
+    name: str
+    color: str
+
+    class Config:
+        from_attributes = True
+
+
 class UploaderInfo(BaseModel):
     """上傳者資訊"""
     id: int
@@ -81,6 +91,7 @@ class FileSchema(BaseModel):
     file_size: int
     file_type: str
     category: Optional[CategoryInfo] = None
+    admin_group: Optional[AdminGroupInfo] = None
     uploader: UploaderInfo
     status: str
     is_vectorized: bool

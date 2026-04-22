@@ -42,6 +42,7 @@ export const getFiles = async (params = {}) => {
       limit: params.limit || 20,  // 預設每頁 20 筆
       ...(params.search && { search: params.search }),
       ...(params.category && params.category !== 'all' && { category_id: params.category }),
+      ...(params.admin_group_id !== undefined && params.admin_group_id !== null && { admin_group_id: params.admin_group_id }),
       ...(params.department_id && { department_id: params.department_id }),
       ...(params.sort && { sort: params.sort }),
       ...(params.order && { order: params.order })
@@ -61,6 +62,8 @@ export const getFiles = async (params = {}) => {
         name: file.original_filename,
         category: file.category?.name || '其他',
         categoryId: file.category?.id || null,
+        adminGroup: file.admin_group || null,
+        adminGroupId: file.admin_group?.id || null,
         size: `${(file.file_size / (1024 * 1024)).toFixed(2)} MB`,
         uploadDate: new Date(file.created_at).toLocaleDateString('zh-TW'),
         status: file.status,

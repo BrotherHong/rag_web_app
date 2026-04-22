@@ -88,6 +88,7 @@ async def login(
             "isSuperAdmin": user.role.value == "SUPER_ADMIN",
             "departmentId": user.department.id if user.department else None,
             "departmentName": user.department.name if user.department else None,
+            "adminGroupId": user.admin_group_id,
             "department": {
                 "id": user.department.id if user.department else None,
                 "name": user.department.name if user.department else None,

@@ -26,6 +26,7 @@ from app.models.user import User, UserRole
 from app.models.file import File as FileModel
 from app.models.category import Category
 from app.models.user_group import FileUserGroupPermission
+from app.models.admin_group import AdminGroup
 from app.schemas.file import (
     FileListResponse,
     FileSchema,
@@ -40,11 +41,29 @@ from app.models.file import FileStatus as ProcessingStatus
 router = APIRouter(prefix="/files", tags=["files"])
 
 
+def _check_admin_file_permission(user: User, file: FileModel) -> None:
+    """檢查管理員是否有權限操作（更新/刪除）此檔案。
+    
+    - SuperAdmin：全部可操作
+    - 有管理組織的 Admin：只能操作同組織的檔案
+    - 無管理組織的 Admin：只能操作 admin_group_id 為 null 的檔案
+    """
+    if user.role == UserRole.SUPER_ADMIN:
+        return
+    if user.admin_group_id is None:
+        if file.admin_group_id is not None:
+            raise HTTPException(status_code=403, detail="無管理組織的管理員只能操作未指定組織的檔案")
+    else:
+        if file.admin_group_id != user.admin_group_id:
+            raise HTTPException(status_code=403, detail="無權限操作不屬於您管理組織的檔案")
+
+
 @router.get("/", response_model=FileListResponse)
 async def get_files(
     page: int = Query(1, ge=1, description="頁碼"),
     limit: int = Query(10, ge=1, le=10000, description="每頁數量"),
     category_id: Optional[int] = Query(None, description="分類ID篩選"),
+    admin_group_id: Optional[int] = Query(None, description="管理組織ID篩選（-1 表示無組織）"),
     search: Optional[str] = Query(None, description="搜尋檔名或描述"),
     sort: str = Query("created_at", pattern="^(filename|created_at|file_size)$", description="排序欄位"),
     order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
@@ -56,16 +75,16 @@ async def get_files(
     """取得檔案列表
     
     - 自動過濾處室：只能看到自己處室的檔案
-    - 支援分類、狀態篩選
+    - 非 SuperAdmin 的 Admin 依管理組織自動限制可見範圍
+    - 支援分類、狀態、管理組織篩選
     - 支援搜尋檔名和描述
-    - 支援排序和分頁
     """
-    # 建立基礎查詢（自動過濾處室）
     query = select(FileModel).where(
         FileModel.department_id == current_user.department_id
     ).options(
         joinedload(FileModel.category),
-        joinedload(FileModel.uploader)
+        joinedload(FileModel.uploader),
+        joinedload(FileModel.admin_group),
     )
 
     # 預設僅顯示可用於知識庫查詢的檔案
@@ -74,7 +93,14 @@ async def get_files(
             FileModel.status == ProcessingStatus.COMPLETED,
             FileModel.is_vectorized.is_(True)
         )
-    
+
+    # 管理組織篩選（SuperAdmin 可用此參數過濾，-1 = 無組織檔案）
+    if admin_group_id is not None:
+        if admin_group_id == -1:
+            query = query.where(FileModel.admin_group_id.is_(None))
+        else:
+            query = query.where(FileModel.admin_group_id == admin_group_id)
+
     # 分類篩選
     if category_id:
         query = query.where(FileModel.category_id == category_id)
@@ -181,6 +207,7 @@ async def upload_file(
         category_id=category_id,
         department_id=current_user.department_id,
         uploader_id=current_user.id,
+        admin_group_id=current_user.admin_group_id,
         description=description,
         status="pending"  # 等待背景處理
     )
@@ -258,7 +285,7 @@ async def get_file(
         raise HTTPException(status_code=404, detail="檔案不存在")
     
     # 權限檢查
-    if file.department_id != current_user.department_id and not current_user.is_super_admin:
+    if file.department_id != current_user.department_id and current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=403, detail="無權限查看此檔案")
     
     return FileDetailResponse.model_validate(file)
@@ -281,10 +308,13 @@ async def update_file(
     file = await db.get(FileModel, file_id)
     if not file:
         raise HTTPException(status_code=404, detail="檔案不存在")
-    
-    # 權限檢查
+
+    # 處室權限檢查
     if file.department_id != current_user.department_id:
         raise HTTPException(status_code=403, detail="無權限修改此檔案")
+
+    # 管理組織權限檢查
+    _check_admin_file_permission(current_user, file)
     
     # 更新分類
     if file_data.category_id is not None:
@@ -338,11 +368,14 @@ async def delete_file(
     file = await db.get(FileModel, file_id)
     if not file:
         raise HTTPException(status_code=404, detail="檔案不存在")
-    
-    # 權限檢查
+
+    # 處室權限檢查
     if file.department_id != current_user.department_id:
         raise HTTPException(status_code=403, detail="無權限刪除此檔案")
-    
+
+    # 管理組織權限檢查
+    _check_admin_file_permission(current_user, file)
+
     # 記錄檔名（刪除前）
     original_filename = file.original_filename
     department_id = file.department_id
@@ -404,9 +437,12 @@ async def download_file(
     if not file:
         raise HTTPException(status_code=404, detail="檔案不存在")
     
-    # 權限檢查
-    if file.department_id != current_user.department_id and not current_user.is_super_admin:
+    # 權限檢查：處室
+    if file.department_id != current_user.department_id and current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=403, detail="無權限下載此檔案")
+    
+    # 權限檢查：管理組織
+    _check_admin_file_permission(current_user, file)
     
     # 檢查檔案是否存在
     if not os.path.exists(file.file_path):

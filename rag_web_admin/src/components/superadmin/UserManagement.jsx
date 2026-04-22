@@ -3,11 +3,12 @@
  * 使用者管理組件 - 負責處室管理員的新增、編輯、刪除和顯示
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   addUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  getAdminGroups
 } from '../../services/api';
 import { useModalAnimation } from '../../hooks/useModalAnimation';
 import { useToast } from '../../contexts/ToastContext';
@@ -33,8 +34,48 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
     username: '',
     email: '',
     password: '',
-    departmentId: ''
+    departmentId: '',
+    adminGroupId: ''
   });
+
+  // 管理組織列表（依選擇的處室動態載入）
+  const [deptAdminGroups, setDeptAdminGroups] = useState([]);
+
+  // 所有管理組織 id → name 對照（用於表格顯示）
+  const [allAdminGroupMap, setAllAdminGroupMap] = useState({});
+
+  // 載入所有處室的管理組織（供表格 lookup）
+  useEffect(() => {
+    const loadAll = async () => {
+      const map = {};
+      for (const dept of departments) {
+        const res = await getAdminGroups(dept.id);
+        if (res.success) {
+          for (const g of res.data) {
+            map[g.id] = g.name;
+          }
+        }
+      }
+      setAllAdminGroupMap(map);
+    };
+    if (departments.length > 0) loadAll();
+  }, [departments]);
+
+  // 處室變更時載入該處室的管理組織
+  useEffect(() => {
+    const deptId = userFormData.departmentId;
+    if (deptId) {
+      getAdminGroups(parseInt(deptId)).then(res => {
+        if (res.success) {
+          setDeptAdminGroups(res.data);
+        } else {
+          setDeptAdminGroups([]);
+        }
+      });
+    } else {
+      setDeptAdminGroups([]);
+    }
+  }, [userFormData.departmentId]);
 
   // 根據處室 ID 獲取處室名稱
   const getDepartmentNameById = (deptId) => {
@@ -49,8 +90,10 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
       username: '',
       email: '',
       password: '',
-      departmentId: ''
+      departmentId: '',
+      adminGroupId: ''
     });
+    setDeptAdminGroups([]);
   };
 
   // 處理新增使用者
@@ -98,7 +141,8 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
       const updateData = {
         name: userFormData.name,
         email: userFormData.email,
-        departmentId: userFormData.departmentId
+        departmentId: userFormData.departmentId,
+        adminGroupId: userFormData.adminGroupId || null
       };
       
       // 只有填寫密碼時才更新密碼
@@ -147,7 +191,8 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
       username: user.username,
       email: user.email,
       password: '',
-      departmentId: user.departmentId
+      departmentId: user.departmentId,
+      adminGroupId: user.adminGroupId || ''
     });
     setShowEditUserModal(true);
   };
@@ -194,6 +239,7 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">帳號</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap hidden md:table-cell">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">所屬處室</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap hidden lg:table-cell">管理組織</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">狀態</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">操作</th>
                 </tr>
@@ -209,6 +255,9 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                         ? <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800">系統管理員</span>
                         : getDepartmentNameById(user.departmentId)
                       }
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap hidden lg:table-cell">
+                      {user.adminGroupId ? (allAdminGroupMap[user.adminGroupId] || '—') : '—'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
@@ -305,7 +354,7 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">所屬處室 *</label>
                 <select
                   value={userFormData.departmentId}
-                  onChange={(e) => setUserFormData({ ...userFormData, departmentId: e.target.value })}
+                  onChange={(e) => setUserFormData({ ...userFormData, departmentId: e.target.value, adminGroupId: '' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
                 >
                   <option value="">請選擇處室</option>
@@ -314,6 +363,23 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                   ))}
                 </select>
               </div>
+
+              {deptAdminGroups.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
+                  <select
+                    value={userFormData.adminGroupId}
+                    onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
+                  >
+                    <option value="">不指定</option>
+                    {deptAdminGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">
@@ -399,7 +465,7 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">所屬處室 *</label>
                 <select
                   value={userFormData.departmentId}
-                  onChange={(e) => setUserFormData({ ...userFormData, departmentId: e.target.value })}
+                  onChange={(e) => setUserFormData({ ...userFormData, departmentId: e.target.value, adminGroupId: '' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
                 >
                   <option value="">請選擇處室</option>
@@ -408,6 +474,23 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                   ))}
                 </select>
               </div>
+
+              {deptAdminGroups.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
+                  <select
+                    value={userFormData.adminGroupId}
+                    onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
+                  >
+                    <option value="">不指定</option>
+                    {deptAdminGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">

@@ -444,6 +444,10 @@ async def set_file_user_group_permissions(
             detail="檔案不存在或無權訪問"
         )
     
+    # 權限檢查：管理組織
+    from app.api.files import _check_admin_file_permission
+    _check_admin_file_permission(current_user, file)
+    
     # 驗證所有身分組都屬於當前處室
     if request.user_group_ids:
         valid_groups = await db.scalars(

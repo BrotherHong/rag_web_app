@@ -298,7 +298,17 @@ async def update_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="處室不存在"
             )
-    
+
+    # 驗證 admin_group_id 屬於目標使用者的處室
+    if "admin_group_id" in update_data and update_data["admin_group_id"] is not None:
+        from app.models.admin_group import AdminGroup
+        target_dept = update_data.get("department_id", user.department_id)
+        ag = await db.get(AdminGroup, update_data["admin_group_id"])
+        if not ag:
+            raise HTTPException(status_code=404, detail="管理組織不存在")
+        if ag.department_id != target_dept:
+            raise HTTPException(status_code=400, detail="管理組織不屬於該使用者的處室")
+
     for field, value in update_data.items():
         setattr(user, field, value)
     

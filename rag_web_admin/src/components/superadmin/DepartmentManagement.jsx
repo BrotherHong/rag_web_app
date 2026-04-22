@@ -3,12 +3,16 @@
  * 處室管理組件 - 負責處室的新增、編輯、刪除和顯示
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   addDepartment,
   updateDepartment,
-  deleteDepartment
+  deleteDepartment,
+  getAdminGroups,
+  createAdminGroup,
+  updateAdminGroup,
+  deleteAdminGroup
 } from '../../services/api';
 import { useModalAnimation } from '../../hooks/useModalAnimation';
 import { useToast } from '../../contexts/ToastContext';
@@ -44,6 +48,18 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     external_api_key: '',
     login_methods: ['normal', 'success_portal']
   });
+
+  // === 管理組織相關 state ===
+  const [showAdminGroupModal, setShowAdminGroupModal] = useState(null); // 存放 department 物件
+  const [adminGroups, setAdminGroups] = useState([]);
+  const [adminGroupLoading, setAdminGroupLoading] = useState(false);
+  const [showAdminGroupForm, setShowAdminGroupForm] = useState(false);
+  const [editingAdminGroup, setEditingAdminGroup] = useState(null);
+  const [deleteAdminGroup_confirm, setDeleteAdminGroupConfirm] = useState(null);
+  const [adminGroupFormData, setAdminGroupFormData] = useState({ name: '', description: '', color: '#3B82F6' });
+
+  const adminGroupModal = useModalAnimation(showAdminGroupModal !== null, () => setShowAdminGroupModal(null));
+  const deleteAdminGroupConfirmModal = useModalAnimation(deleteAdminGroup_confirm !== null, () => setDeleteAdminGroupConfirm(null));
 
   // 可用的顏色選項
   const colorOptions = [
@@ -242,6 +258,75 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     }, 0);
   };
 
+  // === 管理組織功能 ===
+  const openAdminGroupModal = async (dept) => {
+    setShowAdminGroupModal(dept);
+    setAdminGroupLoading(true);
+    const res = await getAdminGroups(dept.id);
+    if (res.success) {
+      setAdminGroups(res.data);
+    } else {
+      toast.error(res.message);
+    }
+    setAdminGroupLoading(false);
+  };
+
+  const refreshAdminGroups = async () => {
+    if (!showAdminGroupModal) return;
+    const res = await getAdminGroups(showAdminGroupModal.id);
+    if (res.success) setAdminGroups(res.data);
+  };
+
+  const resetAdminGroupForm = () => {
+    setAdminGroupFormData({ name: '', description: '', color: '#3B82F6' });
+    setEditingAdminGroup(null);
+    setShowAdminGroupForm(false);
+  };
+
+  const handleSaveAdminGroup = async () => {
+    if (!adminGroupFormData.name.trim()) {
+      toast.warning('請輸入組織名稱');
+      return;
+    }
+    if (editingAdminGroup) {
+      const res = await updateAdminGroup(editingAdminGroup.id, adminGroupFormData);
+      if (res.success) {
+        toast.success('管理組織已更新');
+        await refreshAdminGroups();
+        resetAdminGroupForm();
+      } else {
+        toast.error(res.message);
+      }
+    } else {
+      const res = await createAdminGroup({
+        ...adminGroupFormData,
+        department_id: showAdminGroupModal.id,
+      });
+      if (res.success) {
+        toast.success('管理組織已建立');
+        await refreshAdminGroups();
+        resetAdminGroupForm();
+      } else {
+        toast.error(res.message);
+      }
+    }
+  };
+
+  const handleDeleteAdminGroup = async (groupId) => {
+    const res = await deleteAdminGroup(groupId);
+    if (res.success) {
+      toast.success('管理組織已刪除');
+      await refreshAdminGroups();
+    } else {
+      toast.error(res.message);
+    }
+  };
+
+  const adminGroupColorOptions = [
+    '#3B82F6', '#EF4444', '#10B981', '#F59E0B',
+    '#8B5CF6', '#EC4899', '#6366F1', '#F97316',
+  ];
+
   // 複製查詢網址
   const handleCopyUrl = async (slug) => {
     const url = `${window.location.origin}/query/${slug}`;
@@ -376,6 +461,12 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                     style={{ backgroundColor: 'var(--ncku-red)' }}
                   >
                     進入管理
+                  </button>
+                  <button
+                    onClick={() => openAdminGroupModal(dept)}
+                    className="col-span-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer text-sm font-medium"
+                  >
+                    管理組織
                   </button>
                   <button
                     onClick={() => openEditModal(dept)}
@@ -687,6 +778,156 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
         }}
         title="確認刪除處室"
         message={`確定要刪除「${showDeleteConfirm?.name}」嗎？\n\n注意：此操作將會：\n• 刪除該處室下的所有使用者\n• 刪除該處室的所有檔案和資料\n• 此操作無法復原\n\n請確認您要繼續執行此操作。`}
+        confirmText="確認刪除"
+        cancelText="取消"
+        type="danger"
+      />
+
+      {/* 管理組織 Modal */}
+      {adminGroupModal.shouldRender && (
+        <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center ${adminGroupModal.animationClass}`}>
+          <div className={`relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 max-h-[85vh] overflow-y-auto ${adminGroupModal.contentAnimationClass}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold" style={{ color: 'var(--ncku-red)' }}>
+                {showAdminGroupModal?.name} — 管理組織
+              </h3>
+              <button onClick={adminGroupModal.handleClose} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {adminGroupLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-current border-r-transparent" style={{ color: 'var(--ncku-red)' }} />
+              </div>
+            ) : (
+              <>
+                {/* 組織列表 */}
+                {adminGroups.length === 0 && !showAdminGroupForm ? (
+                  <p className="text-gray-500 text-sm text-center py-6">尚無管理組織</p>
+                ) : (
+                  <div className="space-y-2 mb-4">
+                    {adminGroups.map(group => (
+                      <div key={group.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }} />
+                          <div>
+                            <span className="font-medium text-gray-900">{group.name}</span>
+                            {group.description && <p className="text-xs text-gray-500">{group.description}</p>}
+                            <p className="text-xs text-gray-400 mt-0.5">{group.user_count} 位管理員 · {group.file_count} 個檔案</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => {
+                              setEditingAdminGroup(group);
+                              setAdminGroupFormData({ name: group.name, description: group.description || '', color: group.color });
+                              setShowAdminGroupForm(true);
+                            }}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                            title="編輯"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setDeleteAdminGroupConfirm(group)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                            title="刪除"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 新增/編輯表單 */}
+                {showAdminGroupForm ? (
+                  <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-700">
+                      {editingAdminGroup ? '編輯組織' : '新增組織'}
+                    </h4>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">名稱 *</label>
+                      <input
+                        type="text"
+                        value={adminGroupFormData.name}
+                        onChange={(e) => setAdminGroupFormData({ ...adminGroupFormData, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="例如：教務組"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                      <input
+                        type="text"
+                        value={adminGroupFormData.description}
+                        onChange={(e) => setAdminGroupFormData({ ...adminGroupFormData, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="選填"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">顏色</label>
+                      <div className="flex space-x-2">
+                        {adminGroupColorOptions.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => setAdminGroupFormData({ ...adminGroupFormData, color: c })}
+                            style={{ backgroundColor: c }}
+                            className={`w-7 h-7 rounded-full cursor-pointer ${adminGroupFormData.color === c ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex justify-end space-x-2 pt-2">
+                      <button
+                        onClick={resetAdminGroupForm}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 cursor-pointer"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={handleSaveAdminGroup}
+                        className="px-3 py-1.5 text-white rounded-lg text-sm cursor-pointer"
+                        style={{ backgroundColor: 'var(--ncku-red)' }}
+                      >
+                        {editingAdminGroup ? '更新' : '新增'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAdminGroupForm(true)}
+                    className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors cursor-pointer text-sm"
+                  >
+                    + 新增管理組織
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 刪除管理組織確認對話框 */}
+      <ConfirmDialog
+        isOpen={deleteAdminGroup_confirm !== null}
+        shouldRender={deleteAdminGroupConfirmModal.shouldRender}
+        isClosing={deleteAdminGroupConfirmModal.isClosing}
+        animationClass={deleteAdminGroupConfirmModal.animationClass}
+        contentAnimationClass={deleteAdminGroupConfirmModal.contentAnimationClass}
+        onClose={deleteAdminGroupConfirmModal.handleClose}
+        onConfirm={() => handleDeleteAdminGroup(deleteAdminGroup_confirm.id)}
+        title="確認刪除管理組織"
+        message={`確定要刪除「${deleteAdminGroup_confirm?.name}」嗎？${deleteAdminGroup_confirm?.file_count > 0 ? `\n\n⚠️ 此組織仍有 ${deleteAdminGroup_confirm.file_count} 個檔案，需先處理這些檔案才能刪除。` : ''}`}
         confirmText="確認刪除"
         cancelText="取消"
         type="danger"

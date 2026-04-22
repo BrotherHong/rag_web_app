@@ -211,6 +211,7 @@ async def batch_upload(
                 category_id=category_id,
                 department_id=current_user.department_id,
                 uploader_id=current_user.id,
+                admin_group_id=current_user.admin_group_id,
                 status="completed"  # 使用 FileStatus.COMPLETED
             )
             
