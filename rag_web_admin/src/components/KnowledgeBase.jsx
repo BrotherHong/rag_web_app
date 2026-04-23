@@ -790,10 +790,10 @@ function KnowledgeBase() {
                   <label className="text-sm font-medium text-gray-500">上傳日期</label>
                   <p className="mt-1 text-sm text-gray-900">{selectedFile.uploadDate}</p>
                 </div>
-                {selectedFile.adminGroup && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">管理組織</label>
-                    <p className="mt-1 text-sm text-gray-900">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">管理組織</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {selectedFile.adminGroup ? (
                       <span
                         className="px-2 py-0.5 text-xs rounded-full"
                         style={{
@@ -804,9 +804,11 @@ function KnowledgeBase() {
                       >
                         {selectedFile.adminGroup.name}
                       </span>
-                    </p>
-                  </div>
-                )}
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </p>
+                </div>
                 {selectedFile.uploader && (
                   <div>
                     <label className="text-sm font-medium text-gray-500">上傳者</label>

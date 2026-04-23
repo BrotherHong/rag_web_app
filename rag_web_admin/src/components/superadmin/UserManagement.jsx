@@ -364,22 +364,20 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 </select>
               </div>
 
-              {deptAdminGroups.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
-                  <select
-                    value={userFormData.adminGroupId}
-                    onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
-                  >
-                    <option value="">不指定</option>
-                    {deptAdminGroups.map(g => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
+                <select
+                  value={userFormData.adminGroupId}
+                  onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
+                >
+                  <option value="">不指定</option>
+                  {deptAdminGroups.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
+              </div>
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">
@@ -475,22 +473,20 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 </select>
               </div>
 
-              {deptAdminGroups.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
-                  <select
-                    value={userFormData.adminGroupId}
-                    onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
-                  >
-                    <option value="">不指定</option>
-                    {deptAdminGroups.map(g => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
+                <select
+                  value={userFormData.adminGroupId}
+                  onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
+                >
+                  <option value="">不指定</option>
+                  {deptAdminGroups.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
+              </div>
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">
