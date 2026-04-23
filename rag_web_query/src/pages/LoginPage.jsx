@@ -49,7 +49,8 @@ function LoginPage() {
   };
 
   const handleBack = () => {
-    navigate(from);
+    // 返回登入方式選擇頁，而非直接去 chat（未登入狀態會被踢走）
+    navigate('/login', { state: { from } });
   };
 
   return (

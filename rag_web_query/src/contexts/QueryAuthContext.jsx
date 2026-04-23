@@ -21,6 +21,7 @@ export const QueryAuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // 初始化：檢查本地存儲的 token 和用戶資訊
   useEffect(() => {
@@ -53,10 +54,12 @@ export const QueryAuthProvider = ({ children }) => {
     saveQueryUser(userData);
   };
 
-  // 登出
+  // 登出（先設 loggingOut flag，讓 RequireQueryAuth 不在 navigate 前搶先 redirect）
   const logout = () => {
+    setLoggingOut(true);
     removeQueryToken();
     setUser(null);
+    setTimeout(() => setLoggingOut(false), 100);
   };
 
   // 更新用戶資訊
@@ -74,6 +77,7 @@ export const QueryAuthProvider = ({ children }) => {
     user,
     loading,
     initialized,
+    loggingOut,
     isAuthenticated,
     login,
     logout,

@@ -15,7 +15,7 @@ import DepartmentLayout from './components/DepartmentLayout'
 import { useQueryAuth } from './contexts/QueryAuthContext'
 
 function RequireQueryAuth({ children }) {
-  const { isAuthenticated, loading } = useQueryAuth()
+  const { isAuthenticated, loading, loggingOut } = useQueryAuth()
   const location = useLocation()
 
   if (loading) {
@@ -30,6 +30,9 @@ function RequireQueryAuth({ children }) {
       </div>
     )
   }
+
+  // 登出進行中，不 redirect，等 Navbar navigate 完成後再換頁
+  if (loggingOut) return null
 
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />

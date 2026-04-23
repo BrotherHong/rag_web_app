@@ -22,6 +22,8 @@ function RegisterPage() {
   const [deptName, setDeptName] = useState('');
 
   const backPath = location.state?.from || '/';
+  // 從 backPath（如 /hr/chat）推導出首頁路徑（/hr），避免返回需要認證的頁面
+  const homePath = backPath.replace(/\/chat$/, '') || '/';
 
   // 解析來源路徑中的處室 slug 並取得處室 ID
   useEffect(() => {
@@ -112,11 +114,11 @@ function RegisterPage() {
               請使用您的帳號和密碼登入系統。
             </p>
             <button
-              onClick={() => navigate(backPath)}
+              onClick={() => navigate('/login', { state: { from: backPath } })}
               className="w-full py-3 rounded-lg text-white font-semibold transition-all"
               style={{ background: 'linear-gradient(to right, #dc2626, #b91c1c)' }}
             >
-              返回首頁
+              前往登入
             </button>
           </div>
         </div>
@@ -129,7 +131,7 @@ function RegisterPage() {
       <div className="max-w-lg w-full">
         {/* 返回按鈕 */}
         <button
-          onClick={() => navigate(backPath)}
+          onClick={() => navigate(homePath)}
           className="mb-4 flex items-center text-gray-600 hover:text-gray-900 transition-colors cursor-pointer"
         >
           <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

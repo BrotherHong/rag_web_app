@@ -7,63 +7,72 @@ function HomePage() {
   const { department, deptSlug } = useDepartment()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-red-50 to-white relative overflow-hidden">
-      {/* 背景動畫效果 */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute w-96 h-96 bg-red-100/50 rounded-full blur-3xl -top-48 -left-48 animate-pulse-slow"></div>
-        <div className="absolute w-96 h-96 bg-red-200/40 rounded-full blur-3xl -bottom-48 -right-48 animate-pulse-slow delay-1000"></div>
-        <div className="absolute w-96 h-96 bg-red-50/60 rounded-full blur-3xl top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse-slow delay-500"></div>
+    <div className="min-h-[calc(100vh-5rem)] bg-gradient-to-br from-white via-red-50 to-white relative overflow-hidden flex flex-col">
+      {/* 背景光暈 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute w-[600px] h-[600px] bg-red-100/40 rounded-full blur-3xl -top-64 -left-64 animate-pulse-slow"></div>
+        <div className="absolute w-[600px] h-[600px] bg-red-200/30 rounded-full blur-3xl -bottom-64 -right-64 animate-pulse-slow delay-1000"></div>
       </div>
 
-      {/* 網格背景 */}
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-20"></div>
+      {/* 主要內容：垂直置中填滿剩餘高度 */}
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-12">
+        {/* Logo */}
+        <div className="mb-8 relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-red-700/20 rounded-3xl rotate-6 animate-pulse-slow"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-red-700/20 to-red-500/20 rounded-3xl -rotate-6 animate-pulse-slow delay-300"></div>
+          <div className="relative w-44 h-44 bg-white rounded-3xl shadow-2xl flex items-center justify-center p-5">
+            <img
+              src={APP_CONSTANTS.UNIVERSITY.LOGO_PATH}
+              alt={APP_CONSTANTS.UNIVERSITY.NAME}
+              className="w-full h-full object-contain"
+            />
+          </div>
+        </div>
 
-      {/* 主要內容 */}
-      <div className="relative z-10 container mx-auto px-4 py-16">
-        <div className="flex flex-col items-center justify-center min-h-screen">
-          {/* 標題區域 */}
-          <div className="text-center mb-12 animate-fade-in">
-            <div className="inline-block mb-6">
-              <div className="relative">
-                {/* 成功大學 Logo */}
-                <div className="w-32 h-32 mx-auto mb-6 relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-red-700/20 rounded-2xl rotate-6 animate-pulse-slow"></div>
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-700/20 to-red-500/20 rounded-2xl -rotate-6 animate-pulse-slow delay-300"></div>
-                  <div className="absolute inset-0 bg-white rounded-2xl shadow-xl flex items-center justify-center p-4">
-                    <img 
-                      src={APP_CONSTANTS.UNIVERSITY.LOGO_PATH}
-                      alt={APP_CONSTANTS.UNIVERSITY.NAME}
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                </div>
-              </div>
+        {/* 標題 */}
+        <h1 className="text-5xl md:text-7xl font-extrabold mb-4 text-center bg-gradient-to-r from-red-800 via-red-600 to-red-800 bg-clip-text text-transparent leading-tight">
+          {department ? department.name + ' AI助手' : 'AI助手'}
+        </h1>
+
+        <p className="text-xl md:text-2xl text-gray-600 mb-3 text-center max-w-xl">
+          {department?.description || APP_CONSTANTS.APP_SUBTITLE}
+        </p>
+
+        {department && (
+          <p className="text-sm text-gray-500 mb-8">
+            {department.fullName}&ensp;|&ensp;{department.contact.phone}
+          </p>
+        )}
+
+        {/* 按鈕 */}
+        <div className="mt-6 flex flex-col sm:flex-row items-center gap-4">
+          <button
+            onClick={() => navigate('/login', { state: { from: `/${deptSlug}/chat` } })}
+            className="px-10 py-4 bg-gradient-to-r from-red-700 to-red-800 rounded-full text-white font-bold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
+          >
+            登入
+          </button>
+          <button
+            onClick={() => navigate('/register', { state: { from: `/${deptSlug}/chat` } })}
+            className="px-10 py-4 border-2 border-red-700 rounded-full text-red-700 font-bold text-lg hover:bg-red-50 hover:scale-105 transition-all cursor-pointer"
+          >
+            註冊
+          </button>
+        </div>
+
+        {/* 底部特色說明 */}
+        <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-2xl w-full">
+          {[
+            { icon: '🔍', title: '智慧查詢', desc: '即時回答各類行政問題' },
+            { icon: '📚', title: '知識庫支援', desc: '根據最新文件精準作答' },
+            { icon: '🔒', title: '安全登入', desc: '支援成大成功入口 SSO' },
+          ].map(({ icon, title, desc }) => (
+            <div key={title} className="bg-white/70 backdrop-blur-sm rounded-2xl p-5 shadow-sm border border-red-100 text-center">
+              <div className="text-3xl mb-2">{icon}</div>
+              <div className="font-semibold text-gray-800 mb-1">{title}</div>
+              <div className="text-sm text-gray-500">{desc}</div>
             </div>
-            
-            <h1 className="text-6xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-red-700 via-red-600 to-red-700 bg-clip-text text-transparent animate-gradient">
-              {department ? department.name + ' AI助手' : 'AI助手'}
-            </h1>
-            
-            <p className="text-xl md:text-2xl text-gray-700 mb-4">
-              {department?.description || APP_CONSTANTS.APP_SUBTITLE}
-            </p>
-            
-            {department && (
-              <p className="text-sm text-gray-600">
-                {department.fullName} | {department.contact.phone}
-              </p>
-            )}
-          </div>
-
-          {/* 登入按鈕 */}
-          <div className="mt-12">
-            <button 
-              onClick={() => navigate('/login', { state: { from: `/${deptSlug}/chat` } })}
-              className="group relative px-8 py-4 bg-gradient-to-r from-red-600 to-red-700 rounded-full text-white font-semibold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all hover:from-red-700 hover:to-red-800 cursor-pointer"
-            >
-              <span className="relative z-10">登入</span>
-            </button>
-          </div>
+          ))}
         </div>
       </div>
     </div>

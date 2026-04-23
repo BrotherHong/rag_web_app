@@ -332,15 +332,6 @@ function ChatPage() {
       <div className={`${showSidebar ? 'w-64' : 'w-0'} transition-all duration-300 bg-white/80 backdrop-blur-sm border-r border-gray-200 flex flex-col overflow-hidden shadow-lg`}>
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <button
-            onClick={() => navigate(`/${deptSlug}`)}
-            className="flex items-center gap-2 text-gray-600 hover:text-red-600 transition-colors mb-4 cursor-pointer"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            <span>返回首頁</span>
-          </button>
-          <button
             onClick={handleNewChat}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white transition-all shadow-md cursor-pointer"
           >
