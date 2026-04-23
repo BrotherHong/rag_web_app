@@ -413,3 +413,89 @@ export const getDepartmentStats = async (departmentId) => {
     };
   }
 };
+
+/**
+ * 取得當前處室助手設定
+ */
+export const getAssistantSettings = async () => {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/departments/me/assistant-settings`, {
+      method: 'GET',
+      headers: getAuthHeader()
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+    const error = await response.json();
+    return { success: false, message: error.detail || '取得助手設定失敗' };
+  } catch (error) {
+    console.error('Get assistant settings error:', error);
+    return { success: false, message: '取得助手設定失敗' };
+  }
+};
+
+/**
+ * 更新當前處室助手設定
+ */
+export const updateAssistantSettings = async (data) => {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/departments/me/assistant-settings`, {
+      method: 'PUT',
+      headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+    const error = await response.json();
+    return { success: false, message: error.detail || '更新助手設定失敗' };
+  } catch (error) {
+    console.error('Update assistant settings error:', error);
+    return { success: false, message: '更新助手設定失敗' };
+  }
+};
+
+/**
+ * 上傳問候語圖片
+ */
+export const uploadGreetingImage = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers = getAuthHeader();
+    // FormData 不需要 Content-Type
+    const response = await apiFetch(`${API_BASE_URL}/departments/me/assistant-settings/greeting-image`, {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+    const error = await response.json();
+    return { success: false, message: error.detail || '上傳圖片失敗' };
+  } catch (error) {
+    console.error('Upload greeting image error:', error);
+    return { success: false, message: '上傳圖片失敗' };
+  }
+};
+
+/**
+ * 刪除問候語圖片
+ */
+export const deleteGreetingImage = async () => {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/departments/me/assistant-settings/greeting-image`, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+    const error = await response.json();
+    return { success: false, message: error.detail || '刪除圖片失敗' };
+  } catch (error) {
+    console.error('Delete greeting image error:', error);
+    return { success: false, message: '刪除圖片失敗' };
+  }
+};

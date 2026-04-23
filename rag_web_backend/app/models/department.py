@@ -67,6 +67,31 @@ class Department(Base, TimestampMixin):
         comment="啟用的登入方式（normal, success_portal, google）"
     )
 
+    # 助手設定
+    assistant_name: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="自訂助手名稱"
+    )
+
+    greeting_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="自訂問候語"
+    )
+
+    greeting_image: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="問候語圖片路徑"
+    )
+
+    enable_direct_query: Mapped[bool] = mapped_column(
+        default=True,
+        nullable=False,
+        comment="是否啟用「改以 AI 通用知識回答」功能"
+    )
+
     # 關聯
     users: Mapped[List["User"]] = relationship(
         "User",

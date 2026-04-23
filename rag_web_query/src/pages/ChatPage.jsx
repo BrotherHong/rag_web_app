@@ -13,10 +13,15 @@ function ChatPage() {
   const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef(null)
   const [showSidebar, setShowSidebar] = useState(true)
+
   const [quickQuestions, setQuickQuestions] = useState([])
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState(null) // null 表示「全部」
   const [directQueryLoading, setDirectQueryLoading] = useState(null) // 儲存正在處理的 messageId
+  const [assistantName, setAssistantName] = useState(null)
+  const [greetingImage, setGreetingImage] = useState(null)
+  const [enableDirectQuery, setEnableDirectQuery] = useState(true)
+  const [lightboxImage, setLightboxImage] = useState(null)
 
   // 判斷是否為「找不到相關資料」的回覆
   const isNoResultsAnswer = (text) => {
@@ -218,21 +223,26 @@ function ChatPage() {
         try {
           const response = await getWelcomeMessage()
           if (response.success) {
+            setAssistantName(response.data.assistant_name)
+            setGreetingImage(response.data.greeting_image)
+            setEnableDirectQuery(response.data.enable_direct_query)
             setMessages([{
               id: 1,
               text: response.data.message,
               sender: 'ai',
-              timestamp: new Date()
+              timestamp: new Date(),
+              isGreeting: true,
+              greetingImage: response.data.greeting_image
             }])
           }
         } catch (error) {
           console.error('Error fetching welcome message:', error)
-          // 使用預設歡迎訊息
           setMessages([{
             id: 1,
-            text: '您好！我是人事室 AI 助手 👋\n\n我可以協助您處理各種人事相關問題。請問有什麼我可以幫助您的嗎？',
+            text: '您好！我是 AI 助手 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？',
             sender: 'ai',
-            timestamp: new Date()
+            timestamp: new Date(),
+            isGreeting: true
           }])
         }
       }
@@ -297,22 +307,19 @@ function ChatPage() {
   }
 
   const handleNewChat = async () => {
-    // 獲取新的歡迎訊息
     try {
       const response = await getWelcomeMessage()
       if (response.success) {
+        setAssistantName(response.data.assistant_name)
+        setGreetingImage(response.data.greeting_image)
+        setEnableDirectQuery(response.data.enable_direct_query)
         setMessages([{
           id: Date.now(),
-          text: '已開始新對話！\n\n' + response.data.message,
+          text: response.data.message,
           sender: 'ai',
-          timestamp: new Date()
-        }])
-      } else {
-        setMessages([{
-          id: Date.now(),
-          text: '已開始新對話！有什麼我可以幫助您的嗎？',
-          sender: 'ai',
-          timestamp: new Date()
+          timestamp: new Date(),
+          isGreeting: true,
+          greetingImage: response.data.greeting_image
         }])
       }
     } catch (error) {
@@ -321,13 +328,15 @@ function ChatPage() {
         id: Date.now(),
         text: '已開始新對話！有什麼我可以幫助您的嗎？',
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date(),
+        isGreeting: true
       }])
     }
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-white via-red-50 to-white flex overflow-hidden">
+    <>
+    <div className="h-[calc(100vh-5rem)] bg-gradient-to-br from-white via-red-50 to-white flex overflow-hidden">
       {/* 側邊欄 */}
       <div className={`${showSidebar ? 'w-64' : 'w-0'} transition-all duration-300 bg-white/80 backdrop-blur-sm border-r border-gray-200 flex flex-col overflow-hidden shadow-lg`}>
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
@@ -401,23 +410,12 @@ function ChatPage() {
                   />
                 </div>
                 <div>
-                  <h2 className="text-gray-800 font-semibold">{department ? department.name + ' AI助手' : APP_CONSTANTS.APP_NAME}</h2>
+                  <h2 className="text-gray-800 font-semibold">{assistantName || APP_CONSTANTS.APP_NAME}</h2>
                   <p className="text-sm text-gray-500">線上服務中</p>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="匯出對話">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="更多選項">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                </svg>
-              </button>
-            </div>
+
           </div>
         </div>
 
@@ -498,8 +496,20 @@ function ChatPage() {
                     {message.timestamp.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
                   </p>
 
-                  {/* 所有 AI 回覆都顯示「改以 AI 通用知識回答（僅供參考）」按鈕 */}
-                  {message.sender === 'ai' && !message.isDirectReply && (
+                  {/* 歡迎圖片 */}
+                  {message.isGreeting && message.greetingImage && (
+                    <div className="mt-3">
+                      <img
+                        src={message.greetingImage}
+                        alt="歡迎圖片"
+                        className="max-w-sm max-h-64 rounded-lg object-contain cursor-zoom-in"
+                        onClick={() => setLightboxImage(message.greetingImage)}
+                      />
+                    </div>
+                  )}
+
+                  {/* AI 回覆顯示「改以 AI 通用知識回答」按鈕（問候語除外） */}
+                  {enableDirectQuery && message.sender === 'ai' && !message.isDirectReply && !message.isGreeting && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <button
                         onClick={() => {
@@ -630,6 +640,21 @@ function ChatPage() {
         </div>
       </div>
     </div>
+
+    {/* 圖片放大燈箱 */}
+    {lightboxImage && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+        onClick={() => setLightboxImage(null)}
+      >
+        <img
+          src={lightboxImage}
+          alt="歡迎圖片"
+          className="max-w-[90vw] max-h-[90vh] rounded-xl object-contain shadow-2xl"
+        />
+      </div>
+    )}
+    </>
   )
 }
 

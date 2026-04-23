@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 from app.core.database import get_db
 from app.core.security import get_current_query_user
 from app.models.faq import FAQ
+from app.models.department import Department
 from app.models.query_user import QueryUser
 
 router = APIRouter(prefix="", tags=["公開 API"])
@@ -110,15 +111,36 @@ async def download_file_public(
 
 
 @router.get("/public/welcome")
-async def get_welcome_message(current_user: QueryUser = Depends(get_current_query_user)):
-    """
-    獲取歡迎訊息（需登入）
-    """
+async def get_welcome_message(
+    current_user: QueryUser = Depends(get_current_query_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """獲取歡迎訊息（需登入），根據使用者所屬處室返回自訂設定"""
+    dept = None
+    if current_user.default_department_id:
+        dept = await db.scalar(
+            select(Department).where(Department.id == current_user.default_department_id)
+        )
+
+    if dept:
+        assistant_name = dept.assistant_name or f"{dept.name} AI助手"
+        greeting = dept.greeting_message or f"您好！我是{assistant_name} 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？"
+        greeting_image = f"/api/public/greeting-image/{dept.id}" if dept.greeting_image else None
+        enable_direct_query = dept.enable_direct_query
+    else:
+        assistant_name = "AI 助手"
+        greeting = "您好！我是AI 助手 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？"
+        greeting_image = None
+        enable_direct_query = True
+
     return {
         "success": True,
         "data": {
             "title": "歡迎使用 RAG 知識庫查詢系統",
-            "message": "您好！我是 AI 助手 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？",
+            "message": greeting,
+            "assistant_name": assistant_name,
+            "greeting_image": greeting_image,
+            "enable_direct_query": enable_direct_query,
             "tips": [
                 "盡量使用完整的問句",
                 "可以參考右側的常見問題",
@@ -126,3 +148,14 @@ async def get_welcome_message(current_user: QueryUser = Depends(get_current_quer
             ]
         }
     }
+
+
+@router.get("/public/greeting-image/{department_id}")
+async def get_greeting_image(department_id: int, db: AsyncSession = Depends(get_db)):
+    """取得處室歡迎圖片"""
+    dept = await db.scalar(select(Department).where(Department.id == department_id))
+    if not dept or not dept.greeting_image:
+        raise HTTPException(status_code=404, detail="圖片不存在")
+    if not os.path.exists(dept.greeting_image):
+        raise HTTPException(status_code=404, detail="圖片檔案不存在")
+    return FileResponse(dept.greeting_image)

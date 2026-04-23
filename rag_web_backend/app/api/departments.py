@@ -1,9 +1,12 @@
 """處室管理 API 路由"""
 
 import math
+import os
+import uuid
+import aiofiles
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File as FileParam, status
 from sqlalchemy import func, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -271,6 +274,8 @@ async def get_department_by_slug(
         "color": department.color,
         "has_external_api_key": bool(department.external_api_key),
         "login_methods": department.login_methods or DEFAULT_LOGIN_METHODS,
+        "assistant_name": department.assistant_name or f"{department.name} AI助手",
+        "enable_direct_query": department.enable_direct_query,
         "user_count": user_count,
         "file_count": file_count,
         "created_at": department.created_at,
@@ -651,4 +656,150 @@ async def get_department_stats(
         activity_count=activity_count,
         recent_activities=recent_activities
     )
+
+
+# ===== 助手設定 =====
+
+GREETING_IMAGE_DIR = "uploads/greeting_images"
+
+
+def _compute_assistant_defaults(department: Department) -> dict:
+    """計算助手設定的預設值"""
+    name = f"{department.name} AI助手"
+    return {
+        "assistant_name": name,
+        "greeting_message": f"您好！我是{name} 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？",
+    }
+
+
+async def _get_department_for_current_user(
+    db: AsyncSession, current_user: User
+) -> Department:
+    dept_id = current_user.department_id
+    if not dept_id:
+        raise HTTPException(status_code=400, detail="帳號未綁定處室")
+    dept = await db.scalar(select(Department).where(Department.id == dept_id))
+    if not dept:
+        raise HTTPException(status_code=404, detail="處室不存在")
+    return dept
+
+
+@router.get(
+    "/me/assistant-settings",
+    summary="取得當前處室助手設定",
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+)
+async def get_assistant_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    department = await _get_department_for_current_user(db, current_user)
+    defaults = _compute_assistant_defaults(department)
+    return {
+        "success": True,
+        "data": {
+            "assistant_name": department.assistant_name,
+            "greeting_message": department.greeting_message,
+            "greeting_image": department.greeting_image,
+            "enable_direct_query": department.enable_direct_query,
+            "defaults": defaults,
+        }
+    }
+
+
+@router.put(
+    "/me/assistant-settings",
+    summary="更新當前處室助手設定",
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+)
+async def update_assistant_settings(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    department = await _get_department_for_current_user(db, current_user)
+
+    allowed_fields = {"assistant_name", "greeting_message", "enable_direct_query"}
+    for field in allowed_fields:
+        if field in data:
+            setattr(department, field, data[field])
+
+    await db.commit()
+    await db.refresh(department)
+
+    defaults = _compute_assistant_defaults(department)
+    return {
+        "success": True,
+        "data": {
+            "assistant_name": department.assistant_name,
+            "greeting_message": department.greeting_message,
+            "greeting_image": department.greeting_image,
+            "enable_direct_query": department.enable_direct_query,
+            "defaults": defaults,
+        }
+    }
+
+
+@router.post(
+    "/me/assistant-settings/greeting-image",
+    summary="上傳歡迎圖片",
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+)
+async def upload_greeting_image(
+    file: UploadFile = FileParam(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    department = await _get_department_for_current_user(db, current_user)
+
+    # 驗證檔案類型
+    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="僅支援 JPG、PNG、GIF、WebP 格式")
+
+    # 限制 5MB
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="圖片大小不可超過 5MB")
+
+    # 刪除舊圖片
+    if department.greeting_image and os.path.exists(department.greeting_image):
+        os.remove(department.greeting_image)
+
+    # 儲存新圖片
+    os.makedirs(GREETING_IMAGE_DIR, exist_ok=True)
+    ext = os.path.splitext(file.filename)[1] or ".png"
+    filename = f"{department.id}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(GREETING_IMAGE_DIR, filename)
+
+    async with aiofiles.open(filepath, "wb") as f:
+        await f.write(content)
+
+    department.greeting_image = filepath
+    await db.commit()
+
+    return {
+        "success": True,
+        "data": {"greeting_image": filepath}
+    }
+
+
+@router.delete(
+    "/me/assistant-settings/greeting-image",
+    summary="刪除歡迎圖片",
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+)
+async def delete_greeting_image(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    department = await _get_department_for_current_user(db, current_user)
+
+    if department.greeting_image and os.path.exists(department.greeting_image):
+        os.remove(department.greeting_image)
+
+    department.greeting_image = None
+    await db.commit()
+
+    return {"success": True, "message": "圖片已刪除"}
 

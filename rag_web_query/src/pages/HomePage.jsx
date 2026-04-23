@@ -31,7 +31,7 @@ function HomePage() {
 
         {/* 標題 */}
         <h1 className="text-5xl md:text-7xl font-extrabold mb-4 text-center bg-gradient-to-r from-red-800 via-red-600 to-red-800 bg-clip-text text-transparent leading-tight">
-          {department ? department.name + ' AI助手' : 'AI助手'}
+          {department?.assistant_name || 'AI助手'}
         </h1>
 
         <p className="text-xl md:text-2xl text-gray-600 mb-3 text-center max-w-xl">

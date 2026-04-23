@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   logout, 
@@ -15,6 +15,10 @@ import {
   toggleFaqStatus,
   getCurrentDepartmentLoginMethods,
   updateCurrentDepartmentLoginMethods,
+  getAssistantSettings,
+  updateAssistantSettings,
+  uploadGreetingImage,
+  deleteGreetingImage,
 } from '../services/api';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useToast } from '../contexts/ToastContext';
@@ -325,7 +329,7 @@ function Dashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                       d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="font-medium">常見問題</span>
+              <span className="font-medium">問答設定</span>
             </button>
           </nav>
 
@@ -1197,9 +1201,28 @@ function CategoryManagement() {
   );
 }
 
-// FAQ 管理頁面組件
+// 問答設定頁面組件（含助手設定 + FAQ 管理）
 function FaqManagement() {
   const toast = useToast();
+  const [activeTab, setActiveTab] = useState('assistant'); // 'assistant' | 'faq'
+
+  // === 助手設定 ===
+  const [assistantSettings, setAssistantSettings] = useState({
+    assistant_name: null,
+    greeting_message: null,
+    greeting_image: null,
+    enable_direct_query: true,
+  });
+  const [assistantDefaults, setAssistantDefaults] = useState({
+    assistant_name: '',
+    greeting_message: '',
+  });
+  const [assistantLoading, setAssistantLoading] = useState(true);
+  const [assistantSaving, setAssistantSaving] = useState(false);
+  const fileInputRef = useRef(null);
+  const [imageUploading, setImageUploading] = useState(false);
+
+  // === FAQ ===
   const [faqs, setFaqs] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1240,8 +1263,93 @@ function FaqManagement() {
   ];
 
   useEffect(() => {
+    loadAssistantSettings();
     loadFaqs();
   }, []);
+
+  // === 助手設定方法 ===
+  const loadAssistantSettings = async () => {
+    setAssistantLoading(true);
+    try {
+      const response = await getAssistantSettings();
+      if (response.success) {
+        const { defaults, ...settings } = response.data;
+        setAssistantSettings(settings);
+        if (defaults) setAssistantDefaults(defaults);
+      }
+    } catch (error) {
+      console.error('載入助手設定錯誤:', error);
+    } finally {
+      setAssistantLoading(false);
+    }
+  };
+
+  const handleSaveAssistantSettings = async () => {
+    setAssistantSaving(true);
+    try {
+      const response = await updateAssistantSettings({
+        assistant_name: assistantSettings.assistant_name?.trim() || null,
+        greeting_message: assistantSettings.greeting_message?.trim() || null,
+        enable_direct_query: assistantSettings.enable_direct_query,
+      });
+      if (response.success) {
+        const { defaults, ...settings } = response.data;
+        setAssistantSettings(settings);
+        if (defaults) setAssistantDefaults(defaults);
+        toast.success('助手設定已儲存');
+      } else {
+        toast.error(response.message);
+      }
+    } catch (error) {
+      toast.error('儲存失敗');
+    } finally {
+      setAssistantSaving(false);
+    }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 前端驗證檔案大小
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('圖片大小不可超過 5MB');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setImageUploading(true);
+    try {
+      const response = await uploadGreetingImage(file);
+      if (response.success) {
+        setAssistantSettings(prev => ({ ...prev, greeting_image: response.data.greeting_image }));
+        toast.success('圖片上傳成功');
+      } else {
+        toast.error(response.message);
+      }
+    } catch (error) {
+      toast.error('上傳失敗');
+    } finally {
+      setImageUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImageDelete = async () => {
+    try {
+      const response = await deleteGreetingImage();
+      if (response.success) {
+        setAssistantSettings(prev => ({ ...prev, greeting_image: null }));
+        toast.success('圖片已刪除');
+      } else {
+        toast.error(response.message);
+      }
+    } catch (error) {
+      toast.error('刪除失敗');
+    }
+  };
+
+  // === FAQ 方法 ===
 
   const loadFaqs = async () => {
     setIsLoading(true);
@@ -1375,11 +1483,184 @@ function FaqManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold">常見問題管理</h3>
-          <p className="text-sm text-gray-600 mt-1">管理本處室的常見問題，這些問題會顯示在使用者查詢頁面</p>
+      {/* 頁面標題 */}
+      <div>
+        <h3 className="text-lg font-semibold">問答設定</h3>
+        <p className="text-sm text-gray-600 mt-1">管理助手顯示設定與常見問題</p>
+      </div>
+
+      {/* Tab 切換 */}
+      <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('assistant')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'assistant'
+              ? 'border-current text-[var(--ncku-red)]'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          助手設定
+        </button>
+        <button
+          onClick={() => setActiveTab('faq')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'faq'
+              ? 'border-current text-[var(--ncku-red)]'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          常見問題
+        </button>
+      </div>
+
+      {/* === 助手設定 Tab === */}
+      {activeTab === 'assistant' && (
+        <div className="space-y-6">
+          {assistantLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-solid border-current border-r-transparent"
+                     style={{ color: 'var(--ncku-red)' }}></div>
+                <p className="mt-4 text-gray-600">載入中...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* 助手名稱 */}
+              <div className="bg-white border border-gray-200 rounded-lg p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <label className="block text-sm font-medium text-gray-700">助手名稱</label>
+                  {assistantSettings.assistant_name === null && (
+                    <span className="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">預設</span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={assistantSettings.assistant_name ?? assistantDefaults.assistant_name}
+                  onChange={(e) => setAssistantSettings(prev => ({ ...prev, assistant_name: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">清空後儲存即恢復預設名稱</p>
+              </div>
+
+              {/* 問候語 */}
+              <div className="bg-white border border-gray-200 rounded-lg p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <label className="block text-sm font-medium text-gray-700">問候語</label>
+                  {assistantSettings.greeting_message === null && (
+                    <span className="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">預設</span>
+                  )}
+                </div>
+                <textarea
+                  value={assistantSettings.greeting_message ?? assistantDefaults.greeting_message}
+                  onChange={(e) => setAssistantSettings(prev => ({ ...prev, greeting_message: e.target.value }))}
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">清空後儲存即恢復預設問候語</p>
+              </div>
+
+              {/* 歡迎圖片 */}
+              <div className="bg-white border border-gray-200 rounded-lg p-5">
+                <label className="block text-sm font-medium text-gray-700 mb-2">歡迎圖片</label>
+                <p className="text-xs text-gray-500 mb-3">可選，圖片會顯示在問候語文字下方（支援 JPG、PNG、GIF、WebP，最大 5MB）</p>
+                
+                {assistantSettings.greeting_image ? (
+                  <div className="space-y-3">
+                    <div className="relative inline-block">
+                      <img
+                        src={`/api/public/greeting-image/${JSON.parse(localStorage.getItem('user'))?.departmentId}`}
+                        alt="歡迎圖片"
+                        className="max-w-md max-h-48 rounded-lg border border-gray-200 object-contain"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={imageUploading}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50"
+                      >
+                        更換圖片
+                      </button>
+                      <button
+                        onClick={handleImageDelete}
+                        className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 cursor-pointer"
+                      >
+                        移除圖片
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={imageUploading}
+                    className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 text-gray-600 cursor-pointer disabled:opacity-50"
+                  >
+                    {imageUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm">上傳中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-sm">上傳圖片</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
+
+              {/* AI 通用知識回答 */}
+              <div className="bg-white border border-gray-200 rounded-lg p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">「改以 AI 通用知識回答」功能</label>
+                    <p className="text-xs text-gray-500 mt-1">開啟後，使用者在 AI 回覆下方可點擊此按鈕取得通用知識回答</p>
+                  </div>
+                  <button
+                    onClick={() => setAssistantSettings(prev => ({ ...prev, enable_direct_query: !prev.enable_direct_query }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                      assistantSettings.enable_direct_query ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      assistantSettings.enable_direct_query ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 儲存按鈕 */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSaveAssistantSettings}
+                  disabled={assistantSaving}
+                  className="px-6 py-2 text-white rounded-lg shadow hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--ncku-red)' }}
+                >
+                  {assistantSaving ? '儲存中...' : '儲存設定'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
+      )}
+
+      {/* === 常見問題 Tab === */}
+      {activeTab === 'faq' && (
+        <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-gray-600">管理本處室的常見問題，這些問題會顯示在使用者查詢頁面</p>
         <button
           onClick={handleAdd}
           className="px-4 py-2 text-white rounded-lg shadow hover:shadow-lg transition-all cursor-pointer"
@@ -1631,6 +1912,8 @@ function FaqManagement() {
         confirmText="刪除"
         cancelText="取消"
       />
+        </div>
+      )}
     </div>
   );
 }

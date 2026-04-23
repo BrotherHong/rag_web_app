@@ -46,6 +46,10 @@ export {
   getDepartmentStats,
   getCurrentDepartmentLoginMethods,
   updateCurrentDepartmentLoginMethods,
+  getAssistantSettings,
+  updateAssistantSettings,
+  uploadGreetingImage,
+  deleteGreetingImage,
 } from './api/departments.js';
 
 // 導入 FAQ 管理模組
