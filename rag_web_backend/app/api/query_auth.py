@@ -324,6 +324,31 @@ async def get_current_query_user_info(
             is_managed_user=False,
         )
 
+    if user_type == "query_portal":
+        commonname = payload.get("sub", "")
+        email = payload.get("email", "")
+        name = payload.get("name", commonname)
+        issued_at = payload.get("iat")
+
+        if not commonname:
+            raise credentials_exception
+
+        created_at = datetime.fromtimestamp(issued_at, tz=timezone.utc) if isinstance(issued_at, (int, float)) else datetime.now(timezone.utc)
+
+        return QuerySessionUserInfo(
+            id=f"portal:{commonname}",
+            username=commonname,
+            email=email,
+            full_name=name,
+            status="approved",
+            is_active=True,
+            default_department_id=None,
+            max_queries_per_day=None,
+            created_at=created_at,
+            auth_provider="success_portal",
+            is_managed_user=False,
+        )
+
     raise credentials_exception
 
 
@@ -434,6 +459,7 @@ PORTAL_AUTH_ENDPOINT = "https://fs.ncku.edu.tw/adfs/oauth2/authorize"
 PORTAL_TOKEN_ENDPOINT = "https://fs.ncku.edu.tw/adfs/oauth2/token"
 
 
+
 @router.get("/portal-login")
 async def portal_login(from_path: str = "/"):
     """發起成功入口 SSO 登入，重定向到 NCKU ADFS 授權頁"""
@@ -443,7 +469,8 @@ async def portal_login(from_path: str = "/"):
             detail="成功入口登入尚未啟用，請聯系管理員"
         )
 
-    state = quote(from_path, safe="")
+    state = from_path
+    # resource 對應 NCKUAIDEMO relying party（使用 redirect_uri 本身）
     params = {
         "response_type": "code",
         "client_id": settings.PORTAL_CLIENT_ID,
@@ -505,6 +532,7 @@ async def portal_callback(code: str, state: str = "/"):
 
     commonname: str = user_info.get("commonname", "")
     email: str = user_info.get("email", "")
+    fullname: str = user_info.get("fullname", "") or user_info.get("full_name", "")
     dn: str = user_info.get("DN", "")
     if "ou=students" in dn.lower():
         identity = "student"
@@ -517,6 +545,7 @@ async def portal_callback(code: str, state: str = "/"):
         commonname=commonname,
         email=email,
         identity=identity,
+        fullname=fullname,
     )
 
     # 重定向到前端 callback 頁

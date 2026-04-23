@@ -532,6 +532,7 @@ def create_portal_query_token(
     commonname: str,
     email: str,
     identity: str,
+    fullname: str = "",
     expires_delta: Optional[timedelta] = None
 ) -> str:
     """建立成功入口查詢 session token（不綁定 QueryUser 資料表）"""
@@ -539,7 +540,7 @@ def create_portal_query_token(
         "sub": commonname,
         "type": "query_portal",
         "email": email,
-        "name": commonname,
+        "name": fullname or commonname,
         "identity": identity,
     }
 

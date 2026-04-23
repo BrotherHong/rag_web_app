@@ -28,12 +28,13 @@ function PortalCallbackPage() {
       const commonname = payload.sub || '';
       const email = payload.email || '';
       const identity = payload.identity || '';
+      const fullname = payload.name || commonname;
 
       const user = {
         id: `portal:${commonname}`,
         username: commonname,
         email,
-        full_name: commonname,
+        full_name: fullname,
         status: 'approved',
         is_active: true,
         default_department_id: null,

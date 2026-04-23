@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import './App.css'
+
 import HomePage from './pages/HomePage'
 import ChatPage from './pages/ChatPage'
 import LoginPage from './pages/LoginPage'
