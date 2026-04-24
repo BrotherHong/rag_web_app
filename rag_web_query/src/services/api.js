@@ -211,7 +211,9 @@ export const getCategories = async (departmentId) => {
  * @returns {Promise<Object>} 歡迎訊息
  */
 export const getWelcomeMessage = async () => {
-  return apiRequest('/public/welcome', {
+  const deptId = currentDeptId
+  const query = deptId ? `?department_id=${deptId}` : ''
+  return apiRequest(`/public/welcome${query}`, {
     method: 'GET',
   })
 }

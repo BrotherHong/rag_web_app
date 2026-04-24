@@ -112,14 +112,16 @@ async def download_file_public(
 
 @router.get("/public/welcome")
 async def get_welcome_message(
+    department_id: Optional[int] = Query(None, description="處室 ID（優先使用，覆蓋使用者預設處室）"),
     current_user: QueryUser = Depends(get_current_query_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """獲取歡迎訊息（需登入），根據使用者所屬處室返回自訂設定"""
+    """獲取歡迎訊息（需登入），根據指定處室（或使用者所屬處室）返回自訂設定"""
     dept = None
-    if current_user.default_department_id:
+    dept_id = department_id or current_user.default_department_id
+    if dept_id:
         dept = await db.scalar(
-            select(Department).where(Department.id == current_user.default_department_id)
+            select(Department).where(Department.id == dept_id)
         )
 
     if dept:
