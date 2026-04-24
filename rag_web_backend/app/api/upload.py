@@ -61,7 +61,6 @@ async def batch_upload(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     categories: str = Form("{}"),  # JSON 字串格式的分類對應
-    removeFileIds: str = Form("[]"),  # 要刪除的舊檔案 ID 列表
     user_group_ids: Optional[str] = Form(None),  # 身分組 ID 列表
     startProcessing: str = Form("false"),  # 是否立即開始處理
     current_user: User = Depends(get_current_user),
@@ -73,7 +72,6 @@ async def batch_upload(
     前端發送格式:
     - files: 檔案列表
     - categories: JSON 字串 {"filename1.pdf": "分類名稱1", ...}
-    - removeFileIds: JSON 字串 [1, 2, 3, ...]
     - user_group_ids: JSON 字串 [1, 2, 3, ...]
     
     返回格式:
@@ -102,33 +100,15 @@ async def batch_upload(
     # 解析參數
     try:
         category_map = json.loads(categories)
-        remove_ids = json.loads(removeFileIds)
         group_ids = json.loads(user_group_ids) if user_group_ids else []
     except:
         category_map = {}
-        remove_ids = []
         group_ids = []
     
     # 生成任務 ID
     task_id = str(uuid.uuid4())
     
-    # 1. 先刪除要移除的舊檔案
-    if remove_ids:
-        for file_id in remove_ids:
-            try:
-                old_file = await db.get(FileModel, file_id)
-                if old_file and old_file.department_id == current_user.department_id:
-                    # 刪除實體檔案
-                    if os.path.exists(old_file.file_path):
-                        os.remove(old_file.file_path)
-                    # 刪除資料庫記錄
-                    await db.delete(old_file)
-            except Exception as e:
-                print(f"刪除檔案 {file_id} 失敗: {str(e)}")
-        
-        await db.commit()
-    
-    # 2. 初始化任務記錄（用於前端輪詢）
+    # 初始化任務記錄（用於前端輪詢）
     file_list = []
     for file in files:
         file_list.append({
@@ -146,7 +126,7 @@ async def batch_upload(
         "processedFiles": 0,
         "successFiles": 0,
         "failedFiles": 0,
-        "deletedFiles": len(remove_ids),
+        "deletedFiles": 0,
         "files": file_list,
         "created_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat()
@@ -647,12 +627,21 @@ async def check_duplicates(
         }
         
         if conflict_file:
+            from app.models.user import UserRole
+            if current_user.role == UserRole.SUPER_ADMIN:
+                can_delete = True
+            elif current_user.admin_group_id is None:
+                can_delete = conflict_file.admin_group_id is None
+            else:
+                can_delete = conflict_file.admin_group_id == current_user.admin_group_id
+
             file_result["duplicateFile"] = {
                 "id": conflict_file.id,
                 "name": conflict_file.original_filename,
                 "size": f"{conflict_file.file_size / 1024:.1f} KB" if conflict_file.file_size else "未知",
                 "uploadDate": conflict_file.created_at.strftime("%Y-%m-%d %H:%M"),
-                "category": conflict_file.category.name if conflict_file.category else "其他"
+                "category": conflict_file.category.name if conflict_file.category else "其他",
+                "canDelete": can_delete
             }
         
         results.append(file_result)

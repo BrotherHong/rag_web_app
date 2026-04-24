@@ -32,7 +32,6 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
   
   // 重複檢查結果
   const [duplicateCheckResults, setDuplicateCheckResults] = useState([]);
-  const [filesToRemove, setFilesToRemove] = useState([]);
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   
   // 上傳狀態
@@ -418,17 +417,6 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     setCheckingDuplicates(false);
   };
   
-  // 切換要刪除的舊檔案
-  const toggleRemoveFile = (fileId) => {
-    setFilesToRemove(prev => {
-      if (prev.includes(fileId)) {
-        return prev.filter(id => id !== fileId);
-      } else {
-        return [...prev, fileId];
-      }
-    });
-  };
-  
   // 開始批次上傳
   const handleStartUpload = async () => {
     if (selectedFiles.length === 0) {
@@ -442,8 +430,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     const uploadData = {
       files: selectedFiles,
       categories: fileCategories,
-      removeFileIds: filesToRemove,
-      userGroupIds: selectedUserGroups  // 添加身分組 IDs
+      userGroupIds: selectedUserGroups
     };
     
     const response = await batchUpload(uploadData);
@@ -485,7 +472,6 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     setSelectedFiles([]);
     setFileCategories({});
     setDuplicateCheckResults([]);
-    setFilesToRemove([]);
     setUploadTaskId(null);
     setUploadProgress(null);
     setCurrentStep(1);
@@ -1017,13 +1003,10 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                       {(result.isDuplicate || result.relatedFiles.length > 0) && (
                         <div className="mt-3 ml-7 space-y-2">
                           {result.isDuplicate && (
-                            <div className="flex items-center p-3 bg-red-50 border border-red-200 rounded-md">
-                              <input
-                                type="checkbox"
-                                checked={filesToRemove.includes(result.duplicateFile.id)}
-                                onChange={() => toggleRemoveFile(result.duplicateFile.id)}
-                                className="mr-3 cursor-pointer"
-                              />
+                            <div className="flex items-start p-3 bg-red-50 border border-red-200 rounded-md">
+                              <svg className="w-4 h-4 text-red-500 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-gray-900">
                                   {result.duplicateFile.name}
@@ -1031,19 +1014,34 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                                 <p className="text-xs text-gray-500">
                                   現有檔案 · {result.duplicateFile.size} · {result.duplicateFile.uploadDate}
                                 </p>
+                                {result.duplicateFile.canDelete ? (
+                                  <p className="text-xs text-red-600 mt-1">
+                                    請先到「知識庫管理」頁面刪除此檔案，之後點「重新檢查」
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-orange-600 mt-1">
+                                    此檔案屬於其他管理組織，請聯絡對應管理員處理
+                                  </p>
+                                )}
                               </div>
-                              <span className="text-xs text-red-600 font-medium">建議刪除</span>
+                              <button
+                                onClick={() => onNavigateToKnowledgeBase(result.duplicateFile.name)}
+                                className="ml-3 flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-md cursor-pointer transition-colors"
+                                title="跳轉至知識庫管理並搜尋此檔案"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                前往查看
+                              </button>
                             </div>
                           )}
                           
                           {result.relatedFiles.map(relatedFile => (
-                            <div key={relatedFile.id} className="flex items-center p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                              <input
-                                type="checkbox"
-                                checked={filesToRemove.includes(relatedFile.id)}
-                                onChange={() => toggleRemoveFile(relatedFile.id)}
-                                className="mr-3 cursor-pointer"
-                              />
+                            <div key={relatedFile.id} className="flex items-start p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                              <svg className="w-4 h-4 text-yellow-500 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-gray-900">
                                   {relatedFile.name}
@@ -1052,7 +1050,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                                   {relatedFile.size} · {relatedFile.uploadDate} · {relatedFile.category}
                                 </p>
                               </div>
-                              <span className="text-xs text-yellow-600">可能相關</span>
+                              <span className="text-xs text-yellow-600 flex-shrink-0">可能相關</span>
                             </div>
                           ))}
                         </div>
@@ -1066,12 +1064,12 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-600">
-                  {filesToRemove.length > 0 ? (
+                  {duplicateCheckResults.some(r => r.isDuplicate) ? (
                     <span className="font-medium" style={{ color: 'var(--ncku-red)' }}>
-                      將刪除 {filesToRemove.length} 個舊檔案
+                      {duplicateCheckResults.filter(r => r.isDuplicate).length} 個檔案有衝突，將被阻擋上傳
                     </span>
                   ) : (
-                    <span>未選擇要刪除的檔案</span>
+                    <span>所有檔案均可上傳</span>
                   )}
                 </div>
                 
@@ -1084,8 +1082,10 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                   </button>
                   <button
                     onClick={handleStartUpload}
-                    className="px-6 py-2 text-white rounded-md shadow-lg hover:shadow-xl transition-all cursor-pointer font-medium"
-                    style={{ backgroundColor: 'var(--ncku-red)' }}
+                    disabled={duplicateCheckResults.some(r => r.isDuplicate)}
+                    className="px-6 py-2 text-white rounded-md shadow-lg hover:shadow-xl transition-all cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                    style={duplicateCheckResults.some(r => r.isDuplicate) ? { backgroundColor: '#9ca3af' } : { backgroundColor: 'var(--ncku-red)' }}
+                    title={duplicateCheckResults.some(r => r.isDuplicate) ? '請先解決所有衝突檔案' : ''}
                   >
                     開始上傳到知識庫
                   </button>

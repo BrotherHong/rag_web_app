@@ -32,6 +32,7 @@ function Dashboard() {
   const navigate = useNavigate();
   const toast = useToast();
   const [currentPage, setCurrentPage] = useState('knowledge-base');
+  const [kbSearchTerm, setKbSearchTerm] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -346,12 +347,16 @@ function Dashboard() {
 
         {/* 主要內容區域 */}
         <main className="flex-1 p-8 ml-64">
-          {currentPage === 'knowledge-base' && <KnowledgeBase />}
-          {currentPage === 'upload-files' && (
+          {currentPage === 'knowledge-base' && <KnowledgeBase initialSearch={kbSearchTerm} onSearchConsumed={() => setKbSearchTerm('')} />}
+          {/* UploadFiles 保持 mounted 避免切換頁面時狀態遺失，用 hidden 控制顯示 */}
+          <div className={currentPage === 'upload-files' ? '' : 'hidden'}>
             <UploadFiles 
-              onNavigateToKnowledgeBase={() => setCurrentPage('knowledge-base')} 
+              onNavigateToKnowledgeBase={(searchTerm) => {
+                setKbSearchTerm(searchTerm || '');
+                setCurrentPage('knowledge-base');
+              }}
             />
-          )}
+          </div>
           {currentPage === 'dashboard' && <DashboardHome />}
           {currentPage === 'categories' && <CategoryManagement />}
           {currentPage === 'login-methods' && <LoginMethodSettings />}

@@ -147,7 +147,6 @@ export const batchUpload = async (uploadData) => {
     const formData = new FormData();
     uploadData.files.forEach(file => formData.append('files', file));
     formData.append('categories', JSON.stringify(uploadData.categories || {}));
-    formData.append('removeFileIds', JSON.stringify(uploadData.removeFileIds || []));
     
     // 添加身分組 IDs
     if (uploadData.userGroupIds && uploadData.userGroupIds.length > 0) {

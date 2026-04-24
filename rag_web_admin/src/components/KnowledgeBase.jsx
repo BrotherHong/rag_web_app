@@ -5,7 +5,7 @@ import { getUserGroups, getFileUserGroupPermissions, setFileUserGroupPermissions
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useToast } from '../contexts/ToastContext';
 
-function KnowledgeBase() {
+function KnowledgeBase({ initialSearch, onSearchConsumed }) {
   const toast = useToast();
   const [files, setFiles] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -92,6 +92,15 @@ function KnowledgeBase() {
   };
   
   const user = getUserInfo();
+
+  // 若從外部帶入搜尋詞（例如從上傳頁跳轉），套用後通知已消耗
+  useEffect(() => {
+    if (initialSearch) {
+      setSearchTerm(initialSearch);
+      setCurrentPage(1);
+      onSearchConsumed?.();
+    }
+  }, [initialSearch]);
 
   // 載入檔案列表和分類
   useEffect(() => {

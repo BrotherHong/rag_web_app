@@ -330,8 +330,77 @@ async def _process_single_file_task_async(self, file_id: int, batch_id: str) -> 
                 delete_record_on_failure=True,
             )
 
-            await db.refresh(item)
+            # Re-query item (不用 refresh)，因為 delete_record_on_failure=True 時
+            # file_processor 會刪除 File 記錄，觸發 UploadBatchItem 的 CASCADE DELETE
+            # 此時 db.refresh(item) 會拋出 InvalidRequestError
+            item_requery = await db.execute(
+                select(UploadBatchItem).where(
+                    UploadBatchItem.batch_id == batch_id,
+                    UploadBatchItem.file_id == file_id,
+                )
+            )
+            item = item_requery.scalar_one_or_none()
             await db.refresh(batch)
+
+            if item is None:
+                # UploadBatchItem 被 cascade 刪除（File 刪除時觸發）
+                # 手動將此 file 計為 1 個失敗，並更新 batch 狀態
+                file_result = results.get("file_results", [{}])[0] if results.get("file_results") else {}
+                error_message = file_result.get("error") or (results.get("errors", [None])[0]) or "檔案處理失敗"
+
+                remaining_result = await db.execute(
+                    select(UploadBatchItem).where(UploadBatchItem.batch_id == batch_id)
+                )
+                remaining_items = remaining_result.scalars().all()
+                r_success = sum(1 for i in remaining_items if i.status == UploadBatchItemStatus.COMPLETED)
+                r_failed = sum(1 for i in remaining_items if i.status == UploadBatchItemStatus.FAILED)
+                r_canceled = sum(1 for i in remaining_items if i.status == UploadBatchItemStatus.CANCELED)
+                total_failed = r_failed + 1
+                total_processed = r_success + total_failed + r_canceled
+
+                batch.processed_files = total_processed
+                batch.success_files = r_success
+                batch.failed_files = total_failed
+                if total_processed < batch.total_files:
+                    batch.status = UploadBatchStatus.PROCESSING
+                else:
+                    batch.finished_at = datetime.now(timezone.utc)
+                    if r_success == 0 and r_canceled == 0:
+                        batch.status = UploadBatchStatus.FAILED
+                    elif total_failed == 0 and r_canceled == 0:
+                        batch.status = UploadBatchStatus.COMPLETED
+                    else:
+                        batch.status = UploadBatchStatus.PARTIAL
+                await db.commit()
+
+                await publish_batch_event(batch_id, {
+                    "type": "file_failed",
+                    "batch_id": batch_id,
+                    "file_id": file_id,
+                    "celery_task_id": self.request.id,
+                    "step": "failed",
+                    "progress": 0,
+                    "status": UploadBatchItemStatus.FAILED.value,
+                    "message": error_message,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
+                await publish_batch_event(batch_id, {
+                    "type": "batch_progress",
+                    "batch_id": batch_id,
+                    "status": batch.status.value,
+                    "total_files": batch.total_files,
+                    "processed_files": batch.processed_files,
+                    "success_files": batch.success_files,
+                    "failed_files": batch.failed_files,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
+                return {
+                    "file_id": file_id,
+                    "batch_id": batch_id,
+                    "success": False,
+                    "error": error_message,
+                }
+
             if item.status == UploadBatchItemStatus.CANCELED or batch.status == UploadBatchStatus.CANCELED:
                 await _refresh_batch_counters(batch_id, db)
                 await db.commit()
