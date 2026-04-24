@@ -9,8 +9,8 @@ function Navbar() {
   const { department } = useDepartment();
 
   const handleLogout = () => {
+    logout();
     const target = paramSlug ? `/${paramSlug}` : '/';
-    logout();           // 先清除 auth（loggingOut flag 保護 RequireQueryAuth）
     navigate(target, { replace: true });
   };
 

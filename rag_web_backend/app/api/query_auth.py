@@ -457,7 +457,21 @@ async def change_password(
 
 PORTAL_AUTH_ENDPOINT = "https://fs.ncku.edu.tw/adfs/oauth2/authorize"
 PORTAL_TOKEN_ENDPOINT = "https://fs.ncku.edu.tw/adfs/oauth2/token"
+PORTAL_LOGOUT_ENDPOINT = "https://fs.ncku.edu.tw/adfs/oauth2/logout"
 
+
+@router.get("/portal-logout")
+async def portal_logout():
+    """登出成功入口：清除 ADFS session cookie，完成後導回前端首頁"""
+    if not settings.PORTAL_REDIRECT_URI:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="成功入口登入尚未啟用"
+        )
+    parsed = urlparse(settings.PORTAL_REDIRECT_URI)
+    post_logout_uri = f"{parsed.scheme}://{parsed.netloc}/query/"
+    logout_url = f"{PORTAL_LOGOUT_ENDPOINT}?post_logout_redirect_uri={quote(post_logout_uri, safe='')}"
+    return RedirectResponse(url=logout_url, status_code=302)
 
 
 @router.get("/portal-login")
@@ -548,9 +562,9 @@ async def portal_callback(code: str, state: str = "/"):
         fullname=fullname,
     )
 
-    # 重定向到前端 callback 頁
+    # 重定向到前端 callback 頁（React app 在 /query/ 下）
     parsed = urlparse(settings.PORTAL_REDIRECT_URI)
     frontend_base = f"{parsed.scheme}://{parsed.netloc}"
     from_path = unquote(state)
-    redirect_url = f"{frontend_base}/login/portal-callback?token={quote(system_token, safe='')}&from={quote(from_path, safe='')}"
+    redirect_url = f"{frontend_base}/query/login/portal-callback?token={quote(system_token, safe='')}&from={quote(from_path, safe='')}"
     return RedirectResponse(url=redirect_url, status_code=302)
