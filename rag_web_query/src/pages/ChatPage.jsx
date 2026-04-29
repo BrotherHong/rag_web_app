@@ -90,8 +90,91 @@ function ChatPage() {
     }
   }
 
+  const TRAILING_URL_PUNCTUATION = /[),.;!?\]}>，。；：、）】》」』]+$/
+  const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi
+  const PLAIN_URL_REGEX = /(https?:\/\/[^\s<，。；：、（）「」『』《》【】]+|www\.[^\s<，。；：、（）「」『』《》【】]+)/gi
+
+  const splitUrlSuffix = (value) => {
+    const trailing = value.match(TRAILING_URL_PUNCTUATION)?.[0] || ''
+    if (!trailing) {
+      return { urlText: value, suffix: '' }
+    }
+
+    return {
+      urlText: value.slice(0, -trailing.length),
+      suffix: trailing
+    }
+  }
+
+  const createExternalLink = (href, label, key) => (
+    <a
+      key={key}
+      href={href.startsWith('http') ? href : `https://${href}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-red-700 underline underline-offset-2 break-all hover:text-red-800"
+    >
+      {label}
+    </a>
+  )
+
+  const renderPlainTextWithLinks = (text, keyPrefix) => {
+    const parts = []
+    let lastIndex = 0
+    let matchIndex = 0
+
+    for (const match of text.matchAll(PLAIN_URL_REGEX)) {
+      const matchedText = match[0]
+      const matchStart = match.index ?? 0
+
+      if (matchStart > lastIndex) {
+        parts.push(text.slice(lastIndex, matchStart))
+      }
+
+      const { urlText, suffix } = splitUrlSuffix(matchedText)
+
+      if (urlText) {
+        parts.push(createExternalLink(urlText, urlText, `${keyPrefix}-url-${matchIndex}`))
+      }
+
+      if (suffix) {
+        parts.push(suffix)
+      }
+
+      lastIndex = matchStart + matchedText.length
+      matchIndex += 1
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex))
+    }
+
+    return parts.length > 0 ? parts : [text]
+  }
+
   const renderMessageContent = (text) => {
-    return <p className="text-gray-800 whitespace-pre-line">{text}</p>
+    const elements = []
+    let lastIndex = 0
+    let matchIndex = 0
+
+    for (const match of text.matchAll(MARKDOWN_LINK_REGEX)) {
+      const [fullMatch, label, href] = match
+      const matchStart = match.index ?? 0
+
+      if (matchStart > lastIndex) {
+        elements.push(...renderPlainTextWithLinks(text.slice(lastIndex, matchStart), `text-${matchIndex}`))
+      }
+
+      elements.push(createExternalLink(href, label, `md-${matchIndex}`))
+      lastIndex = matchStart + fullMatch.length
+      matchIndex += 1
+    }
+
+    if (lastIndex < text.length) {
+      elements.push(...renderPlainTextWithLinks(text.slice(lastIndex), `tail-${matchIndex}`))
+    }
+
+    return <p className="text-gray-800 whitespace-pre-line">{elements}</p>
   }
 
   // 從後端獲取快速問題列表
