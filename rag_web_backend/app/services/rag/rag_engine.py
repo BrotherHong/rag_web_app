@@ -4,6 +4,7 @@ RAG引擎 - 整合檢索和生成（Web Backend版本）
 """
 
 import logging
+import re
 from typing import List, Dict
 from app.services.llm.litellm_client import LiteLLMClient
 from app.services.llm.prompts.rag import RAG_ANSWER_PROMPT, RAG_NO_RESULTS_PROMPT
@@ -210,7 +211,10 @@ class RAGEngine:
                 chunk_filename = chunk['document']['filename']
                 doc_content = self.vector_store.get_document_content(chunk_filename)
                 if doc_content and doc_content.get('original_content'):
-                    combined_content.append(doc_content['original_content'])
+                    content = doc_content['original_content']
+                    # 還原 MarkItDown 對 URL 底線的跳脫（\_ → _）
+                    content = re.sub(r'https?://\S+', lambda m: m.group(0).replace('\\_', '_'), content)
+                    combined_content.append(content)
             
             # 合併所有 chunks 的內容
             full_content = "\n\n".join(combined_content) if combined_content else ""

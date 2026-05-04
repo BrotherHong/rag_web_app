@@ -217,13 +217,15 @@ async def query_documents(
         answer_text = result['answer']
         all_sources = result['sources']
 
-        # 1. 匹配 （文檔X） 格式（全形/半形括號、冒號、空格皆可）
-        cited_numbers = {int(m) for m in re.findall(r'[（(]\s*(?:來源[：:]\s*)?文檔\s*(\d+)\s*[）)]', answer_text)}
-
-        # 2. 同時嘗試直接匹配括號內的檔案名稱
-        bracket_texts = re.findall(r'[（(]([^）)\n]+)[）)]', answer_text)
+        # 提取所有括號區塊，從中找出所有 文檔N 引用（支援 （文檔1、文檔2） 格式）
+        cited_numbers: set[int] = set()
         filename_to_idx = {s['filename']: i for i, s in enumerate(all_sources, 1)}
+        bracket_texts = re.findall(r'[（(]([^）)\n]+)[）)]', answer_text)
         for text in bracket_texts:
+            # 匹配括號內的所有 文檔N
+            for m in re.findall(r'文檔\s*(\d+)', text):
+                cited_numbers.add(int(m))
+            # 同時嘗試直接匹配括號內的檔案名稱
             fname = text.strip()
             if fname in filename_to_idx:
                 cited_numbers.add(filename_to_idx[fname])

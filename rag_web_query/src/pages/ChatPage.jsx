@@ -91,7 +91,7 @@ function ChatPage() {
   }
 
   const TRAILING_URL_PUNCTUATION = /[),.;!?\]}>，。；：、）】》」』]+$/
-  const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi
+  const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\s*\((https?:\/\/[^\s)）]+)[)）]/gi
   const PLAIN_URL_REGEX = /(https?:\/\/[^\s<，。；：、（）「」『』《》【】]+|www\.[^\s<，。；：、（）「」『』《》【】]+)/gi
 
   const splitUrlSuffix = (value) => {
@@ -106,17 +106,22 @@ function ChatPage() {
     }
   }
 
-  const createExternalLink = (href, label, key) => (
-    <a
-      key={key}
-      href={href.startsWith('http') ? href : `https://${href}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-red-700 underline underline-offset-2 break-all hover:text-red-800"
-    >
-      {label}
-    </a>
-  )
+
+  const createUrlBadge = (href, key) => {
+    const cleanHref = (href.startsWith('http') ? href : `https://${href}`).replace(/\\_/g, '_')
+    return (
+      <a
+        key={key}
+        href={cleanHref}
+        title={cleanHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center justify-center w-5 h-5 mx-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:border-red-400 transition-colors align-middle"
+      >
+        ↗
+      </a>
+    )
+  }
 
   const renderPlainTextWithLinks = (text, keyPrefix) => {
     const parts = []
@@ -134,7 +139,7 @@ function ChatPage() {
       const { urlText, suffix } = splitUrlSuffix(matchedText)
 
       if (urlText) {
-        parts.push(createExternalLink(urlText, urlText, `${keyPrefix}-url-${matchIndex}`))
+        parts.push(createUrlBadge(urlText, `${keyPrefix}-url-${matchIndex}`))
       }
 
       if (suffix) {
@@ -165,7 +170,10 @@ function ChatPage() {
         elements.push(...renderPlainTextWithLinks(text.slice(lastIndex, matchStart), `text-${matchIndex}`))
       }
 
-      elements.push(createExternalLink(href, label, `md-${matchIndex}`))
+      // label 保留為純文字，URL 一律顯示為 ↗ badge
+      const isUrlLabel = /^https?:\/\//i.test(label.trim())
+      if (!isUrlLabel) elements.push(label)
+      elements.push(createUrlBadge(href, `md-${matchIndex}`))
       lastIndex = matchStart + fullMatch.length
       matchIndex += 1
     }

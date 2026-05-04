@@ -3,6 +3,7 @@
 支援 DOC, DOCX, PDF, XLSX 等格式
 """
 
+import re
 import subprocess
 import shutil
 import time
@@ -209,6 +210,10 @@ class DocumentConverter:
         
         return None
     
+    def _unescape_url_underscores(self, content: str) -> str:
+        """還原 MarkItDown 對 URL 中底線的跳脫（\_ → _）"""
+        return re.sub(r'https?://\S+', lambda m: m.group(0).replace('\_', '_'), content)
+
     def _convert_with_markitdown(self, input_file: Path, output_file: Path) -> bool:
         """使用 MarkItDown 轉換"""
         if not self.markitdown:
@@ -219,9 +224,10 @@ class DocumentConverter:
             output_file.parent.mkdir(parents=True, exist_ok=True)
             
             result = self.markitdown.convert(str(input_file))
+            text = self._unescape_url_underscores(result.text_content)
             
             with open(output_file, 'w', encoding='utf-8') as f:
-                f.write(result.text_content)
+                f.write(text)
             
             return True
             
