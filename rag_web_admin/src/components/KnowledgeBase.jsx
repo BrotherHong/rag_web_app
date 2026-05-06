@@ -396,6 +396,9 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
     return category?.fileCount ?? category?.file_count ?? 0;
   };
 
+  // 真實總檔案數（所有分類加總，不受搜尋/篩選影響）
+  const realTotalFiles = categories.reduce((sum, c) => sum + (c.fileCount ?? c.file_count ?? 0), 0);
+
   // 換頁時重置到第一頁
   const handleCategoryChange = (categoryId) => {
     setSelectedCategory(categoryId);
@@ -437,7 +440,7 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
              style={{ borderColor: 'var(--ncku-red)' }}>
           <p className="text-gray-600 text-sm">總檔案數</p>
           <p className="text-2xl font-bold mt-1">
-            {totalFiles}
+            {realTotalFiles}
           </p>
         </div>
         {categories.slice(0, 7).map(category => (
