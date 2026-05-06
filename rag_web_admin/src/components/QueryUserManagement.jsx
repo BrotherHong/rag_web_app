@@ -52,8 +52,8 @@ function QueryUserManagement() {
     email: '',
     password: '',
     full_name: '',
-    organization: '',
     default_department_id: '',
+    show_source_docs: true,
     admin_notes: '',
     user_group_ids: []
   });
@@ -141,8 +141,8 @@ function QueryUserManagement() {
       email: '',
       password: '',
       full_name: '',
-      organization: '',
       default_department_id: currentDeptId,  // 自動設定為當前處室
+      show_source_docs: true,
       admin_notes: '',
       user_group_ids: []
     });
@@ -163,8 +163,8 @@ function QueryUserManagement() {
       email: user.email,
       password: '', // 不顯示密碼
       full_name: user.full_name || '',
-      organization: user.organization || '',
       default_department_id: user.default_department_id ? user.default_department_id.toString() : '',
+      show_source_docs: user.show_source_docs ?? true,
       admin_notes: user.admin_notes || '',
       user_group_ids: groupIds
     });
@@ -184,6 +184,7 @@ function QueryUserManagement() {
         // 編輯模式：更新用戶資訊和身分組
         await updateQueryUser(editingUser.id, {
           default_department_id: formData.default_department_id ? parseInt(formData.default_department_id) : null,
+          show_source_docs: formData.show_source_docs,
           admin_notes: formData.admin_notes
         });
 
@@ -517,19 +518,6 @@ function QueryUserManagement() {
                     />
                   </div>
 
-                  <div>
-                    <label htmlFor="organization" className="block text-sm font-medium text-gray-700 mb-1">
-                      所屬組織
-                    </label>
-                    <input
-                      id="organization"
-                      name="organization"
-                      type="text"
-                      value={formData.organization}
-                      onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
                 </>
               )}
 
@@ -540,18 +528,6 @@ function QueryUserManagement() {
                   <div className="text-sm"><span className="font-medium">全名：</span>{editingUser.full_name}</div>
                 </div>
               )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  預設處室
-                </label>
-                <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
-                  {editingUser
-                    ? (editingUser.default_department?.name || visibleDepartments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室')
-                    : (visibleDepartments.find(d => String(d.id) === String(formData.default_department_id))?.name || '未設定處室')
-                  }
-                </div>
-              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -620,6 +596,19 @@ function QueryUserManagement() {
                 <p className="text-xs text-gray-500 mt-1">
                   用戶將能訪問授權給這些身分組的檔案
                 </p>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={formData.show_source_docs}
+                    onChange={(e) => setFormData({ ...formData, show_source_docs: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-gray-700">顯示來源文檔</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1 ml-6">啟用後，查詢前端會在回答下方顯示參考來源文件</p>
               </div>
 
               <div>

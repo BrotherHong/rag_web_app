@@ -119,6 +119,15 @@ class QueryUser(Base, TimestampMixin):
         comment="預設可見處室 ID"
     )
     
+    # 顯示來源文檔設定
+    show_source_docs: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        server_default="true",
+        comment="query 前端是否顯示來源文檔"
+    )
+
     # 備註
     admin_notes: Mapped[str | None] = mapped_column(
         Text,

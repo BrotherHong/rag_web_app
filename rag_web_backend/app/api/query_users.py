@@ -112,6 +112,7 @@ async def create_query_user(
         is_active=True,
         default_department_id=user_data.default_department_id,
         admin_notes=user_data.admin_notes,
+        show_source_docs=user_data.show_source_docs,
         approved_by=current_user.id,
         approved_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
@@ -285,7 +286,10 @@ async def update_query_user(
     
     if request.admin_notes is not None:
         query_user.admin_notes = request.admin_notes
-    
+
+    if request.show_source_docs is not None:
+        query_user.show_source_docs = request.show_source_docs
+
     # 更新用戶身分組
     if request.user_group_ids is not None:
         # 清除現有的身分組關聯

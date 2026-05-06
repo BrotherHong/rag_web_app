@@ -129,6 +129,7 @@ class QueryUserDetail(QueryUserInfo):
     approved_by: Optional[int] = None
     approved_at: Optional[datetime] = None
     rejection_reason: Optional[str] = None
+    show_source_docs: bool = True
     admin_notes: Optional[str] = None
     updated_at: datetime
     default_department: Optional[DepartmentBrief] = None
@@ -151,6 +152,7 @@ class QueryUserCreateRequest(BaseModel):
     organization: Optional[str] = Field(None, max_length=200, description="所屬單位/組織")
     default_department_id: Optional[int] = Field(None, description="預設可見處室 ID")
     user_group_ids: Optional[List[int]] = Field(None, description="身分組 ID 列表")
+    show_source_docs: bool = Field(True, description="query 前端是否顯示來源文檔")
     admin_notes: Optional[str] = Field(None, description="管理員備註")
     
     @field_validator('username')
@@ -166,6 +168,7 @@ class QueryUserUpdateRequest(BaseModel):
     is_active: Optional[bool] = None
     default_department_id: Optional[int] = None
     max_queries_per_day: Optional[int] = None
+    show_source_docs: Optional[bool] = None
     admin_notes: Optional[str] = None
     user_group_ids: Optional[List[int]] = None
 

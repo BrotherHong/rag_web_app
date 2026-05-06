@@ -289,10 +289,13 @@ async def query_documents(
             print(f"❌ Failed to save QueryHistory: {e}")
             await db.rollback()
 
+        # session 用戶（Google / 成功入口）預設不顯示來源文檔
+        is_session_user = current_user.id is None
+        show_source = getattr(current_user, 'show_source_docs', not is_session_user)
         return QueryResponse(
             query=request.query,
             answer=result['answer'],
-            sources=sources
+            sources=sources if show_source else []
         )
         
     except ValueError as e:
