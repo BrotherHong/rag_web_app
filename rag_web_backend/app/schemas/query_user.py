@@ -37,7 +37,6 @@ class QueryUserRegisterRequest(BaseModel):
     email: EmailStr = Field(..., description="電子郵件")
     password: str = Field(..., min_length=6, description="密碼")
     full_name: str = Field(..., min_length=1, max_length=100, description="全名")
-    organization: Optional[str] = Field(None, max_length=200, description="所屬單位/組織")
     application_reason: Optional[str] = Field(None, description="申請理由")
     default_department_id: Optional[int] = Field(None, description="預設處室 ID")
     
@@ -84,7 +83,6 @@ class QuerySessionUserInfo(BaseModel):
     username: str
     email: str
     full_name: str
-    organization: Optional[str] = None
     status: str = "approved"
     is_active: bool = True
     default_department_id: Optional[int] = None
@@ -109,7 +107,6 @@ class QueryUserInfo(BaseModel):
     username: str
     email: str
     full_name: str
-    organization: Optional[str] = None
     status: str
     is_active: bool
     default_department_id: Optional[int] = None
@@ -149,7 +146,6 @@ class QueryUserCreateRequest(BaseModel):
     email: EmailStr = Field(..., description="電子郵件")
     password: str = Field(..., min_length=6, description="密碼")
     full_name: str = Field(..., min_length=1, max_length=100, description="全名")
-    organization: Optional[str] = Field(None, max_length=200, description="所屬單位/組織")
     default_department_id: Optional[int] = Field(None, description="預設可見處室 ID")
     user_group_ids: Optional[List[int]] = Field(None, description="身分組 ID 列表")
     show_source_docs: bool = Field(True, description="query 前端是否顯示來源文檔")

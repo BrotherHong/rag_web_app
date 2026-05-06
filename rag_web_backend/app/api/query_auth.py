@@ -88,7 +88,6 @@ async def register_query_user(
         email=request.email,
         hashed_password=get_password_hash(request.password),
         full_name=request.full_name,
-        organization=request.organization,
         application_reason=request.application_reason,
         default_department_id=request.default_department_id,
         status=QueryUserStatus.APPROVED,

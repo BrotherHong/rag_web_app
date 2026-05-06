@@ -107,7 +107,6 @@ async def create_query_user(
         email=user_data.email,
         hashed_password=get_password_hash(user_data.password),
         full_name=user_data.full_name,
-        organization=user_data.organization,
         status=QueryUserStatus.APPROVED,  # 直接設定為已審批
         is_active=True,
         default_department_id=user_data.default_department_id,

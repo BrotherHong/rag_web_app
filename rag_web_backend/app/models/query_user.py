@@ -70,12 +70,6 @@ class QueryUser(Base, TimestampMixin):
         comment="申請理由"
     )
     
-    organization: Mapped[str | None] = mapped_column(
-        String(200),
-        nullable=True,
-        comment="所屬單位/組織"
-    )
-    
     # 狀態與權限
     status: Mapped[QueryUserStatus] = mapped_column(
         String(20),
