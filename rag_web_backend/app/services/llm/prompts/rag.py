@@ -28,26 +28,43 @@ FORM_DOCUMENT_SUMMARY = """這是一個表單類文檔，請簡潔摘要其用�
 文檔內容：
 {text}"""
 
-# RAG answer generation with concise CoT and citations
-RAG_ANSWER_PROMPT = """你是專業的文檔查詢助手，請僅根據提供的文檔回答問題。
+# RAG answer generation - system prompt base
+RAG_SYSTEM_BASE = """你是{assistant_name}。根據提供的文檔回答問題，不推測或編造。
+{style_instruction}
+<規則>
+- 直接回答，不加開場白
+- 輸出純文字，不使用 Markdown
+- 資訊不足時回覆「目前資料庫中沒有找到相關資訊」
+- 文檔附有來源連結時，若與問題相關，在回答中提供
+{citation_instruction}</規則>"""
 
-<回答規則>
-1. 若文檔有足夠資訊：直接條列式回答，不加開場白；若無：回覆「目前資料庫中沒有找到相關資訊」並說明文檔主要涉及什麼。不推測或編造。
-2. 每點結尾加上（文檔X）標明來源。
-</回答規則>
+# RAG answer generation - user prompt template
+RAG_USER_TEMPLATE = """{context}
 
-<回答格式>
-- 內容……（文檔X）
-- 內容……（文檔X）
-</回答格式>
+問題：{query}"""
 
-使用者提問：{query}
+# Citation instruction variants
+CITATION_ENABLED = "- 在段落末尾標注來源（文檔X），不必每句都加\n"
+CITATION_DISABLED = ""
 
-文檔：
-{context}
+DEFAULT_ASSISTANT_NAME = "文檔查詢助手"
+DEFAULT_STYLE = "親切、活潑、口語化，語氣輕鬆有溫度，用自然段落回答，像在跟同事聊天解釋，避免過多條列"
 
-嚴格根據回答規則和格式進行回答：
-"""
+
+def build_rag_system_prompt(
+    assistant_name: str | None = None,
+    assistant_style: str | None = None,
+    include_citations: bool = True,
+) -> str:
+    """組合 RAG system prompt"""
+    name = assistant_name or DEFAULT_ASSISTANT_NAME
+    style = f"\n{assistant_style or DEFAULT_STYLE}\n"
+    citation = CITATION_ENABLED if include_citations else CITATION_DISABLED
+    return RAG_SYSTEM_BASE.format(
+        assistant_name=name,
+        style_instruction=style,
+        citation_instruction=citation,
+    )
 
 # RAG document summary - optimized for semantic retrieval
 
@@ -111,38 +128,6 @@ Note: All output values must be written in Traditional Chinese."""
 #   - "<使用者可能會問的問題2>"
 #   - "<使用者可能會問的問題3>"
 # ```"""
-
-# RAG query response prompt with Chain of Thought
-RAG_QUERY_PROMPT = """你是一個智能文檔助理，專門幫助用戶從文檔庫中找到和分析信息。
-
-基於以下檢索到的相關文檔內容，請回答用戶的問題。
-
-用戶問題：{query}
-
-相關文檔內容：
-{context}
-
-請按照以下步驟思考並回答：
-
-<思考過程>
-1. 分析問題的核心需求
-2. 檢視文檔內容中的相關資訊
-3. 判斷是否有足夠資訊回答問題
-4. 組織答案的邏輯結構
-</思考過程>
-
-<回答>
-請直接、清晰地回答用戶的問題，不需要說「根據某某文檔」之類的開場白。
-
-回答要求：
-1. 直接針對問題給出答案
-2. 答案要準確、完整、易懂
-3. 使用條列式或分段方式呈現（如果適合）
-4. 如果文檔中沒有足夠資訊，請明確說明「目前資料庫中沒有相關資訊」
-5. 不要編造或推測文檔中沒有的內容
-</回答>
-
-請開始你的回答："""
 
 # No results found prompt
 RAG_NO_RESULTS_PROMPT = """抱歉，資料庫中沒有找到與您的問題相關的文檔。

@@ -200,12 +200,25 @@ async def query_documents(
         
         start_time = time.time()
         
+        # 讀取處室助手設定
+        dept_result = await db.execute(
+            select(Department).where(Department.id == department_id)
+        )
+        department = dept_result.scalar_one_or_none()
+        
+        # 判斷是否需要引用標注（跟著 show_source_docs 走）
+        is_session_user = current_user.id is None
+        show_source = getattr(current_user, 'show_source_docs', not is_session_user)
+        
         # Execute RAG query with async implementation
         result = await dept_rag_engine.query(
             question=request.query,
             top_k=250,
             include_similarity_scores=True,
-            allowed_filenames=allowed_filenames
+            allowed_filenames=allowed_filenames,
+            assistant_name=department.assistant_name if department else None,
+            assistant_style=department.assistant_style if department else None,
+            include_citations=show_source,
         )
         
         processing_time = time.time() - start_time
@@ -289,9 +302,6 @@ async def query_documents(
             print(f"❌ Failed to save QueryHistory: {e}")
             await db.rollback()
 
-        # session 用戶（Google / 成功入口）預設不顯示來源文檔
-        is_session_user = current_user.id is None
-        show_source = getattr(current_user, 'show_source_docs', not is_session_user)
         return QueryResponse(
             query=request.query,
             answer=result['answer'],

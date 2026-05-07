@@ -74,12 +74,18 @@ class LiteLLMClient:
         
         return model_list
     
-    async def generate(self, prompt: str, timeout: Optional[int] = None) -> str:
+    async def generate(self, prompt: str = None, *, system: str = None, user: str = None, timeout: Optional[int] = None) -> str:
         """
         異步發送提示詞並獲取回應
         
+        支援兩種呼叫方式：
+        - generate(prompt)：向下相容，整段放入 user message
+        - generate(system=..., user=...)：system/user 分離
+        
         Args:
-            prompt: 提示詞
+            prompt: 提示詞（向下相容）
+            system: system prompt
+            user: user prompt
             timeout: 超時時間（秒），None 時使用設定值
             
         Returns:
@@ -96,9 +102,18 @@ class LiteLLMClient:
                 host_name = self._extract_host_name(api_base)
                 logger.info(f"[TEXT] 使用主機: {host_name}")
             
+            # 組合 messages
+            if system and user:
+                messages = [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ]
+            else:
+                messages = [{"role": "user", "content": prompt}]
+            
             response = await self.router.acompletion(
                 model=model_name,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 timeout=request_timeout,
             )
             

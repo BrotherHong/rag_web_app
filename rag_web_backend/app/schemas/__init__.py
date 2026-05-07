@@ -124,6 +124,7 @@ class DepartmentResponse(DepartmentBase):
     has_external_api_key: bool = Field(default=False, description="是否已設定外部 API Key")
     login_methods: list[str] = Field(default_factory=lambda: ["normal", "success_portal"], description="啟用的登入方式")
     assistant_name: Optional[str] = Field(None, description="自訂助手名稱")
+    assistant_style: Optional[str] = Field(None, description="助手回答風格描述")
     enable_direct_query: bool = Field(default=True, description="是否啟用 AI 通用知識回答功能")
     user_count: int = Field(default=0, description="使用者數量")
     file_count: int = Field(default=0, description="檔案數量")

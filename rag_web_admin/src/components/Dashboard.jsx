@@ -1181,10 +1181,17 @@ function FaqManagement() {
   // === 助手設定 ===
   const [assistantSettings, setAssistantSettings] = useState({
     assistant_name: null,
+    assistant_style: null,
     greeting_message: null,
     greeting_image: null,
     enable_direct_query: true,
   });
+
+  const stylePresets = [
+    { label: '親切口語', value: '親切、活潑、口語化，語氣輕鬆有溫度，用自然段落回答，像在跟同事聊天解釋，避免過多條列' },
+    { label: '正式精準', value: '正式、精準，回答完整且結構清晰，適合公文查詢' },
+    { label: '簡潔直接', value: '精簡，直接給答案，不加多餘解釋' },
+  ];
   const [assistantDefaults, setAssistantDefaults] = useState({
     assistant_name: '',
     greeting_message: '',
@@ -1261,6 +1268,7 @@ function FaqManagement() {
     try {
       const response = await updateAssistantSettings({
         assistant_name: assistantSettings.assistant_name?.trim() || null,
+        assistant_style: assistantSettings.assistant_style?.trim() || null,
         greeting_message: assistantSettings.greeting_message?.trim() || null,
         enable_direct_query: assistantSettings.enable_direct_query,
       });
@@ -1513,6 +1521,56 @@ function FaqManagement() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
                 />
                 <p className="text-xs text-gray-500 mt-1">清空後儲存即恢復預設名稱</p>
+              </div>
+
+              {/* 助手回答風格 */}
+              <div className="bg-white border border-gray-200 rounded-lg p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <label className="block text-sm font-medium text-gray-700">回答風格</label>
+                </div>
+                {(() => {
+                  const currentValue = assistantSettings.assistant_style ?? '';
+                  const isCustom = assistantSettings.assistant_style !== null && !stylePresets.some(p => p.value === currentValue);
+                  return (
+                    <>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {stylePresets.map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => setAssistantSettings(prev => ({ ...prev, assistant_style: preset.value }))}
+                            className={`px-3 py-1.5 text-xs rounded-full border cursor-pointer transition-colors ${
+                              currentValue === preset.value
+                                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setAssistantSettings(prev => ({ ...prev, assistant_style: '' }))}
+                          className={`px-3 py-1.5 text-xs rounded-full border cursor-pointer transition-colors ${
+                            isCustom
+                              ? 'bg-amber-50 border-amber-300 text-amber-700'
+                              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          自訂
+                        </button>
+                      </div>
+                      <textarea
+                        value={currentValue}
+                        onChange={(e) => setAssistantSettings(prev => ({ ...prev, assistant_style: e.target.value }))}
+                        rows={2}
+                        placeholder="描述助手的回答風格"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none resize-none"
+                      />
+                    </>
+                  );
+                })()}
+                <p className="text-xs text-gray-500 mt-1">選擇預設風格或直接編輯文字自訂，留空則由模型自行決定風格</p>
               </div>
 
               {/* 問候語 */}

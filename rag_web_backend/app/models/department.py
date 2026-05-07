@@ -86,6 +86,12 @@ class Department(Base, TimestampMixin):
         comment="問候語圖片路徑"
     )
 
+    assistant_style: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="助手回答風格描述"
+    )
+
     enable_direct_query: Mapped[bool] = mapped_column(
         default=True,
         nullable=False,

@@ -699,6 +699,7 @@ async def get_assistant_settings(
         "success": True,
         "data": {
             "assistant_name": department.assistant_name,
+            "assistant_style": department.assistant_style,
             "greeting_message": department.greeting_message,
             "greeting_image": department.greeting_image,
             "enable_direct_query": department.enable_direct_query,
@@ -719,7 +720,7 @@ async def update_assistant_settings(
 ):
     department = await _get_department_for_current_user(db, current_user)
 
-    allowed_fields = {"assistant_name", "greeting_message", "enable_direct_query"}
+    allowed_fields = {"assistant_name", "assistant_style", "greeting_message", "enable_direct_query"}
     for field in allowed_fields:
         if field in data:
             setattr(department, field, data[field])
@@ -732,6 +733,7 @@ async def update_assistant_settings(
         "success": True,
         "data": {
             "assistant_name": department.assistant_name,
+            "assistant_style": department.assistant_style,
             "greeting_message": department.greeting_message,
             "greeting_image": department.greeting_image,
             "enable_direct_query": department.enable_direct_query,

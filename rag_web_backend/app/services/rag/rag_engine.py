@@ -7,7 +7,7 @@ import logging
 import re
 from typing import List, Dict
 from app.services.llm.litellm_client import LiteLLMClient
-from app.services.llm.prompts.rag import RAG_ANSWER_PROMPT, RAG_NO_RESULTS_PROMPT
+from app.services.llm.prompts.rag import RAG_USER_TEMPLATE, RAG_NO_RESULTS_PROMPT, build_rag_system_prompt
 from app.config import settings
 from .vector_store import VectorStore
 from .reranker import Reranker
@@ -69,7 +69,10 @@ class RAGEngine:
     async def query(self, question: str, 
               top_k: int = 250, 
               include_similarity_scores: bool = False,
-              allowed_filenames: set = None) -> Dict:
+              allowed_filenames: set = None,
+              assistant_name: str = None,
+              assistant_style: str = None,
+              include_citations: bool = True) -> Dict:
         """
         異步執行RAG查詢
         
@@ -136,15 +139,22 @@ class RAGEngine:
         
         # 3. 生成詳細回答
         context = self._build_context(deduplicated_docs)
-        prompt = RAG_ANSWER_PROMPT.format(query=question, context=context)
+        system_prompt = build_rag_system_prompt(
+            assistant_name=assistant_name,
+            assistant_style=assistant_style,
+            include_citations=include_citations,
+        )
+        user_prompt = RAG_USER_TEMPLATE.format(query=question, context=context)
         
         if self.debug_mode:
-            logger.info(f"\n[DEBUG] 模型輸入 Prompt:")
-            logger.info(prompt)
+            logger.info(f"\n[DEBUG] System Prompt:")
+            logger.info(system_prompt)
+            logger.info(f"\n[DEBUG] User Prompt:")
+            logger.info(user_prompt)
             logger.info("-" * 80)
         
         # 異步調用 LLM
-        response = await self.client.generate(prompt)
+        response = await self.client.generate(system=system_prompt, user=user_prompt)
         
         if self.debug_mode:
             logger.info(f"\n[DEBUG] 模型原始輸出:")
@@ -206,19 +216,24 @@ class RAGEngine:
             # 收集所有相關 chunks 的內容並合併
             all_chunks = doc_group.get('all_chunks', [])
             combined_content = []
+            source_link = ''
             
             for chunk in all_chunks:
                 chunk_filename = chunk['document']['filename']
                 doc_content = self.vector_store.get_document_content(chunk_filename)
-                if doc_content and doc_content.get('original_content'):
-                    content = doc_content['original_content']
-                    # 還原 MarkItDown 對 URL 底線的跳脫（\_ → _）
-                    content = re.sub(r'https?://\S+', lambda m: m.group(0).replace('\\_', '_'), content)
-                    combined_content.append(content)
+                if doc_content:
+                    if not source_link:
+                        source_link = doc_content.get('source_link', '') or doc_content.get('download_link', '')
+                    if doc_content.get('original_content'):
+                        content = doc_content['original_content']
+                        # 還原 MarkItDown 對 URL 底線的跳脫（\_ → _）
+                        content = re.sub(r'https?://\S+', lambda m: m.group(0).replace('\\_', '_'), content)
+                        combined_content.append(content)
             
             # 合併所有 chunks 的內容
             full_content = "\n\n".join(combined_content) if combined_content else ""
-            context_parts.append(f"文檔{i}（{original_filename}）：\n{full_content}\n")
+            link_text = f"\n來源連結：{source_link}" if source_link else ""
+            context_parts.append(f"文檔{i}（{original_filename}）：{link_text}\n{full_content}\n")
         
         return "\n".join(context_parts)
     
