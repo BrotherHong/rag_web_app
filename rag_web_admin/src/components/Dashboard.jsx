@@ -5,6 +5,8 @@ import {
   getStatistics, 
   getRecentActivities,
   runNoResultInsights,
+  getPopularQueries,
+  getQueryHistory,
   getCategoriesWithDetails,
   addCategory,
   deleteCategory,
@@ -270,6 +272,22 @@ function Dashboard() {
             </button>
 
             <button
+              onClick={() => setCurrentPage('query-analytics')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'query-analytics'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'query-analytics' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 12.414V19a1 1 0 01-.553.894l-4 2A1 1 0 019 21v-8.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              <span className="font-medium">查詢分析</span>
+            </button>
+
+            <button
               onClick={() => setCurrentPage('faqs')}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
                 currentPage === 'faqs'
@@ -329,6 +347,7 @@ function Dashboard() {
           {currentPage === 'dashboard' && <DashboardHome />}
           {currentPage === 'dept-settings' && <DepartmentSettings />}
           {currentPage === 'query-users' && <QueryUserManagement />}
+          {currentPage === 'query-analytics' && <QueryAnalytics />}
           {currentPage === 'faqs' && <FaqManagement />}
         </main>
       </div>
@@ -341,10 +360,6 @@ function DashboardHome() {
   const [stats, setStats] = useState(null);
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [insightDays, setInsightDays] = useState(30);
-  const [insightLoading, setInsightLoading] = useState(false);
-  const [insightError, setInsightError] = useState('');
-  const [noResultInsights, setNoResultInsights] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -392,33 +407,6 @@ function DashboardHome() {
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const runNoResultTopQuestions = async () => {
-    setInsightLoading(true);
-    setInsightError('');
-    try {
-      const response = await runNoResultInsights({
-        days: insightDays,
-        top_n: 10,
-        similarity_threshold: 0.84,
-        min_cluster_count: 1,
-        max_unique_questions: 500,
-        use_llm_refine: false
-      });
-
-      if (!response.success) {
-        setInsightError(response.message || '彙整失敗');
-        return;
-      }
-
-      setNoResultInsights(response.data || null);
-    } catch (error) {
-      console.error('Run no-result insight failed:', error);
-      setInsightError('彙整失敗，請稍後再試');
-    } finally {
-      setInsightLoading(false);
     }
   };
 
@@ -850,7 +838,129 @@ function DashboardHome() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-6">
+    </div>
+  );
+}
+
+function QueryAnalytics() {
+  const [insightDays, setInsightDays] = useState(30);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightError, setInsightError] = useState('');
+  const [noResultInsights, setNoResultInsights] = useState(null);
+  const [popularDays, setPopularDays] = useState(30);
+  const [popularQueries, setPopularQueries] = useState(null);
+  const [popularHasRun, setPopularHasRun] = useState(false);
+  const [popularLoading, setPopularLoading] = useState(false);
+  const [popularError, setPopularError] = useState('');
+  const [history, setHistory] = useState({ items: [], total: 0, page: 1, pages: 0 });
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyDays, setHistoryDays] = useState('');
+  const [historyHasRun, setHistoryHasRun] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+
+  const formatDateTime = (value) => {
+    if (!value) return '-';
+    return new Date(value).toLocaleString();
+  };
+
+  const resetPopularResults = () => {
+    setPopularQueries(null);
+    setPopularHasRun(false);
+    setPopularError('');
+  };
+
+  const resetHistoryResults = () => {
+    setHistory({ items: [], total: 0, page: 1, pages: 0 });
+    setHistoryPage(1);
+    setHistoryHasRun(false);
+    setHistoryError('');
+  };
+
+  const loadPopularQueries = async () => {
+    setPopularLoading(true);
+    setPopularError('');
+    try {
+      const response = await getPopularQueries({ days: popularDays, limit: 10 });
+      if (!response.success) {
+        setPopularError(response.message || '取得熱門查詢失敗');
+        return;
+      }
+      setPopularHasRun(true);
+      setPopularQueries(response.data || null);
+    } catch (error) {
+      console.error('Load popular queries failed:', error);
+      setPopularError('取得熱門查詢失敗，請稍後再試');
+    } finally {
+      setPopularLoading(false);
+    }
+  };
+
+  const loadQueryHistory = async (page = 1) => {
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const response = await getQueryHistory({
+        page,
+        limit: 20,
+        search: historySearch.trim(),
+        days: historyDays ? parseInt(historyDays, 10) : undefined
+      });
+      if (!response.success) {
+        setHistoryError(response.message || '取得歷史查詢失敗');
+        return;
+      }
+      setHistoryHasRun(true);
+      setHistoryPage(page);
+      setHistory(response.data || { items: [], total: 0, page, pages: 0 });
+    } catch (error) {
+      console.error('Load query history failed:', error);
+      setHistoryError('取得歷史查詢失敗，請稍後再試');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const runNoResultTopQuestions = async () => {
+    setInsightLoading(true);
+    setInsightError('');
+    try {
+      const response = await runNoResultInsights({
+        days: insightDays,
+        top_n: 10,
+        similarity_threshold: 0.84,
+        min_cluster_count: 1,
+        max_unique_questions: 500,
+        use_llm_refine: false
+      });
+
+      if (!response.success) {
+        setInsightError(response.message || '彙整失敗');
+        return;
+      }
+
+      setNoResultInsights(response.data || null);
+    } catch (error) {
+      console.error('Run no-result insight failed:', error);
+      setInsightError('彙整失敗，請稍後再試');
+    } finally {
+      setInsightLoading(false);
+    }
+  };
+
+  const handleHistorySearch = (e) => {
+    e.preventDefault();
+    loadQueryHistory(1);
+  };
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--ncku-red)' }}>
+        查詢分析
+      </h2>
+
+      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
           <div>
             <h3 className="text-lg font-bold">無結果問題 Top 10</h3>
@@ -913,7 +1023,7 @@ function DashboardHome() {
                   <div className="text-sm font-bold text-red-700 whitespace-nowrap">{item.count} 次</div>
                 </div>
                 <div className="text-xs text-gray-500 mt-2">
-                  最後詢問時間：{item.last_asked_at ? new Date(item.last_asked_at).toLocaleString() : '-'}
+                  最後詢問時間：{formatDateTime(item.last_asked_at)}
                 </div>
                 {item.sample_questions?.length > 1 && (
                   <div className="mt-2 text-sm text-gray-700">
@@ -927,6 +1037,166 @@ function DashboardHome() {
           <div className="text-sm text-gray-500 py-2">
             尚未執行彙整，或指定期間內沒有「無相關資訊」查詢。
           </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-bold">最近熱門查詢</h3>
+            <p className="text-sm text-gray-500 mt-1">不分是否有答案，依相同查詢文字統計最高次數。</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <select
+              value={popularDays}
+              onChange={(e) => {
+                setPopularDays(parseInt(e.target.value, 10));
+                resetPopularResults();
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              disabled={popularLoading}
+            >
+              <option value={7}>近 7 天</option>
+              <option value={14}>近 14 天</option>
+              <option value={30}>近 30 天</option>
+              <option value={90}>近 90 天</option>
+            </select>
+            <button
+              onClick={loadPopularQueries}
+              disabled={popularLoading}
+              className="px-4 py-2 rounded-lg text-white hover:opacity-90 disabled:opacity-60 transition-opacity"
+              style={{ backgroundColor: 'var(--ncku-red)' }}
+            >
+              {popularLoading ? '彙整中...' : '手動彙整'}
+            </button>
+          </div>
+        </div>
+
+        {popularError && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+            {popularError}
+          </div>
+        )}
+
+        {popularLoading ? (
+          <div className="text-sm text-gray-500 py-2">載入中...</div>
+        ) : popularQueries?.items?.length > 0 ? (
+          <div className="space-y-3">
+            {popularQueries.items.map((item, idx) => (
+              <div key={`${item.normalized_query}-${idx}`} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-semibold text-gray-900">#{idx + 1} {item.query}</div>
+                  <div className="text-sm font-bold text-blue-700 whitespace-nowrap">{item.count} 次</div>
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  首次：{formatDateTime(item.first_asked_at)} ｜ 最近：{formatDateTime(item.last_asked_at)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : popularHasRun ? (
+          <div className="text-sm text-gray-500 py-2">指定期間內尚無查詢紀錄。</div>
+        ) : (
+          <div className="text-sm text-gray-500 py-2">尚未執行彙整。</div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-bold">歷史查詢</h3>
+            <p className="text-sm text-gray-500 mt-1">查看所有查詢、回覆、來源數與處理時間。</p>
+          </div>
+
+          <form onSubmit={handleHistorySearch} className="flex flex-col sm:flex-row gap-3">
+            <select
+              value={historyDays}
+              onChange={(e) => {
+                setHistoryDays(e.target.value);
+                resetHistoryResults();
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              disabled={historyLoading}
+            >
+              <option value="">全部時間</option>
+              <option value="7">近 7 天</option>
+              <option value="30">近 30 天</option>
+              <option value="90">近 90 天</option>
+            </select>
+            <input
+              type="text"
+              value={historySearch}
+              onChange={(e) => {
+                setHistorySearch(e.target.value);
+                resetHistoryResults();
+              }}
+              placeholder="搜尋問題或回覆"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[220px]"
+            />
+            <button
+              type="submit"
+              disabled={historyLoading}
+              className="px-4 py-2 rounded-lg text-white hover:opacity-90 disabled:opacity-60 transition-opacity"
+              style={{ backgroundColor: 'var(--ncku-red)' }}
+            >
+              {historyLoading ? '彙整中...' : '手動彙整'}
+            </button>
+          </form>
+        </div>
+
+        {historyError && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+            {historyError}
+          </div>
+        )}
+
+        {historyLoading ? (
+          <div className="text-sm text-gray-500 py-2">載入中...</div>
+        ) : history.items.length > 0 ? (
+          <div className="space-y-4">
+            {history.items.map((item) => (
+              <div key={item.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                  <div className="font-semibold text-gray-900">{item.query}</div>
+                  <div className="text-xs text-gray-500 whitespace-nowrap">{formatDateTime(item.created_at)}</div>
+                </div>
+                <p className="text-sm text-gray-700 mt-3 whitespace-pre-wrap line-clamp-4">{item.answer}</p>
+                <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-3">
+                  <span>來源：{item.source_count || 0}</span>
+                  <span>處理時間：{Number(item.processing_time || 0).toFixed(2)} 秒</span>
+                  <span>Token：{item.tokens_used || 0}</span>
+                  {item.query_user && <span>查詢用戶：{item.query_user.full_name || item.query_user.username}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : historyHasRun ? (
+          <div className="text-sm text-gray-500 py-2">目前沒有符合條件的歷史查詢。</div>
+        ) : (
+          <div className="text-sm text-gray-500 py-2">尚未執行彙整。</div>
+        )}
+
+        {historyHasRun && (
+        <div className="flex items-center justify-between mt-5 text-sm text-gray-600">
+          <div>共 {history.total || 0} 筆</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadQueryHistory(Math.max(1, historyPage - 1))}
+              disabled={historyLoading || historyPage <= 1}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg disabled:opacity-50"
+            >
+              上一頁
+            </button>
+            <span>第 {history.page || historyPage} / {history.pages || 1} 頁</span>
+            <button
+              onClick={() => loadQueryHistory(historyPage + 1)}
+              disabled={historyLoading || historyPage >= (history.pages || 1)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg disabled:opacity-50"
+            >
+              下一頁
+            </button>
+          </div>
+        </div>
         )}
       </div>
     </div>

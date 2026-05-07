@@ -1,5 +1,6 @@
 """統計與系統資訊 API 路由"""
 
+import math
 import os
 import shutil
 import platform
@@ -10,12 +11,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, desc, text, and_
+from sqlalchemy import func, select, desc, text, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_role
-from app.models import Activity, File, User, UserRole, Category, QueryHistory
+from app.models import Activity, File, User, UserRole, Category, QueryHistory, QueryUser
 from app.models.file import FileStatus
 from app.config import settings
 from app.services.rag import NoResultQuestionAnalyzer
@@ -31,6 +32,13 @@ class NoResultInsightRunRequest(BaseModel):
     min_cluster_count: int = Field(default=1, ge=1, le=1000)
     max_unique_questions: int = Field(default=500, ge=50, le=3000)
     use_llm_refine: bool = Field(default=False)
+
+
+def _resolve_target_department_id(current_user: User, requested_department_id: int | None = None) -> int | None:
+    """Resolve department scope for department admins and super admin proxy mode."""
+    if current_user.role == UserRole.SUPER_ADMIN and requested_department_id:
+        return requested_department_id
+    return current_user.department_id
 
 
 def _knowledge_base_file_condition(department_id: Optional[int]):
@@ -65,10 +73,7 @@ async def run_no_results_insights(
     if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="權限不足")
 
-    if current_user.role == UserRole.SUPER_ADMIN and request.department_id:
-        target_department_id = request.department_id
-    else:
-        target_department_id = current_user.department_id
+    target_department_id = _resolve_target_department_id(current_user, request.department_id)
 
     if not target_department_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前未指定處室")
@@ -85,6 +90,157 @@ async def run_no_results_insights(
         use_llm_refine=request.use_llm_refine,
     )
     return result
+
+
+@router.get("/statistics/popular-queries", summary="取得最近熱門查詢")
+async def get_popular_queries(
+    days: int = Query(30, ge=1, le=365, description="統計天數"),
+    limit: int = Query(10, ge=1, le=50, description="回傳筆數"),
+    department_id: int | None = Query(None, ge=1, description="處室 ID（系統管理員可指定）"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """依查詢問題文字聚合，回傳指定期間內次數最多的查詢。"""
+    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="權限不足")
+
+    target_department_id = _resolve_target_department_id(current_user, department_id)
+    if not target_department_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前未指定處室")
+
+    since = datetime.utcnow() - timedelta(days=days)
+    normalized_query = func.lower(func.trim(QueryHistory.query)).label("normalized_query")
+    query_count = func.count(QueryHistory.id).label("count")
+    last_asked_at = func.max(QueryHistory.created_at).label("last_asked_at")
+    popular_stmt = (
+        select(
+            normalized_query,
+            func.max(QueryHistory.query).label("display_query"),
+            query_count,
+            func.min(QueryHistory.created_at).label("first_asked_at"),
+            last_asked_at,
+        )
+        .where(
+            QueryHistory.department_id == target_department_id,
+            QueryHistory.created_at >= since,
+        )
+        .group_by(normalized_query)
+        .order_by(desc(query_count), desc(last_asked_at))
+        .limit(limit)
+    )
+    rows = (await db.execute(popular_stmt)).all()
+
+    total_queries_stmt = select(func.count(QueryHistory.id)).where(
+        QueryHistory.department_id == target_department_id,
+        QueryHistory.created_at >= since,
+    )
+    total_queries = await db.scalar(total_queries_stmt) or 0
+    unique_queries_stmt = select(func.count()).select_from(
+        select(normalized_query)
+        .where(
+            QueryHistory.department_id == target_department_id,
+            QueryHistory.created_at >= since,
+        )
+        .group_by(normalized_query)
+        .subquery()
+    )
+    unique_queries = await db.scalar(unique_queries_stmt) or 0
+
+    return {
+        "period": {
+            "days": days,
+            "start_at": since.isoformat(),
+            "end_at": datetime.utcnow().isoformat(),
+        },
+        "meta": {
+            "total_queries": total_queries,
+            "unique_queries": unique_queries,
+        },
+        "items": [
+            {
+                "query": row.display_query,
+                "normalized_query": row.normalized_query,
+                "count": row.count,
+                "first_asked_at": row.first_asked_at,
+                "last_asked_at": row.last_asked_at,
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.get("/statistics/query-history", summary="取得歷史查詢與回覆")
+async def get_query_history(
+    page: int = Query(1, ge=1, description="頁碼"),
+    limit: int = Query(20, ge=1, le=100, description="每頁數量"),
+    search: str | None = Query(None, description="搜尋查詢或回答"),
+    days: int | None = Query(None, ge=1, le=365, description="限制最近天數"),
+    department_id: int | None = Query(None, ge=1, description="處室 ID（系統管理員可指定）"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """分頁列出處室內所有查詢問題與回答。"""
+    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="權限不足")
+
+    target_department_id = _resolve_target_department_id(current_user, department_id)
+    if not target_department_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前未指定處室")
+
+    conditions = [QueryHistory.department_id == target_department_id]
+    if days:
+        conditions.append(QueryHistory.created_at >= datetime.utcnow() - timedelta(days=days))
+    if search:
+        pattern = f"%{search.strip()}%"
+        conditions.append(
+            or_(
+                QueryHistory.query.ilike(pattern),
+                QueryHistory.answer.ilike(pattern),
+            )
+        )
+
+    base_stmt = (
+        select(QueryHistory, QueryUser)
+        .outerjoin(QueryUser, QueryHistory.query_user_id == QueryUser.id)
+        .where(and_(*conditions))
+    )
+    total = await db.scalar(select(func.count()).select_from(base_stmt.subquery())) or 0
+
+    stmt = (
+        base_stmt
+        .order_by(desc(QueryHistory.created_at))
+        .offset((page - 1) * limit)
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+
+    return {
+        "items": [
+            {
+                "id": history.id,
+                "query": history.query,
+                "answer": history.answer,
+                "source_count": history.source_count,
+                "sources": history.sources,
+                "query_type": history.query_type,
+                "scope": history.scope,
+                "tokens_used": history.tokens_used,
+                "processing_time": history.processing_time,
+                "extra_data": history.extra_data,
+                "created_at": history.created_at,
+                "query_user": {
+                    "id": query_user.id,
+                    "username": query_user.username,
+                    "full_name": query_user.full_name,
+                    "email": query_user.email,
+                } if query_user else None,
+            }
+            for history, query_user in rows
+        ],
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit) if total > 0 else 0,
+    }
 
 
 @router.get("/statistics", summary="取得系統統計資料")

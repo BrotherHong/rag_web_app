@@ -101,6 +101,91 @@ export const runNoResultInsights = async (params = {}) => {
 };
 
 /**
+ * 取得最近熱門查詢
+ * @param {Object} params - 查詢參數 { days, limit }
+ * @returns {Promise}
+ */
+export const getPopularQueries = async (params = {}) => {
+  try {
+    const queryString = new URLSearchParams({
+      days: (params.days || 30).toString(),
+      limit: (params.limit || 10).toString()
+    });
+
+    const response = await apiFetch(`${API_BASE_URL}/statistics/popular-queries?${queryString}`, {
+      method: 'GET',
+      headers: getAuthHeader()
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        success: true,
+        data
+      };
+    }
+
+    const error = await response.json();
+    return {
+      success: false,
+      message: error.detail || '取得熱門查詢失敗'
+    };
+  } catch (error) {
+    console.error('Get popular queries error:', error);
+    return {
+      success: false,
+      message: '取得熱門查詢失敗，請檢查網路連線'
+    };
+  }
+};
+
+/**
+ * 取得歷史查詢與回覆
+ * @param {Object} params - 查詢參數 { page, limit, search, days }
+ * @returns {Promise}
+ */
+export const getQueryHistory = async (params = {}) => {
+  try {
+    const queryString = new URLSearchParams({
+      page: (params.page || 1).toString(),
+      limit: (params.limit || 20).toString()
+    });
+
+    if (params.search) {
+      queryString.append('search', params.search);
+    }
+    if (params.days) {
+      queryString.append('days', params.days.toString());
+    }
+
+    const response = await apiFetch(`${API_BASE_URL}/statistics/query-history?${queryString}`, {
+      method: 'GET',
+      headers: getAuthHeader()
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        success: true,
+        data
+      };
+    }
+
+    const error = await response.json();
+    return {
+      success: false,
+      message: error.detail || '取得歷史查詢失敗'
+    };
+  } catch (error) {
+    console.error('Get query history error:', error);
+    return {
+      success: false,
+      message: '取得歷史查詢失敗，請檢查網路連線'
+    };
+  }
+};
+
+/**
  * 取得最近活動記錄
  * @param {number} limit - 限制數量
  * @returns {Promise} 活動記錄
