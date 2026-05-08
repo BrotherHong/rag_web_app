@@ -186,24 +186,6 @@ export const logoutQueryUser = () => {
 };
 
 /**
- * 查詢用戶自行註冊（申請帳號，需等待管理員審批）
- */
-export const registerQueryUser = async ({ username, email, password, full_name, organization, application_reason, default_department_id }) => {
-  const response = await fetch(`${API_BASE_URL}/query-auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, email, password, full_name, organization, application_reason, default_department_id })
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || `註冊失敗 (${response.status})`);
-  }
-
-  return response.json();
-};
-
-/**
  * 申請重設密碼（產生重設代碼，需管理員轉交）
  */
 export const forgotPasswordRequest = async (username) => {

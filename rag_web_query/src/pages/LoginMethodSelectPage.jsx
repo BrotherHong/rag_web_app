@@ -42,7 +42,7 @@ const extractDeptSlug = (path) => {
     return null;
   }
 
-  const nonDeptRoutes = new Set(['login', 'register', 'forgot-password', '404']);
+  const nonDeptRoutes = new Set(['login', 'forgot-password', '404']);
   return nonDeptRoutes.has(firstSegment) ? null : firstSegment;
 };
 

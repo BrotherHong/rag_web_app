@@ -29,34 +29,6 @@ class UserBrief(BaseModel):
         from_attributes = True
 
 
-# ==================== 註冊申請相關 ====================
-
-class QueryUserRegisterRequest(BaseModel):
-    """查詢用戶註冊申請"""
-    username: str = Field(..., min_length=3, max_length=50, description="使用者名稱")
-    email: EmailStr = Field(..., description="電子郵件")
-    password: str = Field(..., min_length=6, description="密碼")
-    full_name: str = Field(..., min_length=1, max_length=100, description="全名")
-    application_reason: Optional[str] = Field(None, description="申請理由")
-    default_department_id: Optional[int] = Field(None, description="預設處室 ID")
-    
-    @field_validator('username')
-    @classmethod
-    def validate_username(cls, v: str) -> str:
-        if not v.replace('_', '').replace('-', '').isalnum():
-            raise ValueError('使用者名稱只能包含英文、數字、底線和連字號')
-        return v
-
-
-class QueryUserRegisterResponse(BaseModel):
-    """註冊申請回應"""
-    id: int
-    username: str
-    email: str
-    status: str
-    message: str = "註冊申請已提交，請等待管理員審批"
-
-
 # ==================== 登入相關 ====================
 
 class QueryUserLoginRequest(BaseModel):

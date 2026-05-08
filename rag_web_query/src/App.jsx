@@ -8,7 +8,6 @@ import LoginMethodSelectPage from './pages/LoginMethodSelectPage'
 import GoogleLoginPage from './pages/GoogleLoginPage'
 import SuccessPortalLoginPage from './pages/SuccessPortalLoginPage'
 import PortalCallbackPage from './pages/PortalCallbackPage'
-import RegisterPage from './pages/RegisterPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import NotFoundPage from './pages/NotFoundPage'
 import DepartmentLayout from './components/DepartmentLayout'
@@ -51,7 +50,6 @@ function App() {
         <Route path="/login/google" element={<GoogleLoginPage />} />
         <Route path="/login/success-portal" element={<SuccessPortalLoginPage />} />
         <Route path="/login/portal-callback" element={<PortalCallbackPage />} />
-        <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         
         {/* 根路徑重定向到預設處室（人事室） */}

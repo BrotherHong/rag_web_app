@@ -165,9 +165,12 @@ export const updateUser = async (userId, userData) => {
     // 映射為後端期待的格式
     const requestData = {
       email: userData.email,
-      full_name: userData.name,
-      department_id: parseInt(userData.departmentId)
+      full_name: userData.name
     };
+
+    if (userData.departmentId) {
+      requestData.department_id = parseInt(userData.departmentId);
+    }
     
     // 只有填寫密碼時才更新密碼
     if (userData.password && userData.password.trim()) {
@@ -192,6 +195,16 @@ export const updateUser = async (userId, userData) => {
       const data = await response.json();
       return {
         success: true,
+        data: {
+          id: data.id,
+          name: data.full_name,
+          username: data.username,
+          email: data.email,
+          role: data.role,
+          departmentId: data.department_id,
+          adminGroupId: data.admin_group_id,
+          status: data.is_active ? 'active' : 'inactive'
+        },
         message: data.message || '使用者更新成功'
       };
     } else {

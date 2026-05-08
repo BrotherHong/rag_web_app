@@ -1,6 +1,6 @@
 """查詢用戶認證 API 路由
 
-專門用於前端查詢系統的用戶註冊、登入等功能
+專門用於前端查詢系統的登入、密碼重設等功能
 與後台管理員系統完全獨立
 """
 
@@ -31,10 +31,7 @@ from app.core.security import (
     get_current_query_user
 )
 from app.models.query_user import QueryUser, QueryUserStatus
-from app.models.user_group import UserGroup
 from app.schemas.query_user import (
-    QueryUserRegisterRequest,
-    QueryUserRegisterResponse,
     QueryUserLoginRequest,
     QueryUserLoginResponse,
     GoogleLoginRequest,
@@ -50,81 +47,6 @@ from app.schemas.query_user import (
 )
 
 router = APIRouter(prefix="/query-auth", tags=["查詢用戶認證"])
-
-
-@router.post("/register", response_model=QueryUserRegisterResponse)
-async def register_query_user(
-    request: QueryUserRegisterRequest,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    查詢用戶註冊
-    
-    註冊後即可直接登入使用
-    """
-    # 檢查 username 是否已存在
-    result = await db.execute(
-        select(QueryUser).where(QueryUser.username == request.username)
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="使用者名稱已被使用"
-        )
-    
-    # 檢查 email 是否已存在
-    result = await db.execute(
-        select(QueryUser).where(QueryUser.email == request.email)
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="電子郵件已被使用"
-        )
-    
-    # 創建查詢用戶（直接為已批准狀態）
-    query_user = QueryUser(
-        username=request.username,
-        email=request.email,
-        hashed_password=get_password_hash(request.password),
-        full_name=request.full_name,
-        application_reason=request.application_reason,
-        default_department_id=request.default_department_id,
-        status=QueryUserStatus.APPROVED,
-        is_active=True
-    )
-    
-    db.add(query_user)
-    await db.commit()
-    await db.refresh(query_user)
-    
-    # 自動加入所屬處室的「一般登入」身分組
-    if query_user.default_department_id:
-        group_result = await db.execute(
-            select(UserGroup).where(
-                UserGroup.department_id == query_user.default_department_id,
-                UserGroup.name == "一般登入"
-            )
-        )
-        general_group = group_result.scalar_one_or_none()
-        if general_group:
-            from sqlalchemy.orm import selectinload
-            user_result = await db.execute(
-                select(QueryUser)
-                .where(QueryUser.id == query_user.id)
-                .options(selectinload(QueryUser.user_groups))
-            )
-            query_user = user_result.scalar_one()
-            query_user.user_groups.append(general_group)
-            await db.commit()
-    
-    return QueryUserRegisterResponse(
-        id=query_user.id,
-        username=query_user.username,
-        email=query_user.email,
-        status=query_user.status if isinstance(query_user.status, str) else query_user.status.value,
-        message="註冊成功，請使用您的帳號登入。"
-    )
 
 
 @router.post("/login", response_model=QueryUserLoginResponse)

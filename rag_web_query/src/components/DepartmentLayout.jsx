@@ -1,9 +1,11 @@
-import { Outlet, useParams, Navigate } from 'react-router-dom'
+import { Outlet, useLocation, useParams, Navigate } from 'react-router-dom'
 import { DepartmentProvider, useDepartment } from '../contexts/DepartmentContext'
 import Navbar from './Navbar'
 
 function DepartmentContent() {
   const { notFound, loading } = useDepartment()
+  const location = useLocation()
+  const isChatPage = location.pathname.endsWith('/chat')
 
   // 載入中顯示 loading
   if (loading) {
@@ -24,7 +26,7 @@ function DepartmentContent() {
 
   return (
     <>
-      <Navbar />
+      {!isChatPage && <Navbar />}
       <Outlet />
     </>
   )

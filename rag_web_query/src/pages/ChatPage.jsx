@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getQuickQuestions, sendChatMessage, sendDirectQuery, getWelcomeMessage, getCategories } from '../services/api'
 import { useDepartment } from '../contexts/DepartmentContext'
+import { useQueryAuth } from '../contexts/QueryAuthContext'
 import { API_CONFIG, APP_CONSTANTS } from '../config/constants'
 
 function ChatPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { department, deptSlug } = useDepartment()
+  const { user, logout } = useQueryAuth()
   const [messages, setMessages] = useState([])
   const [inputMessage, setInputMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
@@ -425,9 +427,18 @@ function ChatPage() {
     }
   }
 
+  const getDisplayName = () => {
+    return user?.full_name || user?.name || user?.username || '使用者'
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate(deptSlug ? `/${deptSlug}` : '/', { replace: true })
+  }
+
   return (
     <>
-    <div className="h-[calc(100vh-5rem)] bg-gradient-to-br from-white via-red-50 to-white flex overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-white via-red-50 to-white flex overflow-hidden">
       {/* 側邊欄 */}
       <div className={`${showSidebar ? 'w-64' : 'w-0'} transition-all duration-300 bg-white/80 backdrop-blur-sm border-r border-gray-200 flex flex-col overflow-hidden shadow-lg`}>
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
@@ -507,6 +518,17 @@ function ChatPage() {
               </div>
             </div>
 
+            <div className="flex items-center gap-3 text-sm sm:text-base">
+              <span className="max-w-[10rem] sm:max-w-xs truncate font-medium text-gray-700" title={getDisplayName()}>
+                {getDisplayName()}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 text-sm font-semibold text-red-600 border border-red-300 hover:bg-red-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              >
+                登出
+              </button>
+            </div>
           </div>
         </div>
 

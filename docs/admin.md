@@ -23,12 +23,14 @@
 - **登入方式**：設定該處室允許哪些登入方式（至少一種）
   - `normal`：帳號密碼登入
   - `google`：Google OAuth 登入
-  - `success_portal`：成大 SSO（尚未完整實作，為佔位）
+  - `success_portal`：成功入口（NCKU ADFS SSO）登入
 - **外部 API Key**：設定後，該處室的 LLM 查詢會改用外部 API（OpenAI 相容格式），而非本地 Ollama
 
 ### 2.2 管理員帳號管理
 
 建立隸屬於特定處室的管理員帳號（`ADMIN` 角色）。管理員只能管理自己處室的資源。
+
+Super Admin 可在此頁編輯自己的姓名、Email 與密碼；密碼欄位留空時不變更原密碼。其他 Super Admin 帳號不可由非本人代為編輯。
 
 ### 2.3 活動記錄（全域）
 
@@ -191,8 +193,6 @@ RAG 查詢時，VectorStore 直接從 `embeddings/` 載入所有 `*_embedding.js
 - 編輯帳號資訊（名稱、email、所屬處室、身分組）
 - 暫停 / 啟用帳號
 - 刪除帳號
-
-> 目前行為：自助註冊後直接為 `APPROVED`（active），不需人工審核。若要改回需審核，修改 `app/api/query_auth.py` 的 register 端點。
 
 ---
 

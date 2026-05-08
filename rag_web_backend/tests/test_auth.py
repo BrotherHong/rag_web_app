@@ -5,7 +5,7 @@
 - Admin 登入（正確密碼、錯誤密碼、不存在帳號、停用帳號）
 - Admin JWT Token 驗證（/auth/me、/auth/verify）
 - 角色存取控制（admin 不能用 super_admin 專屬 API）
-- QueryUser 註冊、登入、取得自身資訊
+- QueryUser 登入、取得自身資訊
 """
 import pytest
 from httpx import AsyncClient
@@ -96,8 +96,8 @@ class TestTokenVerify:
 
 
 class TestQueryUserAuth:
-    async def test_register(self, client: AsyncClient, test_department: Department):
-        """QueryUser 正常註冊應成功（200 或 201）"""
+    async def test_register_endpoint_removed(self, client: AsyncClient, test_department: Department):
+        """Query 前台自助註冊已移除，端點不應存在"""
         response = await client.post("/api/query-auth/register", json={
             "username": "newuser",
             "email": "newuser@test.com",
@@ -105,17 +105,7 @@ class TestQueryUserAuth:
             "full_name": "New User",
             "default_department_id": test_department.id,
         })
-        assert response.status_code in [200, 201]
-
-    async def test_register_duplicate_username(self, client: AsyncClient, test_query_user: QueryUser):
-        """重複帳號名稱註冊應回傳 400"""
-        response = await client.post("/api/query-auth/register", json={
-            "username": "test_quser",
-            "email": "another@test.com",
-            "password": "password123",
-            "full_name": "Another",
-        })
-        assert response.status_code == 400
+        assert response.status_code == 404
 
     async def test_login_approved_user(self, client: AsyncClient, test_query_user: QueryUser):
         """已審核通過的 QueryUser 登入應回傳 token"""

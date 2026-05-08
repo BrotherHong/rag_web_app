@@ -16,9 +16,11 @@
 /                         → 重新導向到 /hr（預設處室）
 /:deptSlug                → 處室首頁（HomePage）
 /:deptSlug/chat           → 聊天頁（需登入）
-/login                    → 登入（帳號密碼）
-/login-select             → 登入方式選擇頁
-/register                 → 自助註冊
+/login                    → 登入方式選擇頁
+/login/normal             → 帳號密碼登入
+/login/google             → Google 登入
+/login/success-portal     → 成功入口登入
+/login/portal-callback    → 成功入口登入 callback
 /forgot-password          → 忘記密碼
 /404                      → 找不到頁面
 ```
@@ -78,17 +80,9 @@ POST /api/query-auth/google-login { id_token: "..." }
   └─ 後端驗證 token，更新密碼，清除 token
 ```
 
-### 3.5 自助註冊
+### 3.5 註冊入口
 
-```
-使用者填寫：帳號、Email、密碼、姓名（選填：單位、申請原因）
-  ↓
-POST /api/query-auth/register
-  ↓
-建立 QueryUser（status = APPROVED，直接可用）
-  ↓
-重新導向到登入頁
-```
+查詢前台目前不提供使用者自助註冊。若需要新增一般帳號，由管理後台的查詢用戶管理建立。
 
 ---
 
@@ -97,6 +91,7 @@ POST /api/query-auth/register
 ### 4.1 頁面佈局
 
 - **左側欄（可收起）**：常見問題清單（來自 FAQ）、新對話按鈕、返回首頁
+- **頂部工具列**：側欄收合按鈕、助手名稱、右側登入者名稱與登出按鈕
 - **主區域**：對話訊息串流
 - **底部**：輸入框 + 分類篩選下拉選單 + 送出按鈕
 

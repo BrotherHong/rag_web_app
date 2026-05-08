@@ -52,12 +52,6 @@ function HomePage() {
           >
             登入
           </button>
-          <button
-            onClick={() => navigate('/register', { state: { from: `/${deptSlug}/chat` } })}
-            className="px-10 py-4 border-2 border-red-700 rounded-full text-red-700 font-bold text-lg hover:bg-red-50 hover:scale-105 transition-all cursor-pointer"
-          >
-            註冊
-          </button>
         </div>
 
         {/* 底部特色說明 */}

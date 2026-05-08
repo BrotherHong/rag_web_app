@@ -16,6 +16,14 @@ import ConfirmDialog from '../common/ConfirmDialog';
 
 function UserManagement({ users, departments, onRefresh, isLoading }) {
   const toast = useToast();
+  const currentUser = (() => {
+    try {
+      const userStr = localStorage.getItem('user');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      return null;
+    }
+  })();
   
   // 使用者相關的 state
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -83,6 +91,10 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
     return dept ? dept.name : '未知處室';
   };
 
+  const isCurrentUser = (targetUser) => {
+    return currentUser?.id != null && Number(currentUser.id) === Number(targetUser.id);
+  };
+
   // 重置使用者表單
   const resetUserForm = () => {
     setUserFormData({
@@ -127,7 +139,9 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
 
   // 處理編輯使用者
   const handleEditUser = async () => {
-    if (!userFormData.name.trim() || !userFormData.email.trim() || !userFormData.departmentId) {
+    const isEditingSuperAdmin = editingUser?.role === 'SUPER_ADMIN';
+
+    if (!userFormData.name.trim() || !userFormData.email.trim() || (!isEditingSuperAdmin && !userFormData.departmentId)) {
       toast.warning('請填寫所有必填欄位');
       return;
     }
@@ -140,10 +154,13 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
     try {
       const updateData = {
         name: userFormData.name,
-        email: userFormData.email,
-        departmentId: userFormData.departmentId,
-        adminGroupId: userFormData.adminGroupId || null
+        email: userFormData.email
       };
+
+      if (!isEditingSuperAdmin) {
+        updateData.departmentId = userFormData.departmentId;
+        updateData.adminGroupId = userFormData.adminGroupId || null;
+      }
       
       // 只有填寫密碼時才更新密碼
       if (userFormData.password.trim()) {
@@ -152,6 +169,17 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
 
       const response = await updateUser(editingUser.id, updateData);
       if (response.success) {
+        if (currentUser?.id === editingUser.id && response.data) {
+          localStorage.setItem('user', JSON.stringify({
+            ...currentUser,
+            name: response.data.name,
+            email: response.data.email,
+            username: response.data.username,
+            role: response.data.role,
+            departmentId: response.data.departmentId,
+            adminGroupId: response.data.adminGroupId
+          }));
+        }
         await onRefresh();
         editUserModal.handleClose();
         setEditingUser(null);
@@ -266,7 +294,16 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                     </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
                       {user.role === 'SUPER_ADMIN' ? (
-                        <span className="text-gray-400 text-xs">—</span>
+                        isCurrentUser(user) ? (
+                          <button 
+                            onClick={() => openEditUserModal(user)}
+                            className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                          >
+                            編輯
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-xs">僅本人可編輯</span>
+                        )
                       ) : (
                         <>
                           <button 
@@ -364,20 +401,22 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
-                <select
-                  value={userFormData.adminGroupId}
-                  onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
-                >
-                  <option value="">不指定</option>
-                  {deptAdminGroups.map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
-              </div>
+              {editingUser?.role !== 'SUPER_ADMIN' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
+                  <select
+                    value={userFormData.adminGroupId}
+                    onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
+                  >
+                    <option value="">不指定</option>
+                    {deptAdminGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">
@@ -459,34 +498,38 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
                 <p className="text-xs text-gray-500 mt-1">留空則保持原密碼不變；若要修改，至少 6 個字元</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">所屬處室 *</label>
-                <select
-                  value={userFormData.departmentId}
-                  onChange={(e) => setUserFormData({ ...userFormData, departmentId: e.target.value, adminGroupId: '' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
-                >
-                  <option value="">請選擇處室</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                  ))}
-                </select>
-              </div>
+              {editingUser?.role !== 'SUPER_ADMIN' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">所屬處室 *</label>
+                    <select
+                      value={userFormData.departmentId}
+                      onChange={(e) => setUserFormData({ ...userFormData, departmentId: e.target.value, adminGroupId: '' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">請選擇處室</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
-                <select
-                  value={userFormData.adminGroupId}
-                  onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
-                >
-                  <option value="">不指定</option>
-                  {deptAdminGroups.map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">所屬管理組織</label>
+                    <select
+                      value={userFormData.adminGroupId}
+                      onChange={(e) => setUserFormData({ ...userFormData, adminGroupId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">不指定</option>
+                      {deptAdminGroups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">選填，指定後該管理員只能操作同組織的檔案</p>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">
@@ -502,7 +545,7 @@ function UserManagement({ users, departments, onRefresh, isLoading }) {
               </button>
               <button
                 onClick={handleEditUser}
-                disabled={!userFormData.name.trim() || !userFormData.email.trim() || !userFormData.departmentId}
+                disabled={!userFormData.name.trim() || !userFormData.email.trim() || (editingUser?.role !== 'SUPER_ADMIN' && !userFormData.departmentId)}
                 className="px-4 py-2 text-white rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: 'var(--ncku-red)' }}
               >
