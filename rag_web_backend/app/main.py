@@ -4,9 +4,12 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.core.database import init_db, close_db
 from app.core.logging_config import setup_logging
+from app.core.limiter import limiter
 from app.api import api_router  # 導入 API 路由
 
 
@@ -27,17 +30,19 @@ async def lifespan(app: FastAPI):
     await close_db()
     logger.info("✅ 資料庫連線已關閉")
 
-# 建立 FastAPI 應用程式
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
     description="RAG 知識庫管理系統後端 API",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
-    lifespan=lifespan,  # 添加生命週期管理
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+    lifespan=lifespan,
     root_path=""
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # 設定 CORS
 app.add_middleware(

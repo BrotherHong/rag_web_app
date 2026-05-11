@@ -11,6 +11,7 @@ import secrets
 from typing import Optional
 from urllib.parse import urlparse, quote, unquote
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Header
+from app.core.limiter import limiter
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from sqlalchemy import select, or_
@@ -50,8 +51,10 @@ router = APIRouter(prefix="/query-auth", tags=["查詢用戶認證"])
 
 
 @router.post("/login", response_model=QueryUserLoginResponse)
+@limiter.limit("10/minute")
 async def login_query_user(
-    request: QueryUserLoginRequest,
+    request: Request,
+    body: QueryUserLoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -60,7 +63,7 @@ async def login_query_user(
     使用 username 或 email 都可以登入
     """
     # 驗證用戶
-    query_user = await authenticate_query_user(db, request.username, request.password)
+    query_user = await authenticate_query_user(db, body.username, body.password)
     
     if not query_user:
         raise HTTPException(

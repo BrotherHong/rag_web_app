@@ -51,7 +51,9 @@ export const login = async (username, password) => {
     } else {
       return {
         success: false,
-        message: data.detail || data.message || '帳號或密碼錯誤'
+        message: response.status === 429
+          ? '登入嘗試次數過多，請稍後再試'
+          : data.detail || data.message || '帳號或密碼錯誤'
       };
     }
   } catch (error) {

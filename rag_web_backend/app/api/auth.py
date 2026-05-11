@@ -3,8 +3,9 @@
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from app.core.limiter import limiter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -51,7 +52,9 @@ async def _verify_and_create_token(db: AsyncSession, username: str, password: st
 
 
 @router.post("/login", summary="使用者登入")
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
@@ -99,7 +102,9 @@ async def login(
 
 
 @router.post("/token", response_model=Token, summary="OAuth2 密碼流登入")
+@limiter.limit("10/minute")
 async def login_for_access_token(
+    request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_db)
 ):

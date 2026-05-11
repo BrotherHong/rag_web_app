@@ -4,6 +4,9 @@
 # FastAPI - 現代化的高效能 Web 框架
 fastapi>=0.115.0,<0.116.0
 
+# SlowAPI - Rate limiting
+slowapi>=0.1.9
+
 # Uvicorn - ASGI 伺服器 (standard 包含 uvloop, httptools 等效能優化)
 uvicorn[standard]>=0.30.0,<0.31.0
 

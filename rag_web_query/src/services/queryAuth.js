@@ -100,15 +100,17 @@ export const loginQueryUser = async (username, password) => {
           case 404:
             errorMessage = '登入服務不可用，請稍後再試';
             break;
+          case 429:
+            errorMessage = '登入嘗試次數過多，請稍後再試';
+            break;
           case 500:
             errorMessage = '伺服器錯誤，請稍後再試';
             break;
           default:
-            errorMessage = error.detail || `登入失敗 (錯誤碼: ${response.status})`;
+            errorMessage = error.detail || '登入失敗，請稍後再試';
         }
       } catch (parseError) {
-        // JSON 解析失敗，使用通用錯誤訊息
-        errorMessage = `登入失敗 (錯誤碼: ${response.status})`;
+        errorMessage = response.status === 429 ? '登入嘗試次數過多，請稍後再試' : '登入失敗，請稍後再試';
       }
       
       throw new Error(errorMessage);
