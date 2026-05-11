@@ -1,6 +1,7 @@
 """公開 API 路由（無需認證）"""
 
 import os
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -90,9 +91,10 @@ async def get_faq_list(
 @router.get("/public/files/{file_id}/download")
 async def download_file_public(
     file_id: int,
+    current_user: QueryUser = Depends(get_current_query_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """公開下載端點（無需認證）— 供 RAG 查詢結果的來源文件下載使用"""
+    """檔案下載（需登入）"""
     from app.models.file import File as FileModel
 
     file = await db.get(FileModel, file_id)
@@ -158,6 +160,13 @@ async def get_greeting_image(department_id: int, db: AsyncSession = Depends(get_
     dept = await db.scalar(select(Department).where(Department.id == department_id))
     if not dept or not dept.greeting_image:
         raise HTTPException(status_code=404, detail="圖片不存在")
-    if not os.path.exists(dept.greeting_image):
+
+    # 驗證路徑在 uploads/ 目錄內，防止路徑穿越
+    uploads_root = Path("uploads").resolve()
+    image_path = Path(dept.greeting_image).resolve()
+    if not image_path.is_relative_to(uploads_root):
+        raise HTTPException(status_code=403, detail="禁止存取")
+
+    if not image_path.exists():
         raise HTTPException(status_code=404, detail="圖片檔案不存在")
-    return FileResponse(dept.greeting_image)
+    return FileResponse(str(image_path))

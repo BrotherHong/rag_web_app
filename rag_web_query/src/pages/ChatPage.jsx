@@ -71,7 +71,12 @@ function ChatPage() {
       // downloadLink 格式: /public/files/{id}/download
       // 需要加上 /api 前綴
       const fullUrl = `${API_CONFIG.BASE_URL}${downloadLink}`
-      const response = await fetch(fullUrl)
+      const token = localStorage.getItem('query_token')
+      const headers = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const response = await fetch(fullUrl, { headers })
       
       if (!response.ok) {
         throw new Error('下載失敗')

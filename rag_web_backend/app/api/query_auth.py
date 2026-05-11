@@ -6,6 +6,7 @@
 
 from datetime import datetime, timedelta, timezone
 import base64
+import hashlib
 import json
 import secrets
 from typing import Optional
@@ -308,7 +309,8 @@ async def forgot_password(
     token = secrets.token_hex(4).upper()  # 8位十六進字串
     expires = datetime.utcnow() + timedelta(hours=24)
 
-    user.reset_password_token = token
+    # 存 hash，不存明文，防止 DB 洩漏時直接被利用
+    user.reset_password_token = hashlib.sha256(token.encode()).hexdigest()
     user.reset_token_expires = expires
     await db.commit()
 
@@ -325,9 +327,10 @@ async def reset_password(
     """
     使用重設代碼設定新密碼
     """
+    token_hash = hashlib.sha256(request.reset_token.upper().encode()).hexdigest()
     result = await db.execute(
         select(QueryUser).where(
-            QueryUser.reset_password_token == request.reset_token.upper()
+            QueryUser.reset_password_token == token_hash
         )
     )
     user = result.scalar_one_or_none()

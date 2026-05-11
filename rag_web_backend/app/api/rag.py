@@ -5,12 +5,13 @@ import re
 import time
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt, JWTError
 
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.core.security import get_current_query_user
 from app.config import settings
 from app.models.query_user import QueryUser, FilePermission
@@ -53,8 +54,10 @@ def invalidate_dept_rag_engine(department_id: int) -> None:
 
 
 @router.post("/query", response_model=QueryResponse)
+@limiter.limit("10/minute")
 async def query_documents(
-    request: QueryRequest,
+    request: Request,
+    body: QueryRequest,
     db: AsyncSession = Depends(get_db),
     current_user: QueryUser = Depends(get_current_query_user)
 ):
@@ -67,8 +70,8 @@ async def query_documents(
     try:
         # 決定處室 ID
         department_id = None
-        if request.scope_ids and len(request.scope_ids) > 0:
-            department_id = request.scope_ids[0]
+        if body.scope_ids and len(body.scope_ids) > 0:
+            department_id = body.scope_ids[0]
         elif current_user.default_department_id:
             # 查詢用戶使用預設處室
             department_id = current_user.default_department_id
@@ -161,17 +164,17 @@ async def query_documents(
         if allowed_filenames is not None and not allowed_filenames:
             msg = "抱歉，您目前沒有權限訪問任何文件。請聯繫管理員獲取訪問權限。"
             return QueryResponse(
-                query=request.query,
+                query=body.query,
                 answer=msg,
                 sources=[]
             )
         
         # 分類過濾（對所有用戶類型生效）
-        if request.category_ids:
+        if body.category_ids:
             # 查詢符合分類條件的檔案
             file_query = select(FileModel.original_filename).where(
                 FileModel.department_id == department_id,
-                FileModel.category_id.in_(request.category_ids),
+                FileModel.category_id.in_(body.category_ids),
                 FileModel.is_vectorized == True
             )
             file_result = await db.execute(file_query)
@@ -184,7 +187,7 @@ async def query_documents(
                 msg += "您有權限訪問的"
                 msg += "相關資訊。"
                 return QueryResponse(
-                    query=request.query,
+                    query=body.query,
                     answer=msg,
                     sources=[]
                 )
@@ -212,7 +215,7 @@ async def query_documents(
         
         # Execute RAG query with async implementation
         result = await dept_rag_engine.query(
-            question=request.query,
+            question=body.query,
             top_k=250,
             include_similarity_scores=True,
             allowed_filenames=allowed_filenames,
@@ -223,7 +226,7 @@ async def query_documents(
         
         processing_time = time.time() - start_time
         logger.info(
-            f"✅ RAG查詢完成 | 問題: {request.query[:50]}... | 處理時間: {processing_time:.2f}秒 | 檢索文檔數: {result.get('retrieved_docs', 0)}"
+            f"✅ RAG查詢完成 | 問題: {body.query[:50]}... | 處理時間: {processing_time:.2f}秒 | 檢索文檔數: {result.get('retrieved_docs', 0)}"
         )
         
         # 解析 answer 中實際被引用的文檔編號
@@ -283,14 +286,14 @@ async def query_documents(
                 user_id=None,
                 query_user_id=current_user.id,
                 department_id=department_id,
-                query=request.query,
+                query=body.query,
                 answer=result['answer'],
                 processing_time=processing_time,
                 source_count=len(sources),
                 query_type="semantic",
                 scope="query_user",
                 extra_data={
-                    "category_ids": request.category_ids or [],
+                    "category_ids": body.category_ids or [],
                     "retrieved_docs": result.get('retrieved_docs', 0),
                     "is_no_result": is_no_result,
                 }
@@ -303,7 +306,7 @@ async def query_documents(
             await db.rollback()
 
         return QueryResponse(
-            query=request.query,
+            query=body.query,
             answer=result['answer'],
             sources=sources if show_source else []
         )
@@ -335,8 +338,8 @@ async def direct_query(
     - 否則使用本地 Ollama 模型直接回答
     """
     department_id = None
-    if request.scope_ids and len(request.scope_ids) > 0:
-        department_id = request.scope_ids[0]
+    if body.scope_ids and len(body.scope_ids) > 0:
+        department_id = body.scope_ids[0]
     elif current_user.default_department_id:
         department_id = current_user.default_department_id
     else:
@@ -349,10 +352,10 @@ async def direct_query(
     if not department:
         raise HTTPException(status_code=404, detail="處室不存在")
 
-    answer = await _call_llm_direct(request.query, department.external_api_key)
+    answer = await _call_llm_direct(body.query, department.external_api_key)
 
     return DirectQueryResponse(
-        query=request.query,
+        query=body.query,
         answer=answer,
         used_external_api=bool(department.external_api_key)
     )

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # 安全設定
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_MINUTES: int = 1440
+    JWT_EXPIRE_MINUTES: int = 480
     
     # 資料庫
     DATABASE_URL: str
