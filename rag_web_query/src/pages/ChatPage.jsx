@@ -49,9 +49,10 @@ function ChatPage() {
         }
         setMessages(prev => [...prev, newMsg])
       } else {
+        const isClientError = response.statusCode >= 400 && response.statusCode < 500
         const errMsg = {
           id: Date.now(),
-          text: '抱歉，直接回覆失敗，請稍後再試。',
+          text: isClientError ? response.error : '抱歉，直接回覆失敗，請稍後再試。',
           sources: [],
           sender: 'ai',
           timestamp: new Date()
@@ -733,13 +734,14 @@ function ChatPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
               </button>
-              <div className="flex-1 relative">
+              <div className="flex-1">
                 <textarea
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="輸入您的問題..."
                   rows="1"
+                  maxLength={700}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 resize-none"
                 />
               </div>
@@ -753,9 +755,14 @@ function ChatPage() {
                 </svg>
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              按 Enter 發送訊息，Shift + Enter 換行
-            </p>
+            <div className="flex items-center justify-between mt-2 px-1">
+              <p className="text-xs text-gray-500">按 Enter 發送訊息，Shift + Enter 換行</p>
+              {inputMessage.length > 600 && (
+                <span className={`text-xs font-medium transition-colors ${inputMessage.length >= 700 ? 'text-red-500' : 'text-amber-500'}`}>
+                  {inputMessage.length} / 700
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

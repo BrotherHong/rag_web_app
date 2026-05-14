@@ -36,6 +36,27 @@ from app.services.llm.guard_client import check_query_safety
 router = APIRouter(prefix="/rag", tags=["RAG查詢"])
 logger = logging.getLogger(__name__)
 
+
+def _guard_check(query: str) -> None:
+    """若 GUARD_ENABLED，對查詢執行 llama-guard 安全過濾，不安全則拋出 400。"""
+    if settings.GUARD_ENABLED:
+        guard = check_query_safety(query)
+        if not guard.is_safe:
+            raise HTTPException(status_code=400, detail="您的查詢包含不當內容，無法處理。")
+
+
+def _resolve_department_id(
+    scope_ids: list[int] | None,
+    current_user: QueryUser,
+) -> int:
+    """從 scope_ids 或 current_user 的預設處室取得處室 ID，找不到則拋出 400。"""
+    if scope_ids:
+        return scope_ids[0]
+    if current_user.default_department_id:
+        return current_user.default_department_id
+    raise HTTPException(status_code=400, detail="登入用戶必須指定 scope_ids 或設定預設處室")
+
+
 # 快取各處室的 RAGEngine，避免每次 request 重新載入 reranker 模型
 _dept_rag_engines: dict = {}
 
@@ -68,29 +89,11 @@ async def query_documents(
     """
     print(f"🔐 [RAG Query] 已登入用戶: {current_user.username} (ID: {current_user.id})")
 
-    # 安全過濾：llama-guard3:8b
-    if settings.GUARD_ENABLED:
-        guard = check_query_safety(body.query)
-        if not guard.is_safe:
-            raise HTTPException(
-                status_code=400,
-                detail="您的查詢包含不當內容，無法處理。"
-            )
+    _guard_check(body.query)
 
     try:
-        # 決定處室 ID
-        department_id = None
-        if body.scope_ids and len(body.scope_ids) > 0:
-            department_id = body.scope_ids[0]
-        elif current_user.default_department_id:
-            # 查詢用戶使用預設處室
-            department_id = current_user.default_department_id
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="登入用戶必須指定 scope_ids 或設定預設處室"
-            )
-        
+        department_id = _resolve_department_id(body.scope_ids, current_user)
+
         # 處理分類過濾：如果有指定 category_ids，查詢符合條件的檔案清單
         allowed_filenames = None  # None 表示不過濾（查詢所有檔案）
         
@@ -347,13 +350,9 @@ async def direct_query(
     - 若處室有設定 external_api_key，使用該 API Key 呼叫外部模型
     - 否則使用本地 Ollama 模型直接回答
     """
-    department_id = None
-    if body.scope_ids and len(body.scope_ids) > 0:
-        department_id = body.scope_ids[0]
-    elif current_user.default_department_id:
-        department_id = current_user.default_department_id
-    else:
-        raise HTTPException(status_code=400, detail="登入用戶必須指定 scope_ids 或設定預設處室")
+    _guard_check(request.query)
+
+    department_id = _resolve_department_id(request.scope_ids, current_user)
 
     # 取得處室的 external_api_key
     dept_result = await db.execute(select(Department).where(Department.id == department_id))
@@ -362,10 +361,10 @@ async def direct_query(
     if not department:
         raise HTTPException(status_code=404, detail="處室不存在")
 
-    answer = await _call_llm_direct(body.query, department.external_api_key)
+    answer = await _call_llm_direct(request.query, department.external_api_key)
 
     return DirectQueryResponse(
-        query=body.query,
+        query=request.query,
         answer=answer,
         used_external_api=bool(department.external_api_key)
     )
