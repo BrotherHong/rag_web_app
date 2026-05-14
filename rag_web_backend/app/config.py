@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     OLLAMA_RAG_MODEL: str = ""
     OLLAMA_EMBEDDING_MODEL: str = ""
 
+    # Guard 設定
+    GUARD_ENABLED: bool = True          # 是否啟用 llama-guard 安全過濾
+    GUARD_MODEL: str = "llama-guard3:8b"  # 安全過濾模型
+
     # LiteLLM 設定
     LITELLM_ROUTING_STRATEGY: str = "simple-shuffle"
     LITELLM_NUM_RETRIES: int = 1

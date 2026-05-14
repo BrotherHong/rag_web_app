@@ -39,7 +39,9 @@ const apiRequest = async (endpoint, options = {}) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+      const err = new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+      err.statusCode = response.status
+      throw err
     }
 
     const data = await response.json()
@@ -56,6 +58,7 @@ const apiRequest = async (endpoint, options = {}) => {
     console.error('API Request Error:', error)
     return {
       success: false,
+      statusCode: error.statusCode || 0,
       error: error.message || ERROR_MESSAGES.UNKNOWN_ERROR,
     }
   }

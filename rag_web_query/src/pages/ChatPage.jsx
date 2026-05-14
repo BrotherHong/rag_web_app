@@ -253,8 +253,10 @@ function ChatPage() {
         }
       } else {
         console.error('API Error:', response.error)
+        // 4xx 為後端主動拒絕（如安全過濾），直接顯示後端訊息；5xx 才顯示通用錯誤
+        const isClientError = response.statusCode >= 400 && response.statusCode < 500
         return {
-          text: '抱歉，系統發生錯誤，請稍後再試。',
+          text: isClientError ? response.error : '抱歉，系統發生錯誤，請稍後再試。',
           sources: []
         }
       }

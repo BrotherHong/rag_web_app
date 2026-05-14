@@ -31,6 +31,7 @@ from app.services.rag.rag_engine import RAGEngine
 from app.services.rag.no_result_utils import is_no_result_answer
 from app.services.activity import activity_service
 from app.services.llm.litellm_client import LiteLLMClient
+from app.services.llm.guard_client import check_query_safety
 
 router = APIRouter(prefix="/rag", tags=["RAG查詢"])
 logger = logging.getLogger(__name__)
@@ -66,7 +67,16 @@ async def query_documents(
     此端點專用於前端查詢系統（rag_web_query），僅提供已登入查詢用戶使用。
     """
     print(f"🔐 [RAG Query] 已登入用戶: {current_user.username} (ID: {current_user.id})")
-    
+
+    # 安全過濾：llama-guard3:8b
+    if settings.GUARD_ENABLED:
+        guard = check_query_safety(body.query)
+        if not guard.is_safe:
+            raise HTTPException(
+                status_code=400,
+                detail="您的查詢包含不當內容，無法處理。"
+            )
+
     try:
         # 決定處室 ID
         department_id = None
