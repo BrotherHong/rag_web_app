@@ -34,7 +34,7 @@ function ActivityLog({
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full min-w-0">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
         <div>
           <h2 className="text-3xl font-bold" style={{ color: 'var(--ncku-red)' }}>

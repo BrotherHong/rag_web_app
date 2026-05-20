@@ -55,7 +55,7 @@ function PortalCallbackPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center px-4">
-        <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 md:p-8 text-center">
           <p className="text-red-600 mb-6">{error}</p>
           <button
             onClick={() => navigate('/login')}

@@ -5,7 +5,7 @@
 # ==============================================================================
 # Stage 1: Build Admin Frontend
 # ==============================================================================
-FROM node:18-alpine AS admin_builder
+FROM node:20-alpine AS admin_builder
 
 WORKDIR /app
 
@@ -31,7 +31,7 @@ RUN npm run build
 # ==============================================================================
 # Stage 2: Build Query Frontend
 # ==============================================================================
-FROM node:18-alpine AS query_builder
+FROM node:20-alpine AS query_builder
 
 WORKDIR /app
 

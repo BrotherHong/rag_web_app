@@ -35,7 +35,7 @@ class LiteLLMClient:
             timeout=float(settings.LITELLM_TIMEOUT),
             enable_pre_call_checks=True,
         )
-        
+
         # 簡化輸出：只記錄端點數量和主機名
         hosts = sorted({self._extract_host_name(url) for url in settings.ollama_base_urls})
         logger.info(f"✅ LiteLLM Router 初始化完成 ({len(model_list)} 端點, {len(hosts)} 主機: {', '.join(sorted(hosts))})")
@@ -92,16 +92,17 @@ class LiteLLMClient:
             str: 模型回應（繁體中文）
         """
         try:
-            model_name = "text-generation"
             request_timeout = timeout if timeout is not None else settings.LITELLM_TIMEOUT
             
+            model_name = "text-generation"
+
             # 獲取選擇的部署（簡化日誌）
             deployment = self.router.get_available_deployment(model=model_name)
             if deployment:
                 api_base = deployment.get('litellm_params', {}).get('api_base', '')
                 host_name = self._extract_host_name(api_base)
                 logger.info(f"[TEXT] 使用主機: {host_name}")
-            
+
             # 組合 messages
             if system and user:
                 messages = [
@@ -110,13 +111,13 @@ class LiteLLMClient:
                 ]
             else:
                 messages = [{"role": "user", "content": prompt}]
-            
+
             response = await self.router.acompletion(
                 model=model_name,
                 messages=messages,
                 timeout=request_timeout,
             )
-            
+
             raw_response = response.choices[0].message.content
             return self.converter.convert(raw_response)
             

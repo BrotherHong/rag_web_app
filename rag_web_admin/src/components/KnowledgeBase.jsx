@@ -425,32 +425,32 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
 
 
   return (
-    <div>
+    <div className="w-full min-w-0">
       {/* 頁面標題 */}
       <div className="mb-8">
-        <h2 className="text-3xl font-bold mb-2" style={{ color: 'var(--ncku-red)' }}>
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2" style={{ color: 'var(--ncku-red)' }}>
           知識庫管理
         </h2>
-        <p className="text-gray-600">管理人事室 AI 客服的知識庫檔案</p>
+        <p className="text-sm sm:text-base text-gray-600">管理人事室 AI 客服的知識庫檔案</p>
       </div>
 
-      {/* 統計卡片：最多顯示 8 張（1 總計 + 7 分類） */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-md p-4 border-l-4" 
+      {/* 統計卡片：響應式排列（mobile→1, sm→2, lg→3, xl→4） */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-5 border-l-4 flex flex-col justify-between" 
              style={{ borderColor: 'var(--ncku-red)' }}>
-          <p className="text-gray-600 text-sm">總檔案數</p>
-          <p className="text-2xl font-bold mt-1">
+          <p className="text-gray-600 text-xs sm:text-sm">總檔案數</p>
+          <p className="text-lg sm:text-2xl lg:text-3xl font-bold mt-1 sm:mt-2">
             {realTotalFiles}
           </p>
         </div>
         {categories.slice(0, 7).map(category => (
           <div 
             key={category.id} 
-            className="bg-white rounded-lg shadow-md p-4 border-l-4"
+            className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-5 border-l-4 flex flex-col justify-between"
             style={{ borderColor: category.color || '#6B7280' }}
           >
-            <p className="text-gray-600 text-sm">{category.name}</p>
-            <p className="text-2xl font-bold mt-1">
+            <p className="text-gray-600 text-xs sm:text-sm">{category.name}</p>
+            <p className="text-lg sm:text-2xl lg:text-3xl font-bold mt-1 sm:mt-2">
               {getCategoryCount(category.name)}
             </p>
           </div>
@@ -458,7 +458,7 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
       </div>
 
       {/* 操作欄 */}
-      <div className="bg-white rounded-xl shadow-md p-6 mb-6 space-y-4">
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 lg:p-6 mb-6 space-y-4">
         {/* 第一排：搜尋框 + 組織篩選 */}
         <div className="flex flex-col sm:flex-row gap-3">
           {/* 搜尋框 */}
@@ -474,7 +474,7 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
               placeholder="搜尋檔案..."
               value={searchTerm}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
+              className="block w-full pl-10 pr-3 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none text-sm sm:text-base"
             />
           </div>
 
@@ -489,7 +489,7 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
             <select
               value={selectedAdminGroup}
               onChange={(e) => handleAdminGroupChange(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:outline-none appearance-none bg-white cursor-pointer"
+              className="w-full pl-9 pr-3 py-2.5 sm:py-3 border border-gray-300 rounded-lg text-sm sm:text-base focus:ring-2 focus:outline-none appearance-none bg-white cursor-pointer"
             >
               <option value="all">全部組織</option>
               <option value="-1">未分配組織</option>
@@ -509,7 +509,7 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => handleCategoryChange('all')}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer ${
               selectedCategory === 'all'
                 ? 'text-white shadow-sm'
                 : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
@@ -522,7 +522,7 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
             <button
               key={category.id}
               onClick={() => handleCategoryChange(category.id)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer ${
                 selectedCategory === category.id
                   ? 'text-white shadow-sm'
                   : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
@@ -554,22 +554,22 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
           <table className="min-w-full divide-y divide-gray-200">
             <thead style={{ backgroundColor: 'var(--ncku-red)' }}>
               <tr>
-                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">
                   檔案名稱
                 </th>
-                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">
                   類別
                 </th>
-                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">
                   組織
                 </th>
-                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">
                   大小
                 </th>
-                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">
                   上傳日期
                 </th>
-                <th className="px-4 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-4 py-3 sm:py-4 text-left text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider whitespace-nowrap">
                   操作
                 </th>
               </tr>
@@ -578,18 +578,18 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
               {files.length > 0 ? (
                 files.map((file) => (
                   <tr key={file.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 max-w-xs">
+                  <td className="px-3 sm:px-4 py-3 sm:py-4 max-w-xs">
                     <div className="flex items-center min-w-0">
                       {/* 檔案類型圖示 */}
                       <div className="flex-shrink-0">
                         {getFileIcon(file.name)}
                       </div>
                       <div className="ml-3 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate" title={file.name}>{file.name}</div>
+                        <div className="text-xs sm:text-sm font-medium text-gray-900 truncate" title={file.name}>{file.name}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
                     <span 
                       className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getCategoryColorClasses(file.category)}`}
                       style={
@@ -605,7 +605,7 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
                       {file.category}
                     </span>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                     {file.adminGroup ? (
                       <span
                         className="px-2 py-1 inline-flex text-xs leading-5 font-medium rounded-full"
@@ -621,13 +621,13 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
                       <span className="text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                     {file.size}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                     {file.uploadDate}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                  <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <button
                         onClick={() => canOperateFile(file) && handleEditCategory(file)}

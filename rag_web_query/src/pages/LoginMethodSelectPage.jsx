@@ -86,11 +86,11 @@ function LoginMethodSelectPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fff4f6_0%,_#f8fafc_45%,_#eef2ff_100%)] flex items-center justify-center px-4 py-10">
-      <div className={`w-full ${panelWidthClass}`}>
-        <div className="rounded-3xl border border-white/60 bg-white/75 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.10)] px-6 py-10 sm:px-10">
-          <div className="text-center mb-10">
-            <h1 className="text-4xl font-black tracking-tight text-slate-900">選擇登入方式</h1>
-            <p className="text-slate-600 mt-3">請選擇您要使用的登入管道</p>
+        <div className={`w-full ${panelWidthClass}`}>
+        <div className="rounded-3xl border border-white/60 bg-white/75 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.10)] px-4 md:px-6 py-8 sm:px-10">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl md:text-4xl font-black tracking-tight text-slate-900">選擇登入方式</h1>
+            <p className="text-slate-600 mt-2">請選擇您要使用的登入管道</p>
           </div>
 
           <div className="flex flex-wrap items-stretch justify-center gap-5">
@@ -101,7 +101,7 @@ function LoginMethodSelectPage() {
                 <button
                   key={option.key}
                   onClick={() => navigate(option.path, { state: { from } })}
-                  className="group w-full sm:w-[320px] text-left bg-white/90 border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer"
+                  className="group w-full sm:w-[320px] text-left bg-white/90 border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer"
                 >
                   <div className="h-16 mb-4 flex items-center">
                     {option.logo ? (
@@ -119,7 +119,7 @@ function LoginMethodSelectPage() {
                     )}
                   </div>
 
-                  <p className="text-[30px] leading-none font-black tracking-[-0.01em] text-slate-900">{option.title}</p>
+                  <p className="text-xl sm:text-2xl leading-none font-black tracking-[-0.01em] text-slate-900">{option.title}</p>
                   <p className="text-sm text-slate-600 mt-2">{option.description}</p>
                   <div className={`mt-4 h-1.5 w-full rounded-full bg-gradient-to-r ${option.accent} opacity-70 group-hover:opacity-100 transition-opacity`} />
                 </button>

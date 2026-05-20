@@ -17,7 +17,7 @@ function Navbar() {
   return (
     <nav className="bg-white/90 backdrop-blur-md shadow border-b border-red-100 sticky top-0 z-50">
       <div className="container mx-auto px-6">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo 和處室名稱 */}
           <Link to="/" className="flex items-center space-x-4 hover:opacity-80 transition-opacity cursor-pointer">
             <div className="w-12 h-12 bg-gradient-to-br from-red-700 to-red-800 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
@@ -26,7 +26,7 @@ function Navbar() {
               </svg>
             </div>
             <div>
-              <div className="text-lg font-bold text-gray-900 leading-tight">
+              <div className="text-base md:text-lg font-bold text-gray-900 leading-tight">
                 {department ? department.name : '成功大學'}
               </div>
               <div className="text-sm text-red-600 font-medium">AI 查詢助手</div>
@@ -36,7 +36,7 @@ function Navbar() {
           {/* 右側：已登入才顯示 */}
           {isAuthenticated() && (
             <div className="flex items-center space-x-4">
-              <span className="text-base font-medium text-gray-700">{user?.full_name}</span>
+              <span className="hidden sm:inline-block text-base font-medium text-gray-700">{user?.full_name}</span>
               <button
                 onClick={handleLogout}
                 className="px-5 py-2 text-sm font-semibold text-red-600 border border-red-300 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"

@@ -14,7 +14,10 @@ function ChatPage() {
   const [inputMessage, setInputMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef(null)
-  const [showSidebar, setShowSidebar] = useState(true)
+  const [showSidebar, setShowSidebar] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.innerWidth >= 768
+  })
 
   const [quickQuestions, setQuickQuestions] = useState([])
   const [categories, setCategories] = useState([])
@@ -279,6 +282,20 @@ function ChatPage() {
     scrollToBottom()
   }, [messages])
 
+  // 根據視窗大小自動顯示/隱藏側邊欄（行動裝置預設隱藏）
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) setShowSidebar(true)
+      else setShowSidebar(false)
+    }
+
+    // 初始檢查
+    handleResize()
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   // 處理從首頁帶來的問題
   useEffect(() => {
     const initializeChat = async () => {
@@ -446,9 +463,12 @@ function ChatPage() {
 
   return (
     <>
-    <div className="h-screen bg-gradient-to-br from-white via-red-50 to-white flex overflow-hidden">
-      {/* 側邊欄 */}
-      <div className={`${showSidebar ? 'w-64' : 'w-0'} transition-all duration-300 bg-white/80 backdrop-blur-sm border-r border-gray-200 flex flex-col overflow-hidden shadow-lg`}>
+      <div className="h-screen bg-gradient-to-br from-white via-red-50 to-white flex overflow-hidden">
+        {/* 側邊欄（行動裝置為覆蓋式滑入） */}
+        <div
+          className={`fixed z-40 top-0 h-full transition-all w-64 bg-white/80 backdrop-blur-sm border-r border-gray-200 flex flex-col overflow-hidden shadow-lg`}
+          style={{ left: showSidebar ? 0 : '-16rem' }}
+        >
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <button
             onClick={handleNewChat}
@@ -497,8 +517,13 @@ function ChatPage() {
         </div>
       </div>
 
+      {/* 行動遮罩（點擊可關閉側邊欄） */}
+      {showSidebar && (
+        <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setShowSidebar(false)} />
+      )}
+
       {/* 主聊天區域 */}
-      <div className="flex-1 flex flex-col h-full">
+      <div className={`flex-1 flex flex-col h-full transition-all ${showSidebar ? 'md:ml-64' : ''}`}>
         {/* 頂部導航欄 */}
         <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 p-4 flex-shrink-0 shadow-sm">
           <div className="flex items-center justify-between">
@@ -693,16 +718,16 @@ function ChatPage() {
             <div className="flex gap-3">
               {/* 分類下拉選單 */}
               {categories.length > 0 && (
-                <div className="relative">
-                  <label className="absolute -top-2 left-3 px-1 bg-white text-xs text-gray-600 font-medium">
+                <div className="relative w-14 sm:w-auto">
+                  <label className="absolute -top-2 left-3 px-1 bg-white text-xs text-gray-600 font-medium hidden sm:block">
                     查詢範圍
                   </label>
-                  <select
-                    value={selectedCategory || ''}
-                    onChange={(e) => handleCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
-                    className="appearance-none bg-white border-2 border-gray-300 rounded-xl pl-10 pr-10 py-3.5 text-sm text-gray-800 font-medium focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 cursor-pointer min-w-[160px] hover:border-gray-400 transition-colors"
-                  >
-                    <option value="">全部分類</option>
+                    <select
+                      value={selectedCategory || ''}
+                      onChange={(e) => handleCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
+                      className="appearance-none bg-white border-2 border-gray-300 rounded-xl pl-3 sm:pl-10 pr-3 sm:pr-10 h-12 text-sm font-medium focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 cursor-pointer w-full sm:min-w-[160px] hover:border-gray-400 transition-all truncate text-center sm:text-left text-transparent sm:text-gray-800"
+                    >
+                    <option value="" style={{ color: '#111827' }}>全部分類</option>
                     {categories
                       .sort((a, b) => {
                         // 將「其他」排在最後
@@ -711,29 +736,25 @@ function ChatPage() {
                         return a.name.localeCompare(b.name);
                       })
                       .map((category) => (
-                        <option key={category.id} value={category.id}>
+                        <option key={category.id} value={category.id} style={{ color: '#111827' }}>
                           {category.name}
                         </option>
                       ))}
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 sm:pl-3 text-gray-500">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                     </svg>
                   </div>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 sm:pr-3 text-gray-500">
+                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
                 </div>
               )}
               
-              <button className="p-3 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer flex-shrink-0" title="附加檔案">
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-              </button>
+              {/* 附加檔案按鈕已移除，保留空間給選單與輸入欄 */}
               <div className="flex-1">
                 <textarea
                   value={inputMessage}
@@ -748,7 +769,8 @@ function ChatPage() {
               <button
                 onClick={() => handleSendMessage()}
                 disabled={!inputMessage.trim()}
-                className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed rounded-xl text-white font-medium transition-all shadow-md cursor-pointer"
+                className="px-4 sm:px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed rounded-xl text-white font-medium transition-all shadow-md cursor-pointer flex items-center justify-center"
+                title="發送"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

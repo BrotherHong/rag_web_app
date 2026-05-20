@@ -674,18 +674,18 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
     <div className="space-y-6">
       {/* 頁面標題 */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">上傳檔案到知識庫</h1>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">上傳檔案到知識庫</h1>
         <p className="mt-2 text-sm text-gray-600">
           支援批次上傳多個檔案,系統會自動檢查重複並提供建議
         </p>
       </div>
       
       {/* 步驟指示器 */}
-      <div className="bg-white rounded-xl shadow-md p-6">
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 lg:p-6">
         <div className="flex items-center justify-center space-x-3">
           <div className={`flex items-center ${currentStep >= 1 ? '' : 'text-gray-600'}`}
                style={currentStep >= 1 ? { color: 'var(--ncku-red)' } : {}}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold ${
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 font-bold text-sm sm:text-base ${
               currentStep >= 1 ? 'text-white' : 'border-gray-400 bg-gray-100 text-gray-600'
             }`}
             style={currentStep >= 1 ? { 
@@ -702,7 +702,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
           
           <div className={`flex items-center ${currentStep >= 2 ? '' : 'text-gray-600'}`}
                style={currentStep >= 2 ? { color: 'var(--ncku-red)' } : {}}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold ${
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 font-bold text-sm sm:text-base ${
               currentStep >= 2 ? 'text-white' : 'border-gray-400 bg-gray-100 text-gray-600'
             }`}
             style={currentStep >= 2 ? { 
@@ -719,7 +719,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
           
           <div className={`flex items-center ${currentStep >= 3 ? '' : 'text-gray-600'}`}
                style={currentStep >= 3 ? { color: 'var(--ncku-red)' } : {}}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold ${
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 font-bold text-sm sm:text-base ${
               currentStep >= 3 ? 'text-white' : 'border-gray-400 bg-gray-100 text-gray-600'
             }`}
             style={currentStep >= 3 ? { 
@@ -736,7 +736,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
           
           <div className={`flex items-center ${currentStep >= 4 ? '' : 'text-gray-600'}`}
                style={currentStep >= 4 ? { color: 'var(--ncku-red)' } : {}}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold ${
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 font-bold text-sm sm:text-base ${
               currentStep >= 4 ? 'text-white' : 'border-gray-400 bg-gray-100 text-gray-600'
             }`}
             style={currentStep >= 4 ? { 
@@ -1100,7 +1100,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
       {currentStep === 3 && uploadProgress && (
         <div className="space-y-6">
           {/* 總體進度 */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 lg:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">上傳進度</h3>
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -1259,7 +1259,7 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
       {currentStep === 4 && uploadProgress && showSummary && (
         <div className="space-y-6">
           {/* 上傳結果摘要卡片 */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-md">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 lg:p-6 shadow-md">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">上傳結果摘要</h3>
               <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
@@ -1271,22 +1271,22 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
             </div>
             
             {/* 統計資訊 */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-green-700">{uploadProgress.successFiles}</div>
-                <div className="text-sm text-green-600 mt-1">成功上傳</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4 text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-green-700">{uploadProgress.successFiles}</div>
+                <div className="text-xs sm:text-sm text-green-600 mt-1">成功上傳</div>
               </div>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-red-700">{uploadProgress.failedFiles}</div>
-                <div className="text-sm text-red-600 mt-1">上傳失敗</div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-red-700">{uploadProgress.failedFiles}</div>
+                <div className="text-xs sm:text-sm text-red-600 mt-1">上傳失敗</div>
               </div>
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-orange-700">{uploadProgress.canceledFiles || 0}</div>
-                <div className="text-sm text-orange-600 mt-1">已取消</div>
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4 text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-orange-700">{uploadProgress.canceledFiles || 0}</div>
+                <div className="text-xs sm:text-sm text-orange-600 mt-1">已取消</div>
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-blue-700">{uploadProgress.deletedFiles || 0}</div>
-                <div className="text-sm text-blue-600 mt-1">已刪除舊檔</div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-blue-700">{uploadProgress.deletedFiles || 0}</div>
+                <div className="text-xs sm:text-sm text-blue-600 mt-1">已刪除舊檔</div>
               </div>
             </div>
             

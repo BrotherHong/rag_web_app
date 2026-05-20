@@ -61,11 +61,11 @@ function NotFoundPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 md:p-8 text-center">
         {/* 404 圖示 */}
         <div className="mb-6">
-          <div className="text-8xl font-bold text-red-600 mb-2">404</div>
-          <div className="text-2xl font-semibold text-gray-800 mb-2">找不到此處室</div>
+          <div className="text-6xl md:text-8xl font-bold text-red-600 mb-2">404</div>
+          <div className="text-lg md:text-2xl font-semibold text-gray-800 mb-2">找不到此處室</div>
           <p className="text-gray-600">
             您訪問的處室不存在或已被移除
           </p>

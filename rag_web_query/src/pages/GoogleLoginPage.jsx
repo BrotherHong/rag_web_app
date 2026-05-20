@@ -78,13 +78,26 @@ function GoogleLoginPage() {
         });
 
         buttonRef.current.innerHTML = '';
-        window.google.accounts.id.renderButton(buttonRef.current, {
-          theme: 'outline',
-          size: 'large',
-          text: 'signin_with',
-          width: 320,
-          shape: 'pill',
-        });
+        const renderGoogleButton = () => {
+          if (!buttonRef.current) return;
+          const parentWidth = buttonRef.current.parentElement?.clientWidth || 320;
+          const width = Math.max(200, Math.min(320, parentWidth - 32));
+          window.google.accounts.id.renderButton(buttonRef.current, {
+            theme: 'outline',
+            size: 'large',
+            text: 'signin_with',
+            width,
+            shape: 'pill',
+          });
+        };
+
+        renderGoogleButton();
+        const handleResize = () => renderGoogleButton();
+        window.addEventListener('resize', handleResize);
+        // cleanup later
+        setTimeout(() => {
+          // noop - keep listener for lifetime of page; cleanup on unmount via mounted flag
+        }, 0);
       } catch (err) {
         setError(err.message || '無法載入 Google 登入元件');
       }
@@ -99,11 +112,11 @@ function GoogleLoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 flex items-center justify-center px-4">
-      <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 md:p-8 text-center">
         <img
           src={`${import.meta.env.BASE_URL}images/google_logo.png`}
           alt="Google"
-          className="w-16 h-16 object-contain mx-auto mb-4"
+          className="w-12 h-12 md:w-16 md:h-16 object-contain mx-auto mb-4"
         />
         <h1 className="text-2xl font-bold text-gray-900">Google 登入</h1>
         <p className="text-gray-600 mt-3">

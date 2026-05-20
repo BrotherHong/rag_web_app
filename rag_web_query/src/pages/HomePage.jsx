@@ -20,7 +20,7 @@ function HomePage() {
         <div className="mb-8 relative">
           <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-red-700/20 rounded-3xl rotate-6 animate-pulse-slow"></div>
           <div className="absolute inset-0 bg-gradient-to-r from-red-700/20 to-red-500/20 rounded-3xl -rotate-6 animate-pulse-slow delay-300"></div>
-          <div className="relative w-44 h-44 bg-white rounded-3xl shadow-2xl flex items-center justify-center p-5">
+          <div className="relative w-36 h-36 md:w-44 md:h-44 bg-white rounded-3xl shadow-2xl flex items-center justify-center p-4 md:p-5">
             <img
               src={APP_CONSTANTS.UNIVERSITY.LOGO_PATH}
               alt={APP_CONSTANTS.UNIVERSITY.NAME}
@@ -30,7 +30,7 @@ function HomePage() {
         </div>
 
         {/* 標題 */}
-        <h1 className="text-5xl md:text-7xl font-extrabold mb-4 text-center bg-gradient-to-r from-red-800 via-red-600 to-red-800 bg-clip-text text-transparent leading-tight">
+        <h1 className="text-3xl sm:text-5xl md:text-7xl font-extrabold mb-4 text-center bg-gradient-to-r from-red-800 via-red-600 to-red-800 bg-clip-text text-transparent leading-tight">
           {department?.assistant_name || 'AI助手'}
         </h1>
 

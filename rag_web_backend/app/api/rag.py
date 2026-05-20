@@ -184,10 +184,23 @@ async def query_documents(
         
         # 分類過濾（對所有用戶類型生效）
         if body.category_ids:
+            # 查詢「其他」分類的 ID：選非「其他」分類時，自動包含「其他」的檔案
+            other_category_result = await db.execute(
+                select(Category.id).where(
+                    Category.department_id == department_id,
+                    Category.name == "其他"
+                )
+            )
+            other_category_id = other_category_result.scalar_one_or_none()
+
+            filter_category_ids = list(body.category_ids)
+            if other_category_id and other_category_id not in filter_category_ids:
+                filter_category_ids.append(other_category_id)
+
             # 查詢符合分類條件的檔案
             file_query = select(FileModel.original_filename).where(
                 FileModel.department_id == department_id,
-                FileModel.category_id.in_(body.category_ids),
+                FileModel.category_id.in_(filter_category_ids),
                 FileModel.is_vectorized == True
             )
             file_result = await db.execute(file_query)

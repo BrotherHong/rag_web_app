@@ -36,6 +36,11 @@ function Dashboard() {
   const [currentPage, setCurrentPage] = useState('knowledge-base');
   const [kbSearchTerm, setKbSearchTerm] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const headerRef = useRef(null);
+  const [showSidebar, setShowSidebar] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.innerWidth >= 768
+  })
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -76,6 +81,39 @@ function Dashboard() {
   };
 
   const user = getUserInfo();
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) setShowSidebar(true)
+      else setShowSidebar(false)
+    }
+
+    const updateHeaderHeight = () => {
+      if (!headerRef.current || typeof document === 'undefined') return;
+      const headerHeight = Math.ceil(headerRef.current.getBoundingClientRect().height);
+      document.documentElement.style.setProperty('--dashboard-header-height', `${headerHeight}px`);
+    }
+
+    handleResize()
+    updateHeaderHeight()
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('resize', updateHeaderHeight)
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined' && headerRef.current
+      ? new ResizeObserver(updateHeaderHeight)
+      : null;
+
+    if (resizeObserver && headerRef.current) {
+      resizeObserver.observe(headerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('resize', updateHeaderHeight)
+      if (resizeObserver) resizeObserver.disconnect();
+    }
+  }, [])
   
   // 返回系統管理後台（當系統管理員代理時）
   const returnToSuperAdmin = () => {
@@ -117,35 +155,60 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen w-full bg-gray-50 overflow-x-hidden" style={{ paddingTop: 'var(--dashboard-header-height, 80px)' }}>
       {/* 頂部導航欄 */}
-      <header className="text-white shadow-lg sticky top-0 z-50" 
+      <header ref={headerRef} className="text-white shadow-lg fixed top-0 left-0 right-0 z-50" 
               style={{ backgroundColor: 'var(--ncku-red)' }}>
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
+        <div className="px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="md:hidden flex items-start justify-between gap-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                <svg className="w-7 h-7 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div className="min-w-0">
+                  <h1 className="text-base sm:text-lg font-bold leading-tight truncate">{getDepartmentName()} AI 客服</h1>
+                </div>
+              </div>
+              <div className="text-right min-w-0 flex-shrink-0">
+                <p className="text-sm font-medium truncate max-w-[110px]">{user.name}</p>
+                <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 whitespace-nowrap">
+                    管理員
+                  </span>
+                  {user.isSuperAdminProxy && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 whitespace-nowrap">
+                      系統管理員代理
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden md:flex items-center space-x-3 sm:space-x-4">
+              <div className="flex items-center space-x-2 sm:space-x-3">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <div>
-                  <h1 className="text-xl font-bold">{getDepartmentName()} AI 客服</h1>
-                  <p className="text-xs text-red-100">後台管理系統</p>
+                  <h1 className="text-lg sm:text-xl font-bold leading-tight">{getDepartmentName()} AI 客服</h1>
+                  <p className="text-xs text-red-100 hidden sm:block">後台管理系統</p>
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium">{user.name}</p>
-                <div className="flex items-center justify-end space-x-2">
-                  <p className="text-xs text-red-100">{user.username}</p>
+            <div className="hidden md:flex flex-wrap items-center gap-2 sm:gap-3 md:justify-end">
+              <div className="text-right min-w-0">
+                <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">{user.name}</p>
+                <div className="flex items-center justify-end gap-2 flex-wrap">
+                  <p className="text-xs text-red-100 hidden sm:block">{user.username}</p>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
                     管理員
                   </span>
                   {user.isSuperAdminProxy && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 whitespace-nowrap">
                       系統管理員代理
                     </span>
                   )}
@@ -154,7 +217,7 @@ function Dashboard() {
               {user.isSuperAdminProxy && (
                 <button
                   onClick={returnToSuperAdmin}
-                  className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center space-x-2 cursor-pointer"
+                  className="bg-purple-500 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-purple-600 transition-colors flex items-center space-x-2 cursor-pointer whitespace-nowrap"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -168,7 +231,7 @@ function Dashboard() {
                   href={`${window.location.origin}/query/${user.departmentSlug}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+                  className="bg-white/20 hover:bg-white/30 text-white px-3 py-2 sm:px-4 rounded-lg transition-colors flex items-center space-x-2 whitespace-nowrap"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -180,7 +243,7 @@ function Dashboard() {
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="bg-white text-black px-4 py-2 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="bg-white text-black px-3 py-2 sm:px-4 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
                 style={{ color: 'var(--ncku-red)' }}
               >
                 {isLoggingOut ? (
@@ -199,14 +262,217 @@ function Dashboard() {
                 )}
               </button>
             </div>
+
+            <div className="md:hidden flex items-center justify-between gap-2">
+              <div className="flex-1 flex items-center gap-2">
+                {user.isSuperAdminProxy && (
+                  <button
+                    onClick={returnToSuperAdmin}
+                    className="bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center space-x-2 cursor-pointer whitespace-nowrap text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                            d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span>返回系統管理</span>
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="bg-white text-black px-3 py-2 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap text-sm"
+                style={{ color: 'var(--ncku-red)' }}
+              >
+                {isLoggingOut ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-solid border-current border-r-transparent"></div>
+                    <span>登出中...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span>登出</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="md:hidden flex justify-center">
+              <button
+                onClick={() => setShowSidebar(!showSidebar)}
+                className="p-2.5 bg-white/10 rounded-md"
+                aria-label="切換選單"
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       <div className="flex">
-        {/* 側邊欄 */}
-        <aside className="w-64 bg-white border-r border-gray-200 h-[calc(100vh-80px)] fixed left-0 top-[80px] overflow-y-auto">
-          <nav className="p-4 space-y-2">
+        {/* 側邊欄：行動版（下拉） */}
+        {showSidebar && (
+          <aside
+            className={`w-full bg-white border-b border-gray-200 fixed left-0 right-0 top-[var(--dashboard-header-height,80px)] overflow-hidden z-40 origin-top md:hidden`}
+            style={{
+              height: 'calc(100dvh - var(--dashboard-header-height, 80px))',
+            }}
+          >
+          <div className="flex h-full min-h-0 flex-col">
+            <nav
+              className="min-h-0 p-4 space-y-2 pb-6 overflow-y-auto"
+              style={{
+                height: 'calc(100dvh - var(--dashboard-header-height, 80px))',
+                boxSizing: 'border-box',
+                paddingTop: '1rem',
+                paddingBottom: '3rem'
+              }}
+            >
+            <button
+              onClick={() => setCurrentPage('dashboard')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'dashboard'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'dashboard' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span className="font-medium">儀表板</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('knowledge-base')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'knowledge-base'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'knowledge-base' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <span className="font-medium">知識庫管理</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('upload-files')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'upload-files'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'upload-files' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <span className="font-medium">上傳檔案</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('query-users')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'query-users'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'query-users' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="font-medium">查詢用戶</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('query-analytics')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'query-analytics'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'query-analytics' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 12.414V19a1 1 0 01-.553.894l-4 2A1 1 0 019 21v-8.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              <span className="font-medium">查詢分析</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('faqs')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'faqs'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'faqs' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-medium">問答設定</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('dept-settings')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                currentPage === 'dept-settings'
+                  ? 'text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={currentPage === 'dept-settings' ? { backgroundColor: 'var(--ncku-red)' } : {}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="font-medium">處室設定</span>
+            </button>
+            </nav>
+
+            {/* 科技感裝飾 */}
+            <div className="shrink-0 border-t border-gray-200 px-4 py-4">
+              <div className="flex items-center space-x-2 text-xs text-gray-500">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span>系統運行正常</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+        )}
+
+        {/* 側邊欄：桌面版（固定） */}
+        <aside
+          className="hidden md:block w-64 bg-white border-r border-gray-200 overflow-y-auto"
+          style={{
+            position: 'fixed',
+            left: 0,
+            top: 'var(--dashboard-header-height, 80px)',
+            height: 'calc(100vh - var(--dashboard-header-height, 80px))',
+            zIndex: 1200,
+          }}
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2 pb-6">
             <button
               onClick={() => setCurrentPage('dashboard')}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
@@ -321,9 +587,8 @@ function Dashboard() {
             </button>
           </nav>
 
-          {/* 科技感裝飾 */}
-          <div className="absolute bottom-4 left-4 right-4">
-            <div className="border-t border-gray-200 pt-4">
+            {/* 科技感裝飾 */}
+            <div className="shrink-0 border-t border-gray-200 px-4 py-4">
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                 <span>系統運行正常</span>
@@ -332,8 +597,13 @@ function Dashboard() {
           </div>
         </aside>
 
+        {/* 行動遮罩（點擊可關閉側邊欄） */}
+        {showSidebar && (
+          <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setShowSidebar(false)} />
+        )}
+
         {/* 主要內容區域 */}
-        <main className="flex-1 p-8 ml-64">
+        <main className="flex-1 min-w-0 w-full p-4 sm:p-6 lg:p-8 md:ml-64">
           {currentPage === 'knowledge-base' && <KnowledgeBase initialSearch={kbSearchTerm} onSearchConsumed={() => setKbSearchTerm('')} />}
           {/* UploadFiles 保持 mounted 避免切換頁面時狀態遺失，用 hidden 控制顯示 */}
           <div className={currentPage === 'upload-files' ? '' : 'hidden'}>
@@ -599,34 +869,34 @@ function DashboardHome() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--ncku-red)' }}>
+      <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6" style={{ color: 'var(--ncku-red)' }}>
         系統概覽
       </h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow-md p-6 border-l-4" 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 mb-6 sm:mb-8">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 lg:p-6 border-l-4" 
              style={{ borderColor: 'var(--ncku-red)' }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">知識庫檔案</p>
-              <p className="text-3xl font-bold mt-2">{stats.totalFiles}</p>
+              <p className="text-gray-600 text-xs sm:text-sm">知識庫檔案</p>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 sm:mt-2">{stats.totalFiles}</p>
             </div>
-            <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6" style={{ color: 'var(--ncku-red)' }} fill="currentColor" viewBox="0 0 20 20">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-red-50 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7" style={{ color: 'var(--ncku-red)' }} fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
               </svg>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 lg:p-6 border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">本月查詢次數</p>
-              <p className="text-3xl font-bold mt-2">{stats.monthlyQueries.toLocaleString()}</p>
+              <p className="text-gray-600 text-xs sm:text-sm">本月查詢次數</p>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 sm:mt-2">{stats.monthlyQueries.toLocaleString()}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-blue-100 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                       d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
@@ -634,17 +904,17 @@ function DashboardHome() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 lg:p-6 border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">系統狀態</p>
-              <p className="text-xl font-bold mt-2 text-green-600">
+              <p className="text-gray-600 text-xs sm:text-sm">系統狀態</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold mt-1 sm:mt-2 text-green-600">
                 {stats.systemStatus?.status === 'running' ? '運行正常' : 
                  stats.systemStatus?.status === 'unknown' ? '未知' : '異常'}
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-green-100 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -653,10 +923,10 @@ function DashboardHome() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-lg font-bold mb-4">最近活動</h3>
-          <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 lg:gap-6 mb-6 sm:mb-8">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 lg:p-6">
+          <h3 className="text-base sm:text-lg lg:text-xl font-bold mb-3 sm:mb-4">最近活動</h3>
+          <div className="space-y-3 sm:space-y-4">
             {activities.length > 0 ? (
               activities.map((activity) => {
               const config = getActivityConfig(activity.type?.toLowerCase());
@@ -669,15 +939,15 @@ function DashboardHome() {
               };
               
               return (
-                <div key={activity.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <div key={activity.id} className="flex items-center space-x-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
                   {/* 操作類型圖示 */}
                   <div className="flex-shrink-0">
                     <div 
-                      className="w-10 h-10 rounded-full flex items-center justify-center"
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center"
                       style={{ backgroundColor: config.bgColor }}
                     >
                       <svg 
-                        className="w-5 h-5" 
+                        className="w-4 h-4 sm:w-5 sm:h-5" 
                         fill="none" 
                         stroke="currentColor" 
                         viewBox="0 0 24 24"
@@ -695,13 +965,13 @@ function DashboardHome() {
                   
                   {/* 活動詳情 */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-base mb-1">
+                    <p className="font-semibold text-gray-900 text-sm sm:text-base mb-1">
                       {config.label}
                     </p>
-                    <p className="text-sm text-gray-700 mb-1 font-medium">
+                    <p className="text-xs sm:text-sm text-gray-700 mb-1 font-medium">
                       {extractTarget(activity.description)}
                     </p>
-                    <div className="flex items-center gap-3 text-xs text-gray-600">
+                    <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-gray-600">
                       <span className="flex items-center">
                         <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -962,12 +1232,12 @@ function QueryAnalytics() {
 
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-lg font-bold">無結果問題 Top 10</h3>
             <p className="text-sm text-gray-500 mt-1">針對「沒有找到相關資訊」的查詢做語義彙整，供後續補文件優先處理。</p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-shrink-0 whitespace-nowrap">
             <select
               value={insightDays}
               onChange={(e) => setInsightDays(parseInt(e.target.value, 10))}
@@ -1042,11 +1312,11 @@ function QueryAnalytics() {
 
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-lg font-bold">最近熱門查詢</h3>
             <p className="text-sm text-gray-500 mt-1">不分是否有答案，依相同查詢文字統計最高次數。</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-shrink-0 whitespace-nowrap">
             <select
               value={popularDays}
               onChange={(e) => {
@@ -1103,7 +1373,7 @@ function QueryAnalytics() {
 
       <div className="bg-white rounded-xl shadow-md p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-lg font-bold">歷史查詢</h3>
             <p className="text-sm text-gray-500 mt-1">查看所有查詢、回覆、來源數與處理時間。</p>
           </div>
@@ -1384,7 +1654,7 @@ function CategoryManagement() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 選擇顏色
               </label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {colorOptions.map(color => (
                   <button
                     key={color.value}
@@ -2095,7 +2365,7 @@ function FaqManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   圖示
                 </label>
-                <div className="grid grid-cols-10 gap-2">
+                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
                   {iconOptions.map(icon => (
                     <button
                       key={icon}
@@ -2472,7 +2742,7 @@ function UserGroupManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   顏色標識
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {colorOptions.map(option => (
                     <button
                       key={option.value}

@@ -6,14 +6,30 @@
   --ncku-red-light: #c72126;
 }
 
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 /* 強制顯示滾動條以避免內容偏移 */
 html {
+  width: 100%;
+  min-height: 100%;
   overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 body {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
   background-color: white;
   color: black;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
 }
 
 /* 模態框動畫 */

@@ -97,7 +97,7 @@ function ForgotPasswordPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
           {/* ===== Step 1: 申請重設代碼 ===== */}
           {step === 'request' && (
             <>

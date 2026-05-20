@@ -340,30 +340,23 @@ function QueryUserManagement() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 table-fixed">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      用戶資訊
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      審批狀態
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      啟用狀態
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      操作
-                    </th>
-                  </tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{width: '9rem'}}>用戶資訊</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell" style={{width: '10rem'}}>審批狀態</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell" style={{width: '10rem'}}>啟用狀態</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider md:hidden" style={{width: '10rem'}}>狀態</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{width: '9rem'}}>操作</th>
+                    </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {users.map(user => (
                     <tr key={user.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{user.full_name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
-                        <div className="text-xs text-gray-400">@{user.username}</div>
+                      <td className="px-6 py-4 min-w-0 align-top" style={{width: '9rem'}}>
+                        <div className="text-sm font-medium text-gray-900 whitespace-normal">{user.full_name}</div>
+                        <div className="text-sm text-gray-500 truncate">{user.email}</div>
+                        <div className="text-xs text-gray-400 truncate">@{user.username}</div>
                         {user.reset_password_token && (
                           <div className="mt-1.5 flex items-center gap-1.5">
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-semibold bg-amber-100 text-amber-800 border border-amber-300">
@@ -382,14 +375,20 @@ function QueryUserManagement() {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        {getStatusBadge(user.status)}
+                      <td className="px-6 py-4 hidden md:table-cell text-center align-middle">
+                        <div className="inline-block whitespace-nowrap">{getStatusBadge(user.status)}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        {getActiveBadge(user.is_active)}
+                      <td className="px-6 py-4 hidden md:table-cell text-center align-middle">
+                        <div className="inline-block whitespace-nowrap">{getActiveBadge(user.is_active)}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2 flex-wrap">
+                      <td className="px-6 py-4 md:hidden align-middle" style={{width: '9rem'}}>
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                          <div className="inline-block">{getStatusBadge(user.status)}</div>
+                          <div className="inline-block">{getActiveBadge(user.is_active)}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4" style={{verticalAlign: 'middle', width: '9rem'}}>
+                        <div className="flex gap-2 flex-wrap justify-end">
                           <button
                             onClick={() => handleOpenEditModal(user)}
                             className="text-blue-600 hover:text-blue-800 cursor-pointer text-sm font-medium"

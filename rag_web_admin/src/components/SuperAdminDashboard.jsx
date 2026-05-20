@@ -305,26 +305,44 @@ function SuperAdminDashboard() {
       {/* 頂部導航欄 */}
       <header className="text-white shadow-lg sticky top-0 z-50" 
               style={{ backgroundColor: 'var(--ncku-red)' }}>
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
+        <div className="px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="md:hidden flex items-start justify-between gap-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                <svg className="w-7 h-7 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                <div className="min-w-0">
+                  <h1 className="text-base sm:text-lg font-bold leading-tight truncate">AI 客服系統</h1>
+                </div>
+              </div>
+              <div className="text-right min-w-0 flex-shrink-0">
+                <p className="text-sm font-medium truncate max-w-[110px]">{user.name}</p>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 whitespace-nowrap inline-block">
+                  系統管理員
+                </span>
+              </div>
+            </div>
+
+            <div className="hidden md:flex items-center space-x-3 sm:space-x-4">
+              <div className="flex items-center space-x-2 sm:space-x-3">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                         d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
                 <div>
-                  <h1 className="text-xl font-bold">AI 客服系統</h1>
-                  <p className="text-xs text-red-100">系統管理後台</p>
+                  <h1 className="text-lg sm:text-xl font-bold leading-tight">AI 客服系統</h1>
+                  <p className="text-xs text-red-100 hidden sm:block">系統管理後台</p>
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium">{user.name}</p>
-                <div className="flex items-center justify-end space-x-2">
-                  <p className="text-xs text-red-100">{user.username}</p>
+            <div className="hidden md:flex flex-wrap items-center gap-2 sm:gap-3 md:justify-end">
+              <div className="text-right min-w-0">
+                <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">{user.name}</p>
+                <div className="flex items-center justify-end gap-2 flex-wrap">
+                  <p className="text-xs text-red-100 hidden sm:block">{user.username}</p>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
                     系統管理員
                   </span>
@@ -333,7 +351,31 @@ function SuperAdminDashboard() {
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="bg-white text-black px-4 py-2 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="bg-white text-black px-3 py-2 sm:px-4 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+                style={{ color: 'var(--ncku-red)' }}
+              >
+                {isLoggingOut ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-solid border-current border-r-transparent"></div>
+                    <span>登出中...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span>登出</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="md:hidden flex justify-center">
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="bg-white text-black px-3 py-2 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap text-sm"
                 style={{ color: 'var(--ncku-red)' }}
               >
                 {isLoggingOut ? (
@@ -357,13 +399,13 @@ function SuperAdminDashboard() {
       </header>
 
       {/* 主要內容區域 */}
-      <main className="p-8">
-        <div className="max-w-7xl mx-auto">
+      <main className="w-full min-w-0 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
+        <div className="w-full min-w-0">
           {/* 頁籤導航 */}
-          <div className="flex space-x-4 mb-8 border-b border-gray-200">
+          <div className="grid grid-cols-2 gap-2 mb-6 sm:mb-8 border-b border-gray-200 pb-1 md:flex md:gap-4 md:overflow-x-auto md:whitespace-nowrap">
             <button
               onClick={() => setCurrentPage('overview')}
-              className={`px-6 py-3 font-medium transition-all cursor-pointer relative ${
+              className={`w-full md:w-auto px-4 sm:px-6 py-3 font-medium transition-all cursor-pointer relative ${
                 currentPage === 'overview'
                   ? 'text-white'
                   : 'text-gray-600 hover:text-gray-900'
@@ -383,7 +425,7 @@ function SuperAdminDashboard() {
             </button>
             <button
               onClick={() => setCurrentPage('departments')}
-              className={`px-6 py-3 font-medium transition-all cursor-pointer relative ${
+              className={`w-full md:w-auto px-4 sm:px-6 py-3 font-medium transition-all cursor-pointer relative ${
                 currentPage === 'departments'
                   ? 'text-white'
                   : 'text-gray-600 hover:text-gray-900'
@@ -403,7 +445,7 @@ function SuperAdminDashboard() {
             </button>
             <button
               onClick={() => setCurrentPage('users')}
-              className={`px-6 py-3 font-medium transition-all cursor-pointer relative ${
+              className={`w-full md:w-auto px-4 sm:px-6 py-3 font-medium transition-all cursor-pointer relative ${
                 currentPage === 'users'
                   ? 'text-white'
                   : 'text-gray-600 hover:text-gray-900'
@@ -424,7 +466,7 @@ function SuperAdminDashboard() {
 
             <button
               onClick={() => setCurrentPage('activities')}
-              className={`px-6 py-3 font-medium transition-all cursor-pointer relative ${
+              className={`w-full md:w-auto px-4 sm:px-6 py-3 font-medium transition-all cursor-pointer relative ${
                 currentPage === 'activities'
                   ? 'text-white'
                   : 'text-gray-600 hover:text-gray-900'
@@ -526,7 +568,7 @@ function SuperAdminDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">選擇顏色</label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {colorOptions.map(color => (
                     <button
                       key={color.value}
@@ -599,7 +641,7 @@ function SuperAdminDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">選擇顏色</label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {colorOptions.map(color => (
                     <button
                       key={color.value}

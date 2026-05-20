@@ -355,14 +355,14 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       {/* 標題和新增按鈕 */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
         <div>
-          <h2 className="text-3xl font-bold" style={{ color: 'var(--ncku-red)' }}>
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold" style={{ color: 'var(--ncku-red)' }}>
             處室管理
           </h2>
-          <p className="text-gray-600 mt-2">管理各處室的 AI 客服後台系統</p>
+          <p className="text-sm sm:text-base text-gray-600 mt-2">管理各處室的 AI 客服後台系統</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="px-6 py-3 text-white rounded-lg shadow-lg hover:shadow-xl transition-all cursor-pointer font-medium flex items-center space-x-2"
+          className="px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base text-white rounded-lg shadow-lg hover:shadow-xl transition-all cursor-pointer font-medium flex items-center space-x-2"
           style={{ backgroundColor: 'var(--ncku-red)' }}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -383,7 +383,7 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
           {departments.map(dept => (
             <div 
               key={dept.id} 
@@ -393,53 +393,53 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
               style={dept.color && dept.color.startsWith('#') ? { borderTopColor: dept.color } : {}}
             >
               {/* 卡片頭部 */}
-              <div className="p-6">
+              <div className="p-4 sm:p-5 lg:p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <div 
-                      className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-xl font-bold"
+                      className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg flex items-center justify-center text-white text-lg sm:text-xl font-bold"
                       style={{ backgroundColor: dept.color }}
                     >
                       {dept.name.charAt(0)}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900">{dept.name}</h3>
-                      <p className="text-sm text-gray-500">{dept.description || '暫無描述'}</p>
+                      <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{dept.name}</h3>
+                      <p className="text-xs sm:text-sm text-gray-500">{dept.description || '暫無描述'}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* 統計資訊 */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-gray-50 rounded-lg p-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4">
+                  <div className="bg-gray-50 rounded-lg p-2.5 sm:p-3">
                     <div className="flex items-center space-x-2">
-                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                               d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                       </svg>
                       <div>
-                        <p className="text-2xl font-bold text-gray-900">{dept.userCount}</p>
-                        <p className="text-xs text-gray-500">用戶數</p>
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{dept.userCount}</p>
+                        <p className="text-[11px] sm:text-xs text-gray-500">用戶數</p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="bg-gray-50 rounded-lg p-2.5 sm:p-3">
                     <div className="flex items-center space-x-2">
-                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                       <div>
-                        <p className="text-2xl font-bold text-gray-900">{dept.fileCount}</p>
-                        <p className="text-xs text-gray-500">檔案</p>
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{dept.fileCount}</p>
+                        <p className="text-[11px] sm:text-xs text-gray-500">檔案</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* 查詢系統網址 */}
-                <div className="bg-blue-50 rounded-lg px-3 py-2 flex items-center justify-between mb-3">
-                  <code className="text-xs font-mono text-blue-700 truncate mr-2">
+                <div className="bg-blue-50 rounded-lg px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between mb-3">
+                  <code className="text-[11px] sm:text-xs font-mono text-blue-700 truncate mr-2">
                     {window.location.origin}/query/{dept.slug}
                   </code>
                   <button
@@ -457,14 +457,14 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => enterDepartmentDashboard(dept)}
-                    className="col-span-2 px-4 py-2 text-white rounded-lg shadow hover:shadow-lg transition-all cursor-pointer text-sm font-medium"
+                    className="col-span-2 px-4 py-2 sm:px-5 sm:py-2.5 text-white rounded-lg shadow hover:shadow-lg transition-all cursor-pointer text-sm sm:text-base font-medium"
                     style={{ backgroundColor: 'var(--ncku-red)' }}
                   >
                     進入管理
                   </button>
                   <button
                     onClick={() => openAdminGroupModal(dept)}
-                    className="col-span-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer text-sm font-medium"
+                    className="col-span-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer text-sm sm:text-base font-medium"
                   >
                     管理組織
                   </button>
@@ -495,8 +495,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       {/* 新增處室 Modal */}
       {addModal.shouldRender && (
         <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center ${addModal.animationClass}`}>
-          <div className={`relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 ${addModal.contentAnimationClass}`}>
-            <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>
+          <div className={`relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-4 sm:p-6 ${addModal.contentAnimationClass}`}>
+            <h3 className="text-lg sm:text-xl font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>
               新增處室
             </h3>
             <div className="space-y-4">
@@ -545,7 +545,7 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   主題顏色
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {colorOptions.map(option => (
                     <button
                       key={option.value}
@@ -631,8 +631,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       {/* 編輯處室 Modal */}
       {editModal.shouldRender && (
         <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center ${editModal.animationClass}`}>
-          <div className={`relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 ${editModal.contentAnimationClass}`}>
-            <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>
+          <div className={`relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-4 sm:p-6 ${editModal.contentAnimationClass}`}>
+            <h3 className="text-lg sm:text-xl font-semibold mb-4" style={{ color: 'var(--ncku-red)' }}>
               編輯處室
             </h3>
             <div className="space-y-4">
@@ -681,7 +681,7 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   主題顏色
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {colorOptions.map(option => (
                     <button
                       key={option.value}
@@ -786,9 +786,9 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       {/* 管理組織 Modal */}
       {adminGroupModal.shouldRender && (
         <div className={`fixed inset-0 bg-black/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center ${adminGroupModal.animationClass}`}>
-          <div className={`relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 max-h-[85vh] overflow-y-auto ${adminGroupModal.contentAnimationClass}`}>
+          <div className={`relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-4 sm:p-6 max-h-[85vh] overflow-y-auto ${adminGroupModal.contentAnimationClass}`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold" style={{ color: 'var(--ncku-red)' }}>
+              <h3 className="text-lg sm:text-xl font-semibold" style={{ color: 'var(--ncku-red)' }}>
                 {showAdminGroupModal?.name} — 管理組織
               </h3>
               <button onClick={adminGroupModal.handleClose} className="text-gray-400 hover:text-gray-600 cursor-pointer">
