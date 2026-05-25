@@ -98,12 +98,6 @@ tqdm>=4.66.0
 # ==============================================================================
 # RAG 功能 (RAG Functionality)
 # ==============================================================================
-# PyTorch - 固定 2.9.1（pypi.org CUDA 12 版本，uv.lock 確認可用，cu130 需要 driver 580+）
-torch==2.9.1
-
-# Sentence Transformers - Reranker 模型
-sentence-transformers>=5.2.0,<6.0.0
-
 # OpenCC - 簡繁轉換（已包含但再次確認）
 opencc-python-reimplemented>=0.1.7
 

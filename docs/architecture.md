@@ -59,11 +59,9 @@
   - `litellm.Router` 管理所有主機，每台主機注冊 `text-generation` 和 `bge-embedding` 兩個模型入口
   - routing_strategy: `simple-shuffle`（隨機分配），num_retries=1，timeout=90s
   - 每次 LLM 回應後透過 `opencc`（`s2t` 模式）將簡體字轉為繁體，避免不同 Ollama 主機回應簡體
-- **Reranker**：`BAAI/bge-reranker-v2-m3`（CrossEncoder）
-  - 程式啟動時自動偵測 CUDA/CPU，模型載入後就定不更換
-  - 輸入為 `(query, 文件摘要)` 配對，輸出相關性分數
-  - `torch.no_grad()` 加速推理，GPU 推理完後自動 `empty_cache()`
-  - RAGEngine 以 process-level dict `_dept_rag_engines` 按處室快取，上傳新檔後清除對應處室的快取
+- **RAG 排序**：先用向量相似度找出候選文檔，再直接依相似度排序取前幾筆
+  - 輸入為查詢向量與文件向量，輸出 cosine similarity 分數
+  - `RAGEngine` 以 process-level dict `_dept_rag_engines` 按處室快取，上傳新檔後清除對應處室的快取
 
 ---
 
@@ -81,7 +79,7 @@ rag_web_app/
 │   │   ├── models/        # SQLAlchemy ORM 模型
 │   │   ├── schemas/       # Pydantic 請求/回應格式
 │   │   ├── services/
-│   │   │   ├── rag/       # RAGEngine, VectorStore, Reranker, NoResultAnalyzer
+│   │   │   ├── rag/       # RAGEngine, VectorStore, NoResultAnalyzer
 │   │   │   ├── llm/       # LiteLLMClient
 │   │   │   └── document_processing/  # 文件轉換、摘要、向量化
 │   │   └── tasks/         # Celery tasks（file_pipeline）

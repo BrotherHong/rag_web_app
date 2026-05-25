@@ -97,7 +97,7 @@ POST /api/upload/batch
   ↓
 [Step 1] DocumentConverter：轉檔為 Markdown
   ├─ PDF → mineru CLI（subprocess），輸出目錄下找新產生的 .md
-  │      mineru 指定 -m auto -b pipeline -d cpu（強制 CPU，避免與 Reranker 搶 GPU）
+  │      mineru 指定 -m auto -b pipeline -d cpu（強制 CPU，避免不必要的資源競爭）
   │      timeout 10 分鐘；mineru 寫檔有延遲，最多 poll 15 秒等待
   ├─ DOCX／其他 → MarkItDown 函式庫直接轉換
   └─ .doc → 先用 LibreOffice（soffice --headless）轉為 .docx，再走 MarkItDown

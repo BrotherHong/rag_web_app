@@ -57,7 +57,7 @@ def _resolve_department_id(
     raise HTTPException(status_code=400, detail="登入用戶必須指定 scope_ids 或設定預設處室")
 
 
-# 快取各處室的 RAGEngine，避免每次 request 重新載入 reranker 模型
+# 快取各處室的 RAGEngine，避免每次 request 重新建立查詢引擎
 _dept_rag_engines: dict = {}
 
 def get_dept_rag_engine(department_id: int) -> RAGEngine:
@@ -218,7 +218,7 @@ async def query_documents(
                     sources=[]
                 )
         
-        # 取得（或初始化）對應處室的 RAG 引擎（全域快取，reranker 只載入一次）
+        # 取得（或初始化）對應處室的 RAG 引擎（全域快取）
         try:
             dept_rag_engine = get_dept_rag_engine(department_id)
         except Exception as e:

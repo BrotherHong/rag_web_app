@@ -57,15 +57,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    # GPU 支援（使用主機 NVIDIA GPU 加速 reranker）
-    runtime: nvidia
     environment:
       # 時區設定
       TZ: Asia/Taipei
       
-      # GPU 設定
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
       # HuggingFace 快取（使用主機快取，避免每次重啟重下載）
       HF_HOME: /root/.cache/huggingface
       HF_HUB_OFFLINE: "1"
@@ -182,11 +177,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    runtime: nvidia
     environment:
       TZ: Asia/Taipei
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
       HF_HOME: /root/.cache/huggingface
 
       APP_NAME: ${APP_NAME:-RAG Knowledge Base}

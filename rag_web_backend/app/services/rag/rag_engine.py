@@ -10,7 +10,6 @@ from app.services.llm.litellm_client import LiteLLMClient
 from app.services.llm.prompts.rag import RAG_USER_TEMPLATE, RAG_NO_RESULTS_PROMPT, build_rag_system_prompt
 from app.config import settings
 from .vector_store import VectorStore
-from .reranker import Reranker
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,6 @@ class RAGEngine:
     def __init__(self, 
                  base_path="uploads/1/processed",
                  similarity_threshold=0.1,
-                 rerank_threshold=0.01,
                  max_context_docs=3,
                  debug_mode=False):
         """
@@ -32,7 +30,6 @@ class RAGEngine:
         參數:
             base_path: 處理後文件的基礎路徑
             similarity_threshold: 相似度閾值
-            rerank_threshold: Rerank 分數閾值
             max_context_docs: 用於上下文的最大文檔數
             debug_mode: 是否輸出 debug log
         """
@@ -40,9 +37,7 @@ class RAGEngine:
         self.client = LiteLLMClient()
         self.vector_store = VectorStore(base_path=base_path)
         self.similarity_threshold = similarity_threshold
-        self.rerank_threshold = rerank_threshold
         self.max_context_docs = max_context_docs
-        self.reranker = Reranker()
         self.debug_mode = debug_mode
         
     def _deduplicate_docs_by_file(self, top_docs: List[Dict]) -> List[Dict]:
@@ -58,7 +53,6 @@ class RAGEngine:
                 file_to_docs[filename] = {
                     'document': doc['document'],
                     'similarity': doc['similarity'],
-                    'score': doc['score'],
                     'all_chunks': [doc]
                 }
             else:
@@ -107,32 +101,13 @@ class RAGEngine:
                 'retrieved_docs': 0
             }
         
-        # 準備候選文件並進行 rerank（GPU 上全量跑，速度快）
-        candidates = [{
-            'document': doc['document'],
-            'similarity': doc['similarity'],
-            'summary': self.vector_store.get_document_summary(doc['document']['filename']) or ''
-        } for doc in similar_docs]
-        reranked_docs = self.reranker.rerank(question, candidates, threshold=self.rerank_threshold)
-        
-        # 檢查 rerank 後是否還有文檔
-        if not reranked_docs:
-            logger.warning("Rerank 後沒有符合閾值的文檔，返回無結果")
-            return {
-                'question': question,
-                'answer': RAG_NO_RESULTS_PROMPT,
-                'sources': [],
-                'retrieved_docs': len(similar_docs)
-            }
-        
-        # 顯示 Rerank 後的 Top 3
-        logger.info(f"\n=== Rerank 結果 (Top {min(3, len(reranked_docs))}) ===")
-        for i, doc in enumerate(reranked_docs[:3], 1):
+        # 2. 直接使用向量相似度排序的結果構建上下文
+        logger.info(f"\n=== 相似度結果 (Top {min(3, len(similar_docs))}) ===")
+        for i, doc in enumerate(similar_docs[:3], 1):
             filename = doc['document'].get('original_filename') or doc['document']['filename']
-            logger.info(f"  {i}. {filename} (Similarity: {doc['similarity']:.4f}, Rerank Score: {doc['score']:.4f})")
-        
-        # 2. 使用 top N 文檔構建上下文
-        top_docs = reranked_docs[:self.max_context_docs]
+            logger.info(f"  {i}. {filename} (Similarity: {doc['similarity']:.4f})")
+
+        top_docs = similar_docs[:self.max_context_docs]
         
         # 2.5 去重合併相同檔案的多個 chunks
         deduplicated_docs = self._deduplicate_docs_by_file(top_docs)
@@ -182,7 +157,6 @@ class RAGEngine:
             }
             if include_similarity_scores:
                 source['similarity'] = doc_result['similarity']
-                source['score'] = doc_result['score']
             sources.append(source)
         
         result = {
@@ -199,7 +173,7 @@ class RAGEngine:
         logger.info(f"\n來源文檔:")
         for i, source in enumerate(sources, 1):
             if include_similarity_scores:
-                logger.info(f"  {i}. {source['filename']} (相似度: {source['similarity']:.4f}, Rerank: {source['score']:.4f})")
+                logger.info(f"  {i}. {source['filename']} (相似度: {source['similarity']:.4f})")
             else:
                 logger.info(f"  {i}. {source['filename']}")
         
