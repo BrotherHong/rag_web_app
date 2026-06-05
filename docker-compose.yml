@@ -57,18 +57,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    # GPU 支援（使用主機 NVIDIA GPU 加速 reranker）
-    runtime: nvidia
     environment:
       # 時區設定
       TZ: Asia/Taipei
-      
-      # GPU 設定
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      # HuggingFace 快取（使用主機快取，避免每次重啟重下載）
-      HF_HOME: /root/.cache/huggingface
-      HF_HUB_OFFLINE: "1"
       
       # 應用設定
       APP_NAME: ${APP_NAME:-RAG Knowledge Base}
@@ -132,12 +123,13 @@ services:
       # Celery 設定
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+
+      # Reranker 設定
+      RERANKER_API_URL: ${RERANKER_API_URL:-http://reranker:8100}
     
     volumes:
       # 上傳檔案持久化（Bind Mount）
       - ./rag_web_backend/uploads:/app/uploads
-      # HuggingFace 模型快取（掛載主機快取，避免重啟後重下載）
-      - /home/brick2/.cache/huggingface:/root/.cache/huggingface
       
       # 開發模式：掛載程式碼（修改後不需重新 build）
       - ./rag_web_backend/app:/app/app
@@ -182,12 +174,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    runtime: nvidia
     environment:
       TZ: Asia/Taipei
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      HF_HOME: /root/.cache/huggingface
 
       APP_NAME: ${APP_NAME:-RAG Knowledge Base}
       DEBUG: ${DEBUG:-False}
@@ -220,7 +208,6 @@ services:
 
     volumes:
       - ./rag_web_backend/uploads:/app/uploads
-      - /home/brick2/.cache/huggingface:/root/.cache/huggingface
       - ./rag_web_backend/app:/app/app
       - ./rag_web_backend/alembic:/app/alembic
       - ./rag_web_backend/scripts:/app/scripts
@@ -263,6 +250,54 @@ services:
       - ./rag_web_backend/app:/app/app
     networks:
       - rag_network
+
+  # ============================================================================
+  # Reranker Server - 獨立 GPU 推論服務
+  # 僅在有 GPU 的機器啟動：docker compose --profile gpu up -d
+  # ============================================================================
+  reranker:
+    profiles:
+      - gpu
+    build:
+      context: ./rag_web_backend
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: rag_reranker
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      TZ: Asia/Taipei
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HOME: /root/.cache/huggingface
+      HF_HUB_OFFLINE: "1"
+    entrypoint:
+      - uvicorn
+      - reranker_server:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8100"
+    ports:
+      - "${RERANKER_PORT:-8100}:8100"
+    volumes:
+      - /home/brick2/.cache/huggingface:/root/.cache/huggingface
+      - ./rag_web_backend/reranker_server.py:/app/reranker_server.py
+    networks:
+      - rag_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+        compress: "true"
 
   # ============================================================================
   # Nginx - 反向代理與靜態檔案服務（包含前端建置）

@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     PORTAL_CLIENT_SECRET: str = ""
     PORTAL_REDIRECT_URI: str = ""  # 例: http://aidemo.ncku.edu.tw:8888/api/query-auth/portal-callback
 
+    # Reranker 設定
+    RERANKER_API_URL: str = "http://localhost:8100"  # Reranker server 位址
+
     # Celery 設定
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"

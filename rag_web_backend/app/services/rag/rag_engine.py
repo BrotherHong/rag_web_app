@@ -107,13 +107,13 @@ class RAGEngine:
                 'retrieved_docs': 0
             }
         
-        # 準備候選文件並進行 rerank（GPU 上全量跑，速度快）
+        # 準備候選文件並進行 rerank（呼叫 Reranker API）
         candidates = [{
             'document': doc['document'],
             'similarity': doc['similarity'],
             'summary': self.vector_store.get_document_summary(doc['document']['filename']) or ''
         } for doc in similar_docs]
-        reranked_docs = self.reranker.rerank(question, candidates, threshold=self.rerank_threshold)
+        reranked_docs = await self.reranker.rerank(question, candidates, threshold=self.rerank_threshold)
         
         # 檢查 rerank 後是否還有文檔
         if not reranked_docs:

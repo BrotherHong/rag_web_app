@@ -32,6 +32,16 @@ docker compose up -d --build backend
 docker compose logs -f backend
 ```
 
+### Reranker 服務
+```bash
+# 本地（有 GPU）：啟動全部服務含 reranker
+docker compose --profile gpu up -d
+
+# 遠端 VM（無 GPU）：不啟動 reranker，改用遠端 API
+# .env 設定 RERANKER_API_URL=
+docker compose up -d
+```
+
 ### 前端更新
 ```bash
 # 更新 query 和 admin 頁面
@@ -49,9 +59,10 @@ Password: postgres123
 
 ## 架構說明
 - **Backend**: FastAPI (Python) - `rag_web_backend/`
+- **Reranker**: 獨立 GPU 推論服務 - `rag_web_backend/reranker_server.py`
 - **Admin**: React (Vite) - `rag_web_admin/`
 - **Query**: React (Vite) - `rag_web_query/`
-- **Nginx**: 反向代理
+- **Nginx**: 反向代理（含 `/reranker/` 路徑代理）
 - **PostgreSQL**: 資料庫
 
 ## 測試

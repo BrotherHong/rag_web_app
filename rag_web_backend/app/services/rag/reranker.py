@@ -1,71 +1,50 @@
-from sentence_transformers import CrossEncoder
+import httpx
 from typing import List
 import logging
-import torch
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class Reranker:
     """
-    一個簡單的 Reranker 包裝類別
-    使用 BAAI/bge-reranker-v2-m3 來對 (query, candidate['summary']) 做排序
+    Reranker HTTP Client
+    呼叫獨立的 Reranker Server API 進行文件重新排序
     """
 
-    def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3"):
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        logger.info(f"[Reranker] loading model: {model_name} (device: {device})")
-        self.model = CrossEncoder(model_name, device=device)
-        logger.info(f"[Reranker] model loaded on {device}")
+    def __init__(self):
+        self.api_url = settings.RERANKER_API_URL.rstrip("/")
+        logger.info(f"[Reranker] using API mode: {self.api_url}")
 
-    def rerank(self, query: str, candidates: List[dict], threshold: float = None) -> List[dict]:
+    async def rerank(self, query: str, candidates: List[dict], threshold: float = None) -> List[dict]:
         """
-        對候選文件進行 rerank，回傳包含原始資訊 + 分數的 list，並依分數排序
+        呼叫 Reranker Server 對候選文件進行 rerank
 
         Args:
-            query (str): 查詢字串 (Query)
-            candidates (List[Dict[str, str]]): 候選文件，每個元素包含:
-                - document (dict): 原始文件資訊
-                - similarity (float): 原始相似度分數
-                - summary (str): 文件摘要
-            threshold (float): Rerank 分數閾值，低於此值的文檔會被過濾
+            query: 查詢字串
+            candidates: 候選文件列表，每個元素包含 document, similarity, summary
+            threshold: Rerank 分數閾值，低於此值的文檔會被過濾
 
         Returns:
-            (List[dict]): 排序後的清單，每個元素包含:
-                - document (dict): 原始文件資訊
-                - similarity (float): 原始相似度分數
-                - summary (str): 文件摘要
-                - score (float): reranker 分數 (越高越相關)
+            排序後的文件列表，包含 document, similarity, summary, score
         """
-        # 準備 (query, summary) 配對
-        pairs = [[query, c["summary"]] for c in candidates]
+        payload = {
+            "query": query,
+            "candidates": candidates,
+            "threshold": threshold,
+        }
 
-        # 模型預測分數 (相關性分數，float，越高越相關)
-        with torch.no_grad():
-            scores = self.model.predict(pairs)
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(f"{self.api_url}/rerank", json=payload)
+            response.raise_for_status()
 
-        # 將分數加回 candidates
-        results = []
-        for c, s in zip(candidates, scores):
-            score = float(s)
-            # 如果設定了 threshold，過濾掉低分文檔
-            if threshold is not None and score < threshold:
-                continue
-            
-            item = {
-                "document": c["document"],
-                "similarity": c["similarity"],
-                "summary": c["summary"],
-                "score": score
-            }
-            results.append(item)
+        data = response.json()
+        results = data["results"]
 
-        # 依照分數由高到低排序
-        results.sort(key=lambda x: x["score"], reverse=True)
-        
         if threshold is not None:
-            logger.info(f"Rerank 過濾: {len(candidates)} → {len(results)} 個文檔 (閾值: {threshold})")
+            logger.info(
+                f"Rerank 過濾: {data['total_input']} → {data['total_output']} 個文檔 (閾值: {threshold})"
+            )
 
         return results
