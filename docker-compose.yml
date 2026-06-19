@@ -126,6 +126,8 @@ services:
 
       # Reranker 設定
       RERANKER_API_URL: ${RERANKER_API_URL:-http://reranker:8100}
+      RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+      RERANKER_API_FORMAT: ${RERANKER_API_FORMAT:-internal}
     
     volumes:
       # 上傳檔案持久化（Bind Mount）

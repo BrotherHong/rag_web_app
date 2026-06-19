@@ -64,6 +64,8 @@ class Settings(BaseSettings):
 
     # Reranker 設定
     RERANKER_API_URL: str = "http://localhost:8100"  # Reranker server 位址
+    RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
+    RERANKER_API_FORMAT: str = "internal"  # internal, tei
 
     # Celery 設定
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
