@@ -131,11 +131,18 @@ async def get_welcome_message(
         greeting = dept.greeting_message or f"您好！我是{assistant_name} 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？"
         greeting_image = f"/api/public/greeting-image/{dept.id}" if dept.greeting_image else None
         enable_direct_query = dept.enable_direct_query
+        assistant_avatars = _list_public_assistant_avatars(dept)
+        selected_id = Path(dept.assistant_avatar).name if dept.assistant_avatar else None
+        selected_avatar = next((avatar for avatar in assistant_avatars if avatar["id"] == selected_id), None)
+        assistant_avatar_mode = dept.assistant_avatar_mode if dept.assistant_avatar_mode in {"fixed", "random"} else "fixed"
     else:
         assistant_name = "AI 助手"
         greeting = "您好！我是AI 助手 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？"
         greeting_image = None
         enable_direct_query = True
+        assistant_avatars = []
+        selected_avatar = None
+        assistant_avatar_mode = "fixed"
 
     return {
         "success": True,
@@ -144,6 +151,10 @@ async def get_welcome_message(
             "message": greeting,
             "assistant_name": assistant_name,
             "greeting_image": greeting_image,
+            "assistant_avatar": selected_avatar["url"] if selected_avatar else None,
+            "assistant_avatar_id": selected_avatar["id"] if selected_avatar else None,
+            "assistant_avatar_mode": assistant_avatar_mode,
+            "assistant_avatars": assistant_avatars,
             "enable_direct_query": enable_direct_query,
             "tips": [
                 "盡量使用完整的問句",
@@ -169,4 +180,45 @@ async def get_greeting_image(department_id: int, db: AsyncSession = Depends(get_
 
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="圖片檔案不存在")
+    return FileResponse(str(image_path))
+
+
+def _list_public_assistant_avatars(department: Department) -> list[dict]:
+    avatar_dir = Path("uploads/assistant_avatars") / str(department.id)
+    if not avatar_dir.exists():
+        return []
+
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+    avatars = []
+    for path in sorted(avatar_dir.iterdir(), key=lambda item: item.name):
+        if not path.is_file() or path.suffix.lower() not in allowed_extensions:
+            continue
+        avatars.append({
+            "id": path.name,
+            "filename": path.name,
+            "url": f"/api/public/assistant-avatar/{department.id}/{path.name}",
+        })
+    return avatars
+
+
+@router.get("/public/assistant-avatar/{department_id}/{filename}")
+async def get_assistant_avatar(department_id: int, filename: str, db: AsyncSession = Depends(get_db)):
+    """取得處室助手頭貼"""
+    if Path(filename).name != filename:
+        raise HTTPException(status_code=400, detail="檔名不正確")
+
+    dept = await db.scalar(select(Department).where(Department.id == department_id))
+    if not dept:
+        raise HTTPException(status_code=404, detail="處室不存在")
+
+    uploads_root = Path("uploads").resolve()
+    avatar_dir = (Path("uploads/assistant_avatars") / str(department_id)).resolve()
+    image_path = (avatar_dir / filename).resolve()
+
+    if not avatar_dir.is_relative_to(uploads_root) or not image_path.is_relative_to(avatar_dir):
+        raise HTTPException(status_code=403, detail="禁止存取")
+
+    if not image_path.exists() or not image_path.is_file():
+        raise HTTPException(status_code=404, detail="頭貼不存在")
+
     return FileResponse(str(image_path))

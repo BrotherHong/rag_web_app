@@ -4,6 +4,7 @@ import math
 import os
 import uuid
 import aiofiles
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File as FileParam, status
@@ -661,6 +662,10 @@ async def get_department_stats(
 # ===== 助手設定 =====
 
 GREETING_IMAGE_DIR = "uploads/greeting_images"
+ASSISTANT_AVATAR_DIR = "uploads/assistant_avatars"
+ALLOWED_ASSISTANT_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+ALLOWED_ASSISTANT_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+ASSISTANT_AVATAR_MODES = {"fixed", "random"}
 
 
 def _compute_assistant_defaults(department: Department) -> dict:
@@ -670,6 +675,56 @@ def _compute_assistant_defaults(department: Department) -> dict:
         "assistant_name": name,
         "greeting_message": f"您好！我是{name} 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？",
     }
+
+
+def _department_avatar_dir(department_id: int) -> Path:
+    return Path(ASSISTANT_AVATAR_DIR) / str(department_id)
+
+
+def _assistant_avatar_url(department_id: int, image_path: str) -> str:
+    filename = Path(image_path).name
+    return f"/api/public/assistant-avatar/{department_id}/{filename}"
+
+
+def _list_assistant_avatars(department: Department) -> list[dict]:
+    avatar_dir = _department_avatar_dir(department.id)
+    if not avatar_dir.exists():
+        return []
+
+    avatars = []
+    for path in sorted(avatar_dir.iterdir(), key=lambda item: item.name):
+        if not path.is_file() or path.suffix.lower() not in ALLOWED_ASSISTANT_IMAGE_EXTENSIONS:
+            continue
+        avatars.append({
+            "id": path.name,
+            "filename": path.name,
+            "url": _assistant_avatar_url(department.id, str(path)),
+            "path": str(path),
+        })
+    return avatars
+
+
+def _assistant_avatar_payload(department: Department) -> dict:
+    avatars = _list_assistant_avatars(department)
+    selected_id = Path(department.assistant_avatar).name if department.assistant_avatar else None
+    selected_avatar = next((avatar for avatar in avatars if avatar["id"] == selected_id), None)
+    mode = department.assistant_avatar_mode if department.assistant_avatar_mode in ASSISTANT_AVATAR_MODES else "fixed"
+
+    return {
+        "assistant_avatar": selected_avatar["url"] if selected_avatar else None,
+        "assistant_avatar_id": selected_avatar["id"] if selected_avatar else None,
+        "assistant_avatar_mode": mode,
+        "assistant_avatars": [
+            {key: avatar[key] for key in ("id", "filename", "url")}
+            for avatar in avatars
+        ],
+    }
+
+
+def _find_assistant_avatar(department: Department, avatar_id: str | None) -> dict | None:
+    if not avatar_id:
+        return None
+    return next((avatar for avatar in _list_assistant_avatars(department) if avatar["id"] == avatar_id), None)
 
 
 async def _get_department_for_current_user(
@@ -702,6 +757,7 @@ async def get_assistant_settings(
             "assistant_style": department.assistant_style,
             "greeting_message": department.greeting_message,
             "greeting_image": department.greeting_image,
+            **_assistant_avatar_payload(department),
             "enable_direct_query": department.enable_direct_query,
             "defaults": defaults,
         }
@@ -725,6 +781,22 @@ async def update_assistant_settings(
         if field in data:
             setattr(department, field, data[field])
 
+    if "assistant_avatar_mode" in data:
+        mode = data["assistant_avatar_mode"]
+        if mode not in ASSISTANT_AVATAR_MODES:
+            raise HTTPException(status_code=400, detail="頭貼模式不正確")
+        department.assistant_avatar_mode = mode
+
+    if "assistant_avatar_id" in data:
+        avatar_id = data["assistant_avatar_id"]
+        if avatar_id is None:
+            department.assistant_avatar = None
+        else:
+            avatar = _find_assistant_avatar(department, avatar_id)
+            if not avatar:
+                raise HTTPException(status_code=400, detail="頭貼不存在")
+            department.assistant_avatar = avatar["path"]
+
     await db.commit()
     await db.refresh(department)
 
@@ -736,6 +808,7 @@ async def update_assistant_settings(
             "assistant_style": department.assistant_style,
             "greeting_message": department.greeting_message,
             "greeting_image": department.greeting_image,
+            **_assistant_avatar_payload(department),
             "enable_direct_query": department.enable_direct_query,
             "defaults": defaults,
         }
@@ -755,8 +828,7 @@ async def upload_greeting_image(
     department = await _get_department_for_current_user(db, current_user)
 
     # 驗證檔案類型
-    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-    if file.content_type not in allowed_types:
+    if file.content_type not in ALLOWED_ASSISTANT_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="僅支援 JPG、PNG、GIF、WebP 格式")
 
     # 限制 5MB
@@ -805,3 +877,75 @@ async def delete_greeting_image(
 
     return {"success": True, "message": "圖片已刪除"}
 
+
+@router.post(
+    "/me/assistant-settings/assistant-avatars",
+    summary="上傳助手頭貼",
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+)
+async def upload_assistant_avatar(
+    file: UploadFile = FileParam(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    department = await _get_department_for_current_user(db, current_user)
+
+    if file.content_type not in ALLOWED_ASSISTANT_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="僅支援 JPG、PNG、GIF、WebP 格式")
+
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="圖片大小不可超過 5MB")
+
+    avatar_dir = _department_avatar_dir(department.id)
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_ASSISTANT_IMAGE_EXTENSIONS:
+        ext = ".png"
+    filepath = avatar_dir / f"{department.id}_{uuid.uuid4().hex[:8]}{ext}"
+
+    async with aiofiles.open(filepath, "wb") as f:
+        await f.write(content)
+
+    if not department.assistant_avatar:
+        department.assistant_avatar = str(filepath)
+
+    await db.commit()
+    await db.refresh(department)
+
+    return {
+        "success": True,
+        "data": _assistant_avatar_payload(department),
+    }
+
+
+@router.delete(
+    "/me/assistant-settings/assistant-avatars/{avatar_id}",
+    summary="刪除助手頭貼",
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+)
+async def delete_assistant_avatar(
+    avatar_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    department = await _get_department_for_current_user(db, current_user)
+    avatar = _find_assistant_avatar(department, avatar_id)
+    if not avatar:
+        raise HTTPException(status_code=404, detail="頭貼不存在")
+
+    if os.path.exists(avatar["path"]):
+        os.remove(avatar["path"])
+
+    if department.assistant_avatar and Path(department.assistant_avatar).name == avatar_id:
+        department.assistant_avatar = None
+
+    await db.commit()
+    await db.refresh(department)
+
+    return {
+        "success": True,
+        "message": "頭貼已刪除",
+        "data": _assistant_avatar_payload(department),
+    }

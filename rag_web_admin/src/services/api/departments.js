@@ -499,3 +499,46 @@ export const deleteGreetingImage = async () => {
     return { success: false, message: '刪除圖片失敗' };
   }
 };
+
+/**
+ * 上傳助手頭貼
+ */
+export const uploadAssistantAvatar = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiFetch(`${API_BASE_URL}/departments/me/assistant-settings/assistant-avatars`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: formData
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+    const error = await response.json();
+    return { success: false, message: error.detail || '上傳頭貼失敗' };
+  } catch (error) {
+    console.error('Upload assistant avatar error:', error);
+    return { success: false, message: '上傳頭貼失敗' };
+  }
+};
+
+/**
+ * 刪除助手頭貼
+ */
+export const deleteAssistantAvatar = async (avatarId) => {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/departments/me/assistant-settings/assistant-avatars/${encodeURIComponent(avatarId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+    const error = await response.json();
+    return { success: false, message: error.detail || '刪除頭貼失敗' };
+  } catch (error) {
+    console.error('Delete assistant avatar error:', error);
+    return { success: false, message: '刪除頭貼失敗' };
+  }
+};

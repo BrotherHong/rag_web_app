@@ -24,7 +24,9 @@ function ChatPage() {
   const [selectedCategory, setSelectedCategory] = useState(null) // null 表示「全部」
   const [directQueryLoading, setDirectQueryLoading] = useState(null) // 儲存正在處理的 messageId
   const [assistantName, setAssistantName] = useState(null)
-  const [greetingImage, setGreetingImage] = useState(null)
+  const [assistantAvatar, setAssistantAvatar] = useState(null)
+  const [assistantAvatarMode, setAssistantAvatarMode] = useState('fixed')
+  const [assistantAvatars, setAssistantAvatars] = useState([])
   const [enableDirectQuery, setEnableDirectQuery] = useState(true)
   const [lightboxImage, setLightboxImage] = useState(null)
 
@@ -48,7 +50,8 @@ function ChatPage() {
           sources: [],
           sender: 'ai',
           timestamp: new Date(),
-          isDirectReply: true
+          isDirectReply: true,
+          avatarSrc: getCurrentAssistantAvatar()
         }
         setMessages(prev => [...prev, newMsg])
       } else {
@@ -58,7 +61,8 @@ function ChatPage() {
           text: isClientError ? response.error : '抱歉，直接回覆失敗，請稍後再試。',
           sources: [],
           sender: 'ai',
-          timestamp: new Date()
+          timestamp: new Date(),
+          avatarSrc: getCurrentAssistantAvatar()
         }
         setMessages(prev => [...prev, errMsg])
       }
@@ -196,6 +200,37 @@ function ChatPage() {
     return <p className="text-gray-800 whitespace-pre-line">{elements}</p>
   }
 
+  const fallbackAssistantAvatar = APP_CONSTANTS.UNIVERSITY.LOGO_PATH
+
+  const pickRandomAvatar = (avatars) => {
+    if (!avatars?.length) return null
+    const index = Math.floor(Math.random() * avatars.length)
+    return avatars[index]?.url || null
+  }
+
+  const getAvatarFromSettings = (settings) => {
+    const avatars = settings?.assistant_avatars || []
+    if (settings?.assistant_avatar_mode === 'random') {
+      return pickRandomAvatar(avatars) || settings?.assistant_avatar || fallbackAssistantAvatar
+    }
+    return settings?.assistant_avatar || avatars[0]?.url || fallbackAssistantAvatar
+  }
+
+  const getCurrentAssistantAvatar = () => {
+    if (assistantAvatarMode === 'random') {
+      return pickRandomAvatar(assistantAvatars) || assistantAvatar || fallbackAssistantAvatar
+    }
+    return assistantAvatar || assistantAvatars[0]?.url || fallbackAssistantAvatar
+  }
+
+  const applyWelcomeSettings = (data) => {
+    setAssistantName(data.assistant_name)
+    setAssistantAvatar(data.assistant_avatar)
+    setAssistantAvatarMode(data.assistant_avatar_mode || 'fixed')
+    setAssistantAvatars(data.assistant_avatars || [])
+    setEnableDirectQuery(data.enable_direct_query)
+  }
+
   // 從後端獲取快速問題列表
   useEffect(() => {
     const fetchQuickQuestions = async () => {
@@ -299,6 +334,18 @@ function ChatPage() {
   // 處理從首頁帶來的問題
   useEffect(() => {
     const initializeChat = async () => {
+      let welcomeData = null
+
+      try {
+        const response = await getWelcomeMessage()
+        if (response.success) {
+          welcomeData = response.data
+          applyWelcomeSettings(welcomeData)
+        }
+      } catch (error) {
+        console.error('Error fetching welcome settings:', error)
+      }
+
       if (location.state?.question) {
         // 如果有問題，直接發送問題，不顯示歡迎訊息
         const userMessage = {
@@ -318,7 +365,8 @@ function ChatPage() {
             sources: aiResponseData.sources,
             sender: 'ai',
             timestamp: new Date(),
-            originalQuestion: location.state.question
+            originalQuestion: location.state.question,
+            avatarSrc: getAvatarFromSettings(welcomeData)
           }
           // 直接設置完整的訊息陣列，而不是使用 prev
           setMessages([userMessage, aiResponse])
@@ -329,7 +377,8 @@ function ChatPage() {
             text: '抱歉，系統發生錯誤，請稍後再試。',
             sources: [],
             sender: 'ai',
-            timestamp: new Date()
+            timestamp: new Date(),
+            avatarSrc: getAvatarFromSettings(welcomeData)
           }
           // 直接設置完整的訊息陣列，而不是使用 prev
           setMessages([userMessage, errorResponse])
@@ -338,29 +387,24 @@ function ChatPage() {
         }
       } else {
         // 沒有問題時，從後端獲取初始歡迎訊息
-        try {
-          const response = await getWelcomeMessage()
-          if (response.success) {
-            setAssistantName(response.data.assistant_name)
-            setGreetingImage(response.data.greeting_image)
-            setEnableDirectQuery(response.data.enable_direct_query)
-            setMessages([{
-              id: 1,
-              text: response.data.message,
-              sender: 'ai',
-              timestamp: new Date(),
-              isGreeting: true,
-              greetingImage: response.data.greeting_image
-            }])
-          }
-        } catch (error) {
-          console.error('Error fetching welcome message:', error)
+        if (welcomeData) {
+          setMessages([{
+            id: 1,
+            text: welcomeData.message,
+            sender: 'ai',
+            timestamp: new Date(),
+            isGreeting: true,
+            greetingImage: welcomeData.greeting_image,
+            avatarSrc: getAvatarFromSettings(welcomeData)
+          }])
+        } else {
           setMessages([{
             id: 1,
             text: '您好！我是 AI 助手 👋\n\n我可以協助您查詢相關文檔和資訊。請問有什麼我可以幫助您的嗎？',
             sender: 'ai',
             timestamp: new Date(),
-            isGreeting: true
+            isGreeting: true,
+            avatarSrc: fallbackAssistantAvatar
           }])
         }
       }
@@ -393,7 +437,8 @@ function ChatPage() {
         sources: aiResponseData.sources,
         sender: 'ai',
         timestamp: new Date(),
-        originalQuestion: messageText
+        originalQuestion: messageText,
+        avatarSrc: getCurrentAssistantAvatar()
       }
       
       setMessages(prev => [...prev, aiResponse])
@@ -405,7 +450,8 @@ function ChatPage() {
         text: '抱歉，系統發生錯誤，請稍後再試。',
         sources: [],
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date(),
+        avatarSrc: getCurrentAssistantAvatar()
       }
       setMessages(prev => [...prev, errorResponse])
     } finally {
@@ -428,16 +474,15 @@ function ChatPage() {
     try {
       const response = await getWelcomeMessage()
       if (response.success) {
-        setAssistantName(response.data.assistant_name)
-        setGreetingImage(response.data.greeting_image)
-        setEnableDirectQuery(response.data.enable_direct_query)
+        applyWelcomeSettings(response.data)
         setMessages([{
           id: Date.now(),
           text: response.data.message,
           sender: 'ai',
           timestamp: new Date(),
           isGreeting: true,
-          greetingImage: response.data.greeting_image
+          greetingImage: response.data.greeting_image,
+          avatarSrc: getAvatarFromSettings(response.data)
         }])
       }
     } catch (error) {
@@ -447,7 +492,8 @@ function ChatPage() {
         text: '已開始新對話！有什麼我可以幫助您的嗎？',
         sender: 'ai',
         timestamp: new Date(),
-        isGreeting: true
+        isGreeting: true,
+        avatarSrc: getCurrentAssistantAvatar()
       }])
     }
   }
@@ -460,6 +506,8 @@ function ChatPage() {
     logout()
     navigate(deptSlug ? `/${deptSlug}` : '/', { replace: true })
   }
+
+  const assistantDisplayAvatar = assistantAvatar || assistantAvatars[0]?.url || fallbackAssistantAvatar
 
   return (
     <>
@@ -539,7 +587,7 @@ function ChatPage() {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md border border-gray-200 p-1">
                   <img 
-                    src={APP_CONSTANTS.UNIVERSITY.LOGO_PATH}
+                    src={fallbackAssistantAvatar}
                     alt={APP_CONSTANTS.UNIVERSITY.NAME}
                     className="w-full h-full object-contain"
                   />
@@ -577,7 +625,7 @@ function ChatPage() {
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                   message.sender === 'user' 
                     ? 'bg-gradient-to-r from-gray-500 to-gray-600' 
-                    : 'bg-white border border-gray-200 p-1'
+                    : 'bg-white border border-gray-200 overflow-hidden'
                 }`}>
                   {message.sender === 'user' ? (
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -585,9 +633,9 @@ function ChatPage() {
                     </svg>
                   ) : (
                     <img 
-                      src={APP_CONSTANTS.UNIVERSITY.LOGO_PATH}
+                      src={message.avatarSrc || assistantDisplayAvatar}
                       alt={APP_CONSTANTS.UNIVERSITY.NAME}
-                      className="w-full h-full object-contain"
+                      className="w-full h-full rounded-full object-cover"
                     />
                   )}
                 </div>
@@ -691,11 +739,11 @@ function ChatPage() {
           {isTyping && (
             <div className="flex justify-start animate-fade-in">
               <div className="flex gap-3 max-w-3xl">
-                <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center p-1">
+                <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
                   <img 
-                    src={APP_CONSTANTS.UNIVERSITY.LOGO_PATH}
+                    src={assistantDisplayAvatar}
                     alt={APP_CONSTANTS.UNIVERSITY.NAME}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full rounded-full object-cover"
                   />
                 </div>
                 <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-md">
