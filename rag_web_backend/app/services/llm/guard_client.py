@@ -1,12 +1,10 @@
 """llama-guard3:8b 安全過濾服務"""
 
-import json
 import logging
-import urllib.request
-import urllib.error
 from dataclasses import dataclass
 
 from app.config import settings
+from app.services.llm.litellm_client import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -17,33 +15,16 @@ class GuardResult:
     categories: list[str]  # 違規類別，例如 ["S9", "S2"]
 
 
-def check_query_safety(user_message: str) -> GuardResult:
+async def check_query_safety(user_message: str) -> GuardResult:
     """
     呼叫 llama-guard3:8b 檢查查詢是否安全。
-    若 Ollama 服務不可用，預設放行（fail-open）避免影響正常服務。
+    透過共用 LiteLLM Router（多端點 + 冷卻）呼叫；服務不可用時預設放行（fail-open）。
     """
-    base_url = settings.OLLAMA_BASE_URL
-    if not base_url:
+    if not settings.ollama_base_urls:
         return GuardResult(is_safe=True, categories=[])
 
-    payload = json.dumps({
-        "model": settings.GUARD_MODEL,
-        "messages": [{"role": "user", "content": user_message}],
-        "stream": False,
-        "options": {"temperature": 0, "num_predict": 20},
-    }).encode()
-
-    req = urllib.request.Request(
-        f"{base_url.rstrip('/')}/api/chat",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-            raw = data.get("message", {}).get("content", "").strip().lower()
+        raw = (await get_llm_client().check_guard(user_message)).strip().lower()
     except Exception as e:
         logger.warning(f"⚠️ Guard check failed (fail-open): {e}")
         return GuardResult(is_safe=True, categories=[])

@@ -30,17 +30,18 @@ from app.schemas.rag import (
 from app.services.rag.rag_engine import RAGEngine
 from app.services.rag.no_result_utils import is_no_result_answer
 from app.services.activity import activity_service
-from app.services.llm.litellm_client import LiteLLMClient
+from app.services.llm.litellm_client import get_llm_client
 from app.services.llm.guard_client import check_query_safety
+from app.services.llm.exceptions import LLMServiceError
 
 router = APIRouter(prefix="/rag", tags=["RAG查詢"])
 logger = logging.getLogger(__name__)
 
 
-def _guard_check(query: str) -> None:
+async def _guard_check(query: str) -> None:
     """若 GUARD_ENABLED，對查詢執行 llama-guard 安全過濾，不安全則拋出 400。"""
     if settings.GUARD_ENABLED:
-        guard = check_query_safety(query)
+        guard = await check_query_safety(query)
         if not guard.is_safe:
             raise HTTPException(status_code=400, detail="您的查詢包含不當內容，無法處理。")
 
@@ -89,7 +90,7 @@ async def query_documents(
     """
     print(f"🔐 [RAG Query] 已登入用戶: {current_user.username} (ID: {current_user.id})")
 
-    _guard_check(body.query)
+    await _guard_check(body.query)
 
     try:
         department_id = _resolve_department_id(body.scope_ids, current_user)
@@ -338,17 +339,7 @@ async def query_documents(
         )
         
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"參數錯誤: {str(e)}"
-        )
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=f"查詢處理失敗: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"參數錯誤: {str(e)}")
 
 
 @router.post("/direct-query", response_model=DirectQueryResponse)
@@ -363,7 +354,7 @@ async def direct_query(
     - 若處室有設定 external_api_key，使用該 API Key 呼叫外部模型
     - 否則使用本地 Ollama 模型直接回答
     """
-    _guard_check(request.query)
+    await _guard_check(request.query)
 
     department_id = _resolve_department_id(request.scope_ids, current_user)
 
@@ -444,7 +435,8 @@ async def _call_llm_direct(question: str, api_key: str | None) -> str:
                     raw = resp.json()["content"][0]["text"].strip()
                     return converter.convert(raw)
             except Exception as e:
-                return f"外部 API 呼叫失敗：{str(e)}"
+                logger.error(f"外部 API 呼叫失敗：{str(e)}")
+                raise LLMServiceError(f"外部 API 呼叫失敗：{str(e)}") from e
 
         elif api_key.startswith("AIza"):
             # Google Gemini（OpenAI-compatible endpoint）
@@ -553,11 +545,12 @@ async def _call_llm_direct(question: str, api_key: str | None) -> str:
                 except Exception:
                     pass
 
-            return f"外部 API 呼叫失敗：HTTP {status} - {body[:1000]}"
+            logger.error(f"外部 API 呼叫失敗：HTTP {status} - {body[:1000]}")
+            raise LLMServiceError(f"外部 API 呼叫失敗：HTTP {status}")
         except Exception as e:
-            return f"外部 API 呼叫失敗：{str(e)}"
+            logger.error(f"外部 API 呼叫失敗：{str(e)}")
+            raise LLMServiceError(f"外部 API 呼叫失敗：{str(e)}") from e
 
     else:
         # 使用本地 Ollama（透過 LiteLLM 統一介面）
-        client = LiteLLMClient()
-        return await client.generate(prompt)
+        return await get_llm_client().generate(prompt)

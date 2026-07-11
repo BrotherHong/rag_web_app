@@ -16,7 +16,7 @@ from app.services.document_processing import (
     SummaryProcessor,
     EmbeddingProcessor
 )
-from app.services.llm.litellm_client import LiteLLMClient
+from app.services.llm.litellm_client import get_llm_client
 
 
 class FileProcessingService:
@@ -24,7 +24,7 @@ class FileProcessingService:
     
     def __init__(self):
         self.converter = DocumentConverter()
-        self.litellm_client = LiteLLMClient()
+        self.litellm_client = get_llm_client()
         self.summarizer = SummaryProcessor(self.litellm_client)
         self.embedder = EmbeddingProcessor(self.litellm_client)
         self.last_temp_dir = None  # 保存最近一次的暫存目錄路徑

@@ -7,7 +7,7 @@ import json
 import numpy as np
 from pathlib import Path
 from typing import Optional, List
-from app.services.llm.litellm_client import LiteLLMClient
+from app.services.llm.litellm_client import LiteLLMClient, get_llm_client
 
 
 class EmbeddingProcessor:
@@ -24,7 +24,7 @@ class EmbeddingProcessor:
         參數:
             litellm_client: LiteLLMClient 實例（可選，如未提供則自動創建）
         """
-        self.client = litellm_client or LiteLLMClient()
+        self.client = litellm_client or get_llm_client()
     
     async def generate_embedding(self, text: str) -> Optional[List[float]]:
         """

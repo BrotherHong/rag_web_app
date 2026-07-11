@@ -28,6 +28,9 @@ docker compose restart backend
 # 重新建置（依賴/Dockerfile 修改）
 docker compose up -d --build backend
 
+# 單純改.env
+docker compose up -d backend
+
 # 查看日誌
 docker compose logs -f backend
 ```

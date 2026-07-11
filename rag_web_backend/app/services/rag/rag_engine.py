@@ -6,7 +6,7 @@ RAG引擎 - 整合檢索和生成（Web Backend版本）
 import logging
 import re
 from typing import List, Dict
-from app.services.llm.litellm_client import LiteLLMClient
+from app.services.llm.litellm_client import get_llm_client
 from app.services.llm.prompts.rag import RAG_USER_TEMPLATE, RAG_NO_RESULTS_PROMPT, build_rag_system_prompt
 from app.config import settings
 from .vector_store import VectorStore
@@ -36,8 +36,8 @@ class RAGEngine:
             max_context_docs: 用於上下文的最大文檔數
             debug_mode: 是否輸出 debug log
         """
-        # 使用 LiteLLM Client（支持多主機負載均衡）
-        self.client = LiteLLMClient()
+        # 使用共用 LiteLLM Client（多主機負載均衡 + 共享冷卻狀態）
+        self.client = get_llm_client()
         self.vector_store = VectorStore(base_path=base_path)
         self.similarity_threshold = similarity_threshold
         self.rerank_threshold = rerank_threshold

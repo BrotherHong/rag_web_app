@@ -46,9 +46,11 @@ class Settings(BaseSettings):
 
     # LiteLLM 設定
     LITELLM_ROUTING_STRATEGY: str = "simple-shuffle"
-    LITELLM_NUM_RETRIES: int = 1
+    LITELLM_NUM_RETRIES: int = 3
     LITELLM_TIMEOUT: int = 90
     LITELLM_MAX_HOSTS: int = 5
+    LITELLM_ALLOWED_FAILS: int = 1    # 端點失敗幾次後進入冷卻
+    LITELLM_COOLDOWN_TIME: int = 60   # 冷卻期間（秒），期間該端點不再被選用
 
     # 外部 LLM 設定
     OPENAI_DIRECT_MODEL: str = "gpt-5.2"

@@ -8,6 +8,7 @@ import json
 import logging
 from typing import List, Dict, Optional, Tuple
 from app.services.document_processing import EmbeddingProcessor
+from app.services.llm.exceptions import LLMServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +115,11 @@ class VectorStore:
         if allowed_filenames:
             logger.info(f"  檔案過濾: 只檢索 {len(allowed_filenames)} 個允許的檔案")
         query_embedding = await self.embedding_processor.generate_embedding(query_text)
-        
+
         if not query_embedding:
+            # 需向上拋出而非回傳空清單，否則會被誤判為「查無相關文檔」
             logger.error("查詢embedding生成失敗")
-            return []
+            raise LLMServiceError("查詢 embedding 生成失敗，推論服務可能不可用")
         
         # 載入所有 embeddings
         embeddings, documents = self.load_embeddings()

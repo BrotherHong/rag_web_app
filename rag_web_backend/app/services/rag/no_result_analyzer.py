@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.query_history import QueryHistory
-from app.services.llm.litellm_client import LiteLLMClient
+from app.services.llm.litellm_client import LiteLLMClient, get_llm_client
 from app.services.rag.no_result_utils import is_no_result_answer
 
 logger = logging.getLogger(__name__)
@@ -154,7 +154,7 @@ class NoResultQuestionAnalyzer:
             return []
 
         try:
-            client = self.embedding_client or LiteLLMClient()
+            client = self.embedding_client or get_llm_client()
             self.embedding_client = client
         except Exception as exc:
             logger.error("Embedding client initialization failed: %s", exc)
@@ -259,7 +259,7 @@ class NoResultQuestionAnalyzer:
 
     async def _refine_labels(self, items: list[dict[str, Any]]) -> None:
         try:
-            client = self.embedding_client or LiteLLMClient()
+            client = self.embedding_client or get_llm_client()
             self.embedding_client = client
         except Exception as exc:
             logger.warning("Skip label refinement: %s", exc)

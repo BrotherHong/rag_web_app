@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 from typing import Optional, List, Tuple
-from app.services.llm.litellm_client import LiteLLMClient
+from app.services.llm.litellm_client import LiteLLMClient, get_llm_client
 from app.services.llm.prompts import (
     RAG_DOCUMENT_SUMMARY,
     DOCUMENT_CLASSIFICATION,
@@ -26,7 +26,7 @@ class SummaryProcessor:
         參數:
             litellm_client: LiteLLMClient 實例
         """
-        self.client = litellm_client or LiteLLMClient()
+        self.client = litellm_client or get_llm_client()
     
     async def process_markdown_file(
         self,

@@ -2,7 +2,8 @@
 
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -10,7 +11,10 @@ from app.config import settings
 from app.core.database import init_db, close_db
 from app.core.logging_config import setup_logging
 from app.core.limiter import limiter
+from app.services.llm.exceptions import LLMServiceError
 from app.api import api_router  # 導入 API 路由
+
+logger = logging.getLogger("app")
 
 
 @asynccontextmanager
@@ -43,6 +47,16 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(LLMServiceError)
+async def llm_service_error_handler(request: Request, exc: LLMServiceError):
+    """LLM 推論服務失敗時統一回應，原始錯誤僅記於後端 log。"""
+    logger.error(f"LLM 服務失敗: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "問答服務暫時無法使用，請稍後再試。"},
+    )
 
 # 設定 CORS
 app.add_middleware(
