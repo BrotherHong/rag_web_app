@@ -585,13 +585,6 @@ function ChatPage() {
                 </svg>
               </button>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md border border-gray-200 p-1">
-                  <img 
-                    src={fallbackAssistantAvatar}
-                    alt={APP_CONSTANTS.UNIVERSITY.NAME}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
                 <div>
                   <h2 className="text-gray-800 font-semibold">{assistantName || APP_CONSTANTS.APP_NAME}</h2>
                   <p className="text-sm text-gray-500">線上服務中</p>
