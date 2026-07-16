@@ -21,6 +21,8 @@ import {
   updateAssistantSettings,
   uploadGreetingImage,
   deleteGreetingImage,
+  uploadAssistantAvatar,
+  deleteAssistantAvatar,
 } from '../services/api';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useToast } from '../contexts/ToastContext';
@@ -1724,6 +1726,10 @@ function FaqManagement() {
     assistant_style: null,
     greeting_message: null,
     greeting_image: null,
+    assistant_avatar_id: null,
+    assistant_avatar: null,
+    assistant_avatar_mode: 'fixed',
+    assistant_avatars: [],
     enable_direct_query: true,
   });
 
@@ -1739,7 +1745,9 @@ function FaqManagement() {
   const [assistantLoading, setAssistantLoading] = useState(true);
   const [assistantSaving, setAssistantSaving] = useState(false);
   const fileInputRef = useRef(null);
+  const avatarInputRef = useRef(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   // === FAQ ===
   const [faqs, setFaqs] = useState([]);
@@ -1810,6 +1818,8 @@ function FaqManagement() {
         assistant_name: assistantSettings.assistant_name?.trim() || null,
         assistant_style: assistantSettings.assistant_style?.trim() || null,
         greeting_message: assistantSettings.greeting_message?.trim() || null,
+        assistant_avatar_id: assistantSettings.assistant_avatar_id,
+        assistant_avatar_mode: assistantSettings.assistant_avatar_mode,
         enable_direct_query: assistantSettings.enable_direct_query,
       });
       if (response.success) {
@@ -1861,6 +1871,47 @@ function FaqManagement() {
       if (response.success) {
         setAssistantSettings(prev => ({ ...prev, greeting_image: null }));
         toast.success('圖片已刪除');
+      } else {
+        toast.error(response.message);
+      }
+    } catch (error) {
+      toast.error('刪除失敗');
+    }
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('頭貼大小不可超過 5MB');
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const response = await uploadAssistantAvatar(file);
+      if (response.success) {
+        setAssistantSettings(prev => ({ ...prev, ...response.data }));
+        toast.success('頭貼上傳成功');
+      } else {
+        toast.error(response.message);
+      }
+    } catch (error) {
+      toast.error('上傳失敗');
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  const handleAvatarDelete = async (avatarId) => {
+    try {
+      const response = await deleteAssistantAvatar(avatarId);
+      if (response.success) {
+        setAssistantSettings(prev => ({ ...prev, ...response.data }));
+        toast.success('頭貼已刪除');
       } else {
         toast.error(response.message);
       }
@@ -2186,6 +2237,127 @@ function FaqManagement() {
                   type="file"
                   accept="image/jpeg,image/png,image/gif,image/webp"
                   onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
+
+              {/* 頭貼設定 */}
+              <div className="bg-white border border-gray-200 rounded-lg p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">頭貼設定</label>
+                    <p className="text-xs text-gray-500 mt-1">設定聊天對話中 AI 回覆的大頭貼（支援 JPG、PNG、GIF、WebP，最大 5MB）</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAssistantSettings(prev => ({ ...prev, assistant_avatar_mode: 'fixed' }))}
+                      className={`px-3 py-1.5 text-sm border rounded-lg transition-colors cursor-pointer ${
+                        assistantSettings.assistant_avatar_mode === 'fixed'
+                          ? 'border-red-200 bg-red-50 text-red-700'
+                          : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      固定頭貼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssistantSettings(prev => ({ ...prev, assistant_avatar_mode: 'random' }))}
+                      disabled={(assistantSettings.assistant_avatars || []).length === 0}
+                      className={`px-3 py-1.5 text-sm border rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                        assistantSettings.assistant_avatar_mode === 'random'
+                          ? 'border-red-200 bg-red-50 text-red-700'
+                          : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      隨機頭貼
+                    </button>
+                  </div>
+                </div>
+
+                {(assistantSettings.assistant_avatars || []).length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+                    {(assistantSettings.assistant_avatars || []).map((avatar) => {
+                      const isSelected = assistantSettings.assistant_avatar_id === avatar.id;
+                      return (
+                        <div
+                          key={avatar.id}
+                          className="relative aspect-square"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setAssistantSettings(prev => ({
+                              ...prev,
+                              assistant_avatar_id: avatar.id,
+                              assistant_avatar: avatar.url,
+                              assistant_avatar_mode: 'fixed',
+                            }))}
+                            className={`w-full h-full rounded-lg border-2 bg-gray-50 p-2 transition-all cursor-pointer ${
+                              isSelected && assistantSettings.assistant_avatar_mode === 'fixed'
+                                ? 'border-red-500 ring-2 ring-red-100'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            title="選擇頭貼"
+                          >
+                            <img
+                              src={avatar.url}
+                              alt="助手頭貼"
+                              className="w-full h-full object-contain rounded-md"
+                            />
+                          </button>
+                          {isSelected && assistantSettings.assistant_avatar_mode === 'fixed' && (
+                            <span className="absolute left-1.5 top-1.5 px-1.5 py-0.5 text-[11px] text-white bg-red-600 rounded pointer-events-none">
+                              使用中
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAvatarDelete(avatar.id);
+                            }}
+                            className="absolute right-1.5 top-1.5 w-6 h-6 rounded-full bg-white/90 text-red-600 border border-red-200 flex items-center justify-center hover:bg-red-50"
+                            title="刪除頭貼"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mb-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                    尚未上傳頭貼，聊天畫面會先使用成功大學校徽
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 text-gray-600 cursor-pointer disabled:opacity-50"
+                >
+                  {avatarUploading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm">上傳中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="text-sm">上傳頭貼</span>
+                    </>
+                  )}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={handleAvatarUpload}
                   className="hidden"
                 />
               </div>

@@ -31,8 +31,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      # 開發環境可開放端口，生產環境建議註解掉
-      - "${POSTGRES_PORT:-5432}:5432"
+      # 僅綁定 localhost，避免正式環境將 PostgreSQL 直接暴露到公網
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
@@ -63,7 +63,7 @@ services:
       
       # 應用設定
       APP_NAME: ${APP_NAME:-RAG Knowledge Base}
-      DEBUG: ${DEBUG:-False}
+      DEBUG: ${APP_DEBUG:-False}
       API_V1_PREFIX: ${API_V1_PREFIX:-/api}
       
       # Uvicorn 服務器設定
@@ -75,7 +75,7 @@ services:
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
       
       # 資料庫連線
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD_URLENCODED:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       POSTGRES_DB: ${POSTGRES_DB:-rag_db}
@@ -182,12 +182,12 @@ services:
       TZ: Asia/Taipei
 
       APP_NAME: ${APP_NAME:-RAG Knowledge Base}
-      DEBUG: ${DEBUG:-False}
+      DEBUG: ${APP_DEBUG:-False}
       API_V1_PREFIX: ${API_V1_PREFIX:-/api}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD_URLENCODED:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       POSTGRES_DB: ${POSTGRES_DB:-rag_db}
@@ -220,6 +220,13 @@ services:
     networks:
       - rag_network
 
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_app.celery_app inspect ping --timeout=5 | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   # ============================================================================
   # Flower - Celery 監控
   # ============================================================================
@@ -243,17 +250,25 @@ services:
       - flower
       - --port=5555
     environment:
+      DEBUG: ${APP_DEBUG:-False}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD_URLENCODED:-postgres123}@postgres:5432/${POSTGRES_DB:-rag_db}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
     ports:
-      - "${FLOWER_PORT:-5555}:5555"
+      - "127.0.0.1:${FLOWER_PORT:-5555}:5555"
     volumes:
       - ./rag_web_backend/app:/app/app
     networks:
       - rag_network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ============================================================================
   # Reranker Server - 獨立 GPU 推論服務

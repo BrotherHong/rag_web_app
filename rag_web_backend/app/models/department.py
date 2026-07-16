@@ -86,6 +86,19 @@ class Department(Base, TimestampMixin):
         comment="問候語圖片路徑"
     )
 
+    assistant_avatar: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="固定助手頭貼路徑"
+    )
+
+    assistant_avatar_mode: Mapped[str] = mapped_column(
+        String(20),
+        default="fixed",
+        nullable=False,
+        comment="助手頭貼模式（fixed/random）"
+    )
+
     assistant_style: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,

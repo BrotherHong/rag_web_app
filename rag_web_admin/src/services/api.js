@@ -50,6 +50,8 @@ export {
   updateAssistantSettings,
   uploadGreetingImage,
   deleteGreetingImage,
+  uploadAssistantAvatar,
+  deleteAssistantAvatar,
 } from './api/departments.js';
 
 // 導入 FAQ 管理模組
