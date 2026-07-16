@@ -13,6 +13,30 @@ function PortalCallbackPage() {
     const token = searchParams.get('token');
     const from = searchParams.get('from') || '/';
 
+    // 若本頁是由「成功入口登入」開啟的彈出視窗，把結果回傳給原視窗後自動關閉，
+    // 由原視窗負責儲存 token 與導頁。opener 不存在時（例如原視窗已關閉）
+    // 則退回原本的整頁導向流程，登入仍可完成。
+    const inPopup = typeof window !== 'undefined' && window.opener && window.opener !== window;
+    if (inPopup) {
+      try {
+        if (token) {
+          window.opener.postMessage(
+            { source: 'portal-login', status: 'success', token },
+            window.location.origin
+          );
+        } else {
+          window.opener.postMessage(
+            { source: 'portal-login', status: 'error', message: '成功入口登入失敗：未收到 token' },
+            window.location.origin
+          );
+        }
+      } catch {
+        // 忽略跨視窗傳遞失敗，交由原視窗的逾時/關閉偵測處理
+      }
+      window.close();
+      return;
+    }
+
     if (!token) {
       setError('成功入口登入失敗：未收到 token');
       return;
