@@ -50,7 +50,7 @@ RAG_USER_TEMPLATE = """{context}
 
 # Citation instruction variants
 CITATION_ENABLED = "- 在段落末尾標注來源（文檔X），不必每句都加\n"
-CITATION_DISABLED = ""
+CITATION_DISABLED = "- 直接陳述內容，不要提及參考資料的檔案名稱\n"
 
 DEFAULT_ASSISTANT_NAME = "文檔查詢助手"
 DEFAULT_STYLE = "親切、活潑、口語化，語氣輕鬆有溫度，用自然段落回答，像在跟同事聊天解釋，避免過多條列"

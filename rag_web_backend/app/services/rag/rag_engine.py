@@ -138,7 +138,7 @@ class RAGEngine:
         deduplicated_docs = self._deduplicate_docs_by_file(top_docs)
         
         # 3. 生成詳細回答
-        context = self._build_context(deduplicated_docs)
+        context = self._build_context(deduplicated_docs, include_citations=include_citations)
         system_prompt = build_rag_system_prompt(
             assistant_name=assistant_name,
             assistant_style=assistant_style,
@@ -205,8 +205,13 @@ class RAGEngine:
         
         return result
     
-    def _build_context(self, deduplicated_docs):
-        """建立上下文字串（合併相同檔案的所有 chunks）"""
+    def _build_context(self, deduplicated_docs, include_citations: bool = True):
+        """建立上下文字串（合併相同檔案的所有 chunks）
+
+        include_citations=True：標注「文檔N（檔名）」，供回答引用來源。
+        include_citations=False：改用不帶編號、不帶檔名的中性標籤，避免模型模仿
+        輸出（文檔N）或洩漏檔名（Google／成功入口用戶）；來源連結仍保留。
+        """
         context_parts = []
         for i, doc_group in enumerate(deduplicated_docs, 1):
             document = doc_group['document']
@@ -233,9 +238,14 @@ class RAGEngine:
             # 合併所有 chunks 的內容
             full_content = "\n\n".join(combined_content) if combined_content else ""
             link_text = f"\n來源連結：{source_link}" if source_link else ""
-            context_parts.append(f"文檔{i}（{original_filename}）：{link_text}\n{full_content}\n")
-        
-        return "\n".join(context_parts)
+            if include_citations:
+                header = f"文檔{i}（{original_filename}）："
+            else:
+                header = "參考內容："
+            context_parts.append(f"{header}{link_text}\n{full_content}\n")
+
+        separator = "\n" if include_citations else "\n---\n"
+        return separator.join(context_parts)
     
     def get_system_stats(self) -> Dict:
         """

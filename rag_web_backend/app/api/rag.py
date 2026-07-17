@@ -46,6 +46,12 @@ async def _guard_check(query: str) -> None:
             raise HTTPException(status_code=400, detail="您的查詢包含不當內容，無法處理。")
 
 
+def _strip_citations(text: str) -> str:
+    """移除答案中殘留的（文檔N）來源標記，供不顯示來源的用戶使用（最後防線）。"""
+    text = re.sub(r'[（(]\s*文檔\s*\d+(?:\s*[、,，]\s*文檔\s*\d+)*\s*[）)]', '', text)
+    return re.sub(r'[ \t]+([，。、！？」])', r'\1', text).strip()
+
+
 def _resolve_department_id(
     scope_ids: list[int] | None,
     current_user: QueryUser,
@@ -256,6 +262,10 @@ async def query_documents(
             f"✅ RAG查詢完成 | 問題: {body.query[:50]}... | 處理時間: {processing_time:.2f}秒 | 檢索文檔數: {result.get('retrieved_docs', 0)}"
         )
         
+        # 不顯示來源的用戶：清除模型可能殘留的（文檔N）標記
+        if not show_source:
+            result['answer'] = _strip_citations(result['answer'])
+
         # 解析 answer 中實際被引用的文檔編號
         answer_text = result['answer']
         all_sources = result['sources']
