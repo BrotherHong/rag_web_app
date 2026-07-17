@@ -93,6 +93,7 @@ class DepartmentBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="處室名稱")
     slug: str = Field(..., min_length=1, max_length=50, description="URL 友善識別碼")
     description: Optional[str] = Field(None, description="處室描述")
+    contact_phone: Optional[str] = Field(None, max_length=50, description="查詢首頁顯示電話")
     color: str = Field(default="#3B82F6", description="處室主題顏色 (hex格式)")
 
 
@@ -101,6 +102,7 @@ class DepartmentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="處室名稱")
     slug: str = Field(..., min_length=1, max_length=50, description="URL 友善識別碼 (例: hr, acc, it)")
     description: Optional[str] = Field(None, description="處室描述")
+    contact_phone: Optional[str] = Field(None, max_length=50, description="查詢首頁顯示電話")
     color: str = Field(default="#3B82F6", description="處室主題顏色 (hex格式)")
     external_api_key: Optional[str] = Field(None, max_length=500, description="外部 LLM API Key（選填）")
     login_methods: list[str] = Field(
@@ -113,6 +115,7 @@ class DepartmentUpdate(BaseModel):
     """更新處室請求"""
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="處室名稱")
     description: Optional[str] = Field(None, description="處室描述")
+    contact_phone: Optional[str] = Field(None, max_length=50, description="查詢首頁顯示電話")
     color: Optional[str] = Field(None, description="處室主題顏色")
     external_api_key: Optional[str] = Field(None, max_length=500, description="外部 LLM API Key（選填，傳 null 可清除）")
     login_methods: Optional[list[str]] = Field(None, description="登入方式（normal, success_portal, google）")

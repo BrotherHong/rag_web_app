@@ -49,6 +49,7 @@ export const getDepartments = async () => {
         userCount: dept.user_count || 0,
         fileCount: dept.file_count || 0,
         createdAt: dept.created_at,
+        contactPhone: dept.contact_phone || '',
         loginMethods: dept.login_methods || ['normal', 'success_portal']
       }));
       return {
@@ -138,6 +139,7 @@ export const addDepartment = async (departmentData) => {
           id: data.id,
           name: data.name,
           description: data.description,
+          contact_phone: data.contact_phone,
           color: data.color,
           loginMethods: data.login_methods || ['normal', 'success_portal'],
           userCount: 0,

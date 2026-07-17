@@ -422,7 +422,20 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
     return file.adminGroupId === user.adminGroupId;
   };
 
-
+  const statCards = [
+    {
+      id: 'all',
+      name: '總檔案數',
+      count: realTotalFiles,
+      color: 'var(--ncku-red)'
+    },
+    ...categories.map(category => ({
+      id: category.id,
+      name: category.name,
+      count: getCategoryCount(category.name),
+      color: category.color || '#6B7280'
+    }))
+  ];
 
   return (
     <div className="w-full min-w-0">
@@ -434,27 +447,22 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
         <p className="text-sm sm:text-base text-gray-600">管理人事室 AI 客服的知識庫檔案</p>
       </div>
 
-      {/* 統計卡片：響應式排列（mobile→1, sm→2, lg→3, xl→4） */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-5 border-l-4 flex flex-col justify-between" 
-             style={{ borderColor: 'var(--ncku-red)' }}>
-          <p className="text-gray-600 text-xs sm:text-sm">總檔案數</p>
-          <p className="text-lg sm:text-2xl lg:text-3xl font-bold mt-1 sm:mt-2">
-            {realTotalFiles}
-          </p>
+      {/* 統計卡片：固定顯示約 8 張卡片高度，超過可垂直捲動 */}
+      <div className="max-h-[27rem] sm:max-h-[13.5rem] overflow-y-auto pr-1 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {statCards.map(card => (
+            <div
+              key={card.id}
+              className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-5 border-l-4 flex flex-col justify-between"
+              style={{ borderColor: card.color }}
+            >
+              <p className="text-gray-600 text-xs sm:text-sm truncate" title={card.name}>{card.name}</p>
+              <p className="text-lg sm:text-2xl lg:text-3xl font-bold mt-1 sm:mt-2">
+                {card.count}
+              </p>
+            </div>
+          ))}
         </div>
-        {categories.slice(0, 7).map(category => (
-          <div 
-            key={category.id} 
-            className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-5 border-l-4 flex flex-col justify-between"
-            style={{ borderColor: category.color || '#6B7280' }}
-          >
-            <p className="text-gray-600 text-xs sm:text-sm">{category.name}</p>
-            <p className="text-lg sm:text-2xl lg:text-3xl font-bold mt-1 sm:mt-2">
-              {getCategoryCount(category.name)}
-            </p>
-          </div>
-        ))}
       </div>
 
       {/* 操作欄 */}
@@ -505,37 +513,39 @@ function KnowledgeBase({ initialSearch, onSearchConsumed }) {
           </div>
         </div>
 
-        {/* 第二排：分類篩選 pills */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => handleCategoryChange('all')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer ${
-              selectedCategory === 'all'
-                ? 'text-white shadow-sm'
-                : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
-            }`}
-            style={selectedCategory === 'all' ? { backgroundColor: 'var(--ncku-red)' } : {}}
-          >
-            全部
-          </button>
-          {categories.map(category => (
+        {/* 第二排：分類篩選 pills，超過約 8 個時可在小視窗內垂直捲動 */}
+        <div className="max-h-24 overflow-y-auto pr-1">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-              key={category.id}
-              onClick={() => handleCategoryChange(category.id)}
+              onClick={() => handleCategoryChange('all')}
               className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer ${
-                selectedCategory === category.id
+                selectedCategory === 'all'
                   ? 'text-white shadow-sm'
                   : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
               }`}
-              style={
-                selectedCategory === category.id
-                  ? { backgroundColor: category.color || 'var(--ncku-red)' }
-                  : {}
-              }
+              style={selectedCategory === 'all' ? { backgroundColor: 'var(--ncku-red)' } : {}}
             >
-              {category.name}
+              全部
             </button>
-          ))}
+            {categories.map(category => (
+              <button
+                key={category.id}
+                onClick={() => handleCategoryChange(category.id)}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all cursor-pointer ${
+                  selectedCategory === category.id
+                    ? 'text-white shadow-sm'
+                    : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                }`}
+                style={
+                  selectedCategory === category.id
+                    ? { backgroundColor: category.color || 'var(--ncku-red)' }
+                    : {}
+                }
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

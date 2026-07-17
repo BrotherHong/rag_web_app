@@ -23,7 +23,7 @@ export const APP_CONSTANTS = {
   // 成功大學資訊
   UNIVERSITY: {
     NAME: '國立成功大學',
-    LOGO_PATH: `${import.meta.env.BASE_URL}images/ncku_logo.png`,
+    LOGO_PATH: `${import.meta.env.BASE_URL}images/supai.png`,
   },
 }
 

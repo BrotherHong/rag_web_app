@@ -44,6 +44,7 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
     name: '',
     slug: '',
     description: '',
+    contact_phone: '',
     color: '#3B82F6', // 預設藍色
     external_api_key: '',
     login_methods: ['normal', 'success_portal']
@@ -80,6 +81,7 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       name: dept.name,
       slug: dept.slug,
       description: dept.description || '',
+      contact_phone: dept.contact_phone || dept.contactPhone || '',
       color: dept.color,
       external_api_key: '', // 編輯時不顯示已儲存的 key，只顯示是否已設定
       login_methods: dept.login_methods || ['normal', 'success_portal']
@@ -93,6 +95,7 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
       name: '',
       slug: '',
       description: '',
+      contact_phone: '',
       color: '#3B82F6', // 預設藍色
       external_api_key: '',
       login_methods: ['normal', 'success_portal']
@@ -543,6 +546,23 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  首頁聯絡電話
+                </label>
+                <input
+                  type="tel"
+                  name="department_contact_phone"
+                  autoComplete="tel-national"
+                  value={formData.contact_phone}
+                  onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  placeholder="例如：(06) 275-7575"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  會顯示在查詢首頁處室名稱旁邊
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   主題顏色
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -566,6 +586,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                 </label>
                 <input
                   type="password"
+                  name="external_model_api_key"
+                  autoComplete="new-password"
                   value={formData.external_api_key}
                   onChange={(e) => setFormData({...formData, external_api_key: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono text-sm"
@@ -679,6 +701,23 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  首頁聯絡電話
+                </label>
+                <input
+                  type="tel"
+                  name="department_contact_phone_edit"
+                  autoComplete="tel-national"
+                  value={formData.contact_phone}
+                  onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  placeholder="例如：(06) 275-7575"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  會顯示在查詢首頁處室名稱旁邊
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   主題顏色
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -705,6 +744,8 @@ function DepartmentManagement({ departments, onRefresh, isLoading }) {
                 )}
                 <input
                   type="password"
+                  name="external_model_api_key_edit"
+                  autoComplete="new-password"
                   value={formData.external_api_key}
                   onChange={(e) => setFormData({...formData, external_api_key: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono text-sm"

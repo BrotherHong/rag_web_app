@@ -60,7 +60,11 @@ export const DepartmentProvider = ({ children, deptSlug }) => {
           const enrichedDept = {
             ...response.data,
             fullName: response.data.fullName || `國立成功大學${response.data.name}`,
-            contact: response.data.contact || getDefaultContact(deptSlug)
+            contact: {
+              ...getDefaultContact(deptSlug),
+              ...(response.data.contact || {}),
+              phone: response.data.contact_phone || response.data.contact?.phone || getDefaultContact(deptSlug).phone
+            }
           }
           
           setDepartment(enrichedDept)

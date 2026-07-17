@@ -46,6 +46,12 @@ class Department(Base, TimestampMixin):
         nullable=True,
         comment="處室描述"
     )
+
+    contact_phone: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="查詢首頁顯示電話"
+    )
     
     color: Mapped[str] = mapped_column(
         String(20),
