@@ -837,9 +837,6 @@ const UploadFiles = ({ onNavigateToKnowledgeBase }) => {
                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="mb-2">
                     <span className="text-sm font-medium text-gray-700">可訪問的身分組：</span>
-                    <span className="text-xs text-gray-500 ml-2">
-                      （不選擇任何組別代表所有人都可以訪問）
-                    </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                     {userGroups.map(group => (
