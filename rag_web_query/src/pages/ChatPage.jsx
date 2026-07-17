@@ -105,20 +105,39 @@ function ChatPage() {
     }
   }
 
-  const TRAILING_URL_PUNCTUATION = /[),.;!?\]}>，。；：、）】》」』]+$/
+  // ')' 不列入：改由 splitUrlSuffix 的括號配對判斷，避免誤砍 /wiki/Foo_(bar) 這類合法網址
+  const TRAILING_URL_PUNCTUATION = /[.,;!?\]}>，。；：、）】》」』]+$/
   const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\s*\((https?:\/\/[^\s)）]+)[)）]/gi
-  const PLAIN_URL_REGEX = /(https?:\/\/[^\s<，。；：、（）「」『』《》【】]+|www\.[^\s<，。；：、（）「」『』《》【】]+)/gi
+  // 只允許 RFC 3986 合法字元（另收 MarkItDown 的 \_ 跳脫），中文等字元會自然中斷比對
+  const PLAIN_URL_REGEX = /(?:https?:\/\/|www\.)(?:[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]|\\_)+/gi
 
   const splitUrlSuffix = (value) => {
-    const trailing = value.match(TRAILING_URL_PUNCTUATION)?.[0] || ''
-    if (!trailing) {
-      return { urlText: value, suffix: '' }
+    // 由左往右掃到第一個未配對的 ')' 即視為網址結尾
+    let depth = 0
+    let end = value.length
+    for (let i = 0; i < value.length; i++) {
+      const char = value[i]
+      if (char === '(') {
+        depth += 1
+      } else if (char === ')') {
+        if (depth === 0) {
+          end = i
+          break
+        }
+        depth -= 1
+      }
     }
 
-    return {
-      urlText: value.slice(0, -trailing.length),
-      suffix: trailing
+    let urlText = value.slice(0, end)
+    const trailing = urlText.match(TRAILING_URL_PUNCTUATION)?.[0] || ''
+    if (trailing) {
+      urlText = urlText.slice(0, -trailing.length)
     }
+    while (urlText.endsWith('(')) {
+      urlText = urlText.slice(0, -1)
+    }
+
+    return { urlText, suffix: value.slice(urlText.length) }
   }
 
 
