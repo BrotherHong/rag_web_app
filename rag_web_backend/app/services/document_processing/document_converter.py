@@ -116,7 +116,7 @@ class DocumentConverter:
                 command,
                 capture_output=True,
                 text=True,
-                timeout=600  # 增加超時時間到 10 分鐘
+                timeout=900  # 逾時上限 15 分鐘（避免同時處理兩個大檔時誤判超時）
             )
             
             if result.returncode == 0:
@@ -179,7 +179,7 @@ class DocumentConverter:
             print(f"💡 安裝方式: pip install mineru")
             return False
         except subprocess.TimeoutExpired as e:
-            print(f"❌ mineru 處理超時（超過 10 分鐘）")
+            print(f"❌ mineru 處理超時（超過 15 分鐘）")
             return False
     
     def _find_mineru_output(

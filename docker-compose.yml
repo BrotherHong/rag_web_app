@@ -142,7 +142,10 @@ services:
       - ./rag_web_backend/alembic.ini:/app/alembic.ini
       - ./rag_web_backend/tests:/app/tests
       - ./rag_web_backend/pyproject.toml:/app/pyproject.toml
-    
+
+      # MinerU 模型快取持久化（Named Volume）：避免每次 rebuild 後重新下載模型
+      - mineru_hf_cache:/root/.cache/huggingface
+
     networks:
       - rag_network
     
@@ -216,6 +219,9 @@ services:
       - ./rag_web_backend/alembic:/app/alembic
       - ./rag_web_backend/scripts:/app/scripts
       - ./rag_web_backend/alembic.ini:/app/alembic.ini
+
+      # MinerU 模型快取持久化（與 backend 共用同一 Named Volume）
+      - mineru_hf_cache:/root/.cache/huggingface
 
     networks:
       - rag_network
@@ -356,6 +362,9 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  # MinerU（HuggingFace）模型快取，backend 與 celery_worker 共用
+  mineru_hf_cache:
     driver: local
 
 # ==============================================================================
