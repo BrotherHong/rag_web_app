@@ -157,6 +157,17 @@ class DocumentConverter:
                 except Exception:
                     pass
 
+                # 以 PDF 文字層校正 OCR 弄壞的網址（失敗不影響轉檔）
+                try:
+                    from .url_correction import correct_urls
+                    content = output_file.read_text(encoding="utf-8")
+                    fixed = correct_urls(content, pdf_file)
+                    if fixed != content:
+                        output_file.write_text(fixed, encoding="utf-8")
+                        print("✅ 已校正 OCR 網址")
+                except Exception as e:
+                    print(f"⚠️ URL 校正跳過：{e}")
+
                 print("✅ mineru 轉換成功")
                 return True
             else:
